@@ -1,0 +1,236 @@
+{
+    "_default": {
+        "1": {
+            "mal_id": 59730,
+            "slug": "a-rank-party-wo-ridatsu-shita-ore-wa-moto-oshiego-tachi-to-meikyuu-shinbu-wo-mezasu"
+        },
+        "2": {
+            "mal_id": 57719,
+            "slug": "akuyaku-reijou-tensei-ojisan"
+        },
+        "3": {
+            "mal_id": 58600,
+            "slug": "ameku-takao-no-suiri-karte"
+        },
+        "4": {
+            "mal_id": 59226,
+            "slug": "ao-no-exorcist-yosuga-hen"
+        },
+        "5": {
+            "mal_id": 59561,
+            "slug": "around-40-otoko-no-isekai-tsuuhan"
+        },
+        "6": {
+            "mal_id": 58265,
+            "slug": "babanbabanban-vampire"
+        },
+        "7": {
+            "mal_id": 58437,
+            "slug": "botsuraku-yotei-no-kizoku-dakedo-hima-datta-kara-mahou-wo-kiwametemita"
+        },
+        "8": {
+            "mal_id": 54144,
+            "slug": "cardfight-vanguard-d-series-season-8"
+        },
+        "9": {
+            "mal_id": 59135,
+            "slug": "class-no-daikirai-na-joshi-to-kekkon-suru-koto-ni-natta"
+        },
+        "10": {
+            "mal_id": 58259,
+            "slug": "douse-koishite-shimaunda"
+        },
+        "11": {
+            "mal_id": 59144,
+            "slug": "fuguushoku-kanteishi-ga-jitsu-wa-saikyou-datta"
+        },
+        "12": {
+            "mal_id": 51119,
+            "slug": "grisaia-phantom-trigger"
+        },
+        "13": {
+            "mal_id": 55997,
+            "slug": "guild-no-uketsukejou-desu-ga-zangyou-wa-iya-nanode-boss-wo-solo-toubatsu-shiyou-to-omoimasu"
+        },
+        "14": {
+            "mal_id": 59055,
+            "slug": "hana-wa-saku-shura-no-gotoku"
+        },
+        "15": {
+            "mal_id": 59002,
+            "slug": "hazure-skill-kinomi-master-skill-no-mi-tabetara-shinu-wo-mugen-ni-taberareru-you-ni-natta-ken-ni-tsuite"
+        },
+        "16": {
+            "mal_id": 58271,
+            "slug": "honey-lemon-soda"
+        },
+        "17": {
+            "mal_id": 58484,
+            "slug": "ishura-2nd-season"
+        },
+        "18": {
+            "mal_id": 58822,
+            "slug": "izure-saikyou-no-renkinjutsushi"
+        },
+        "19": {
+            "mal_id": 53924,
+            "slug": "jibaku-shounen-hanako-kun-2"
+        },
+        "20": {
+            "mal_id": 57616,
+            "slug": "kimi-no-koto-ga-daidaidaidaidaisuki-na-100-nin-no-kanojo-2nd-season"
+        },
+        "21": {
+            "mal_id": 57050,
+            "slug": "kisaki-kyouiku-kara-nigetai-watashi"
+        },
+        "22": {
+            "mal_id": 59361,
+            "slug": "kono-kaisha-ni-suki-na-hito-ga-imasu"
+        },
+        "23": {
+            "mal_id": 58853,
+            "slug": "kuroiwa-medaka-ni-watashi-no-kawaii-ga-tsuujinai"
+        },
+        "24": {
+            "mal_id": 58514,
+            "slug": "kusuriya-no-hitorigoto-2nd-season"
+        },
+        "25": {
+            "mal_id": 59265,
+            "slug": "magic-maker-isekai-mahou-no-tsukurikata"
+        },
+        "26": {
+            "mal_id": 57152,
+            "slug": "mahoutsukai-no-yakusoku"
+        },
+        "27": {
+            "mal_id": 55318,
+            "slug": "medalist"
+        },
+        "28": {
+            "mal_id": 58739,
+            "slug": "momentary-lily"
+        },
+        "29": {
+            "mal_id": 58082,
+            "slug": "neet-kunoichi-to-nazeka-dousei-hajimemashita"
+        },
+        "30": {
+            "mal_id": 57648,
+            "slug": "nihon-e-youkoso-elf-san"
+        },
+        "31": {
+            "mal_id": 55842,
+            "slug": "okinawa-de-suki-ni-natta-ko-ga-hougen-sugite-tsurasugiru"
+        },
+        "32": {
+            "mal_id": 58567,
+            "slug": "ore-dake-level-up-na-ken-season-2-arise-from-the-shadow"
+        },
+        "33": {
+            "mal_id": 58473,
+            "slug": "s-rank-monster-no-behemoth-dakedo-neko-to-machigawarete-elf-musume-no-pet-toshite-kurashitemasu"
+        },
+        "34": {
+            "mal_id": 58939,
+            "slug": "sakamoto-days"
+        },
+        "35": {
+            "mal_id": 59349,
+            "slug": "salaryman-ga-isekai-ni-ittara-shitennou-ni-natta-hanashi"
+        },
+        "36": {
+            "mal_id": 59514,
+            "slug": "sentai-red-isekai-de-boukensha-ni-naru"
+        },
+        "37": {
+            "mal_id": 58066,
+            "slug": "sorairo-utility-tv"
+        },
+        "38": {
+            "mal_id": 59136,
+            "slug": "tasokare-hotel"
+        },
+        "39": {
+            "mal_id": 58216,
+            "slug": "nbel-blatt"
+        },
+        "40": {
+            "mal_id": 59142,
+            "slug": "unnamed-memory-act2"
+        },
+        "41": {
+            "mal_id": 56701,
+            "slug": "watashi-no-shiawase-na-kekkon-2nd-season"
+        },
+        "42": {
+            "mal_id": 58502,
+            "slug": "zenshuu"
+        },
+        "43": {
+            "mal_id": 54865,
+            "slug": "blue-lock-2nd-season"
+        },
+        "44": {
+            "mal_id": 52995,
+            "slug": "arifureta-shokugyou-de-sekai-saikyou-3rd-season"
+        },
+        "45": {
+            "mal_id": 48896,
+            "slug": "overlord-movie-3-sei-oukoku-hen"
+        },
+        "46": {
+            "mal_id": 56784,
+            "slug": "bleach-sennen-kessen-hen-soukoku-tan"
+        },
+        "47": {
+            "mal_id": 58714,
+            "slug": "saikyou-no-shienshoku-wajutsushi-de-aru-ore-wa-sekai-saikyou-clan-wo-shitagaeru"
+        },
+        "48": {
+            "mal_id": 54857,
+            "slug": "rezero-kara-hajimeru-isekai-seikatsu-3rd-season"
+        },
+        "49": {
+            "mal_id": 58445,
+            "slug": "sayounara-ryuusei-konnichiwa-jinsei"
+        },
+        "50": {
+            "mal_id": 57891,
+            "slug": "hitoribocchi-no-isekai-kouryaku"
+        },
+        "51": {
+            "mal_id": 57944,
+            "slug": "party-kara-tsuihou-sareta-sono-chiyushi-jitsu-wa-saikyou-ni-tsuki"
+        },
+        "52": {
+            "mal_id": 55071,
+            "slug": "amagami-san-chi-no-enmusubi"
+        },
+        "53": {
+            "mal_id": 52347,
+            "slug": "shangri-la-frontier-kusoge-hunter-kamige-ni-idoman-to-su"
+        },
+        "54": {
+            "mal_id": 56647,
+            "slug": "ao-no-miburo"
+        },
+        "55": {
+            "mal_id": 54744,
+            "slug": "tokidoki-bosotto-russia-go-de-dereru-tonari-no-alya-san"
+        },
+        "56": {
+            "mal_id": 58572,
+            "slug": "shangri-la-frontier-kusoge-hunter-kamige-ni-idoman-to-su-2nd-season"
+        },
+        "57": {
+            "mal_id": 9919,
+            "slug": "ao-no-exorcist"
+        },
+        "58": {
+            "mal_id": 59226,
+            "slug": "ao-no-exorcist-yosuga-hen"
+        }
+    }
+}
