@@ -1,9 +1,8 @@
 import requests
 
-from urllib.parse import urlencode
+from urllib.parse import urlencode, quote
 
 BASE_URL = "https://api.docchi.pl/v1"
-SITE_URL = "https://docchi.pl/api"
 TIMEOUT = 30
 
 
@@ -98,11 +97,7 @@ class DocchiAPI:
         if name is None:
             raise Exception("A valid search string Must Be Provided")
 
-        url = f'{SITE_URL}/search/search'
-        query_params = DocchiAPI.__to_query_string({'string': name})
-        if query_params:
-            url += f'?{query_params}'
-        url += f'?{query_params}'
+        url = f'{BASE_URL}/series/related/{quote(name)}'
 
         resp = requests.get(url=url, timeout=TIMEOUT)
         resp.raise_for_status()
