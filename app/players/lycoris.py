@@ -38,7 +38,7 @@ def decode_video_links(encoded_url):
 
 async def fetch_and_decode(session: aiohttp.ClientSession, episode_id: str):
     try:
-        async with session.get(GET_SECONDARY_URL, params={"id": episode_id}, header=headers) as response:
+        async with session.get(GET_SECONDARY_URL, params={"id": episode_id}, headers=headers) as response:
             response.raise_for_status()
             data = await response.text()
             decoded_url = decode_video_links(data)
@@ -69,7 +69,7 @@ def get_highest_quality(video_links):
 async def get_video_from_lycoris_player(url: str):
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, header=headers) as response:
+            async with session.get(url, headers=headers) as response:
                 response.raise_for_status()
                 html = await response.text()
 
