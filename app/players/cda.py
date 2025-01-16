@@ -1,8 +1,15 @@
+import logging
+
 import aiohttp
 import json
 import urllib.parse
 from bs4 import BeautifulSoup
 from app.routes.utils import get_random_agent
+
+
+async def on_request_end(session, trace_config_ctx, params):
+    logging.warning("Ending %s request for %s. I sent: %s" % (params.method, params.url, params.headers))
+    logging.warning('Sent headers: %s' % params.response.request_info.headers)
 
 
 def decrypt_url(url: str) -> str:  # for future (?)
@@ -54,7 +61,9 @@ async def fetch_video_data(session: aiohttp.ClientSession, url: str) -> dict:
 
 async def get_video_from_cda_player(url: str) -> tuple:
     """Get the highest quality video URL from CDA.pl."""
-    async with aiohttp.ClientSession() as session:
+    trace_config = aiohttp.TraceConfig()
+    trace_config.on_request_end.append(on_request_end)
+    async with aiohttp.ClientSession(trace_configs=[trace_config]) as session:
         video_data = await fetch_video_data(session, url)
         if not video_data:
             raise ValueError("Nie można pobrać danych wideo.")
