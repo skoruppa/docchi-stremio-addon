@@ -1,5 +1,5 @@
 from functools import lru_cache
-
+from urllib.parse import unquote
 import requests
 from flask import Blueprint, abort
 
@@ -26,6 +26,7 @@ def addon_meta(meta_type: str, meta_id: str):
     :param meta_id: The ID of the content
     :return: JSON response
     """
+    meta_id = unquote(meta_id)
 
     if meta_type not in MANIFEST['types']:
         abort(404)
