@@ -77,7 +77,7 @@ def _fetch_anime_list(search, catalog_id, genre):
     if search and not genre:
         if len(search) < 3:
             raise ValueError('Search query must be at least 3 characters long')
-        return docchi_client.search_anime(name=search)['series']
+        return docchi_client.search_anime(name=search)
     if genre:
         results = docchi_client.get_anime_by_genre(genre=genre)
         if search:
