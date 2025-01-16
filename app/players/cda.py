@@ -1,16 +1,12 @@
-import logging
-
 import aiohttp
 import json
 import urllib.parse
 from bs4 import BeautifulSoup
 from app.routes.utils import get_random_agent
 
-
 async def on_request_end(session, trace_config_ctx, params):
-    logging.warning("Ending %s request for %s. I sent: %s" % (params.method, params.url, params.headers))
-    logging.warning('Sent headers: %s' % params.response.request_info.headers)
-
+    print("Ending %s request for %s. I sent: %s" % (params.method, params.url, params.headers))
+    print('Sent headers: %s' % params.response.request_info.headers)
 
 def decrypt_url(url: str) -> str:  # for future (?)
     for p in ("_XDDD", "_CDA", "_ADC", "_CXD", "_QWE", "_Q5", "_IKSDE"):
@@ -41,7 +37,8 @@ async def fetch_video_data(session: aiohttp.ClientSession, url: str) -> dict:
     headers = {"User-Agent": get_random_agent()}
     headers.update({
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Host": urllib.parse.urlparse(url).netloc
+        "Host": urllib.parse.urlparse(url).netloc,
+        "X-Forwarded-For": "87.205.64.184"
     })
     async with session.get(url, headers=headers) as response:
         response.raise_for_status()
@@ -61,9 +58,7 @@ async def fetch_video_data(session: aiohttp.ClientSession, url: str) -> dict:
 
 async def get_video_from_cda_player(url: str) -> tuple:
     """Get the highest quality video URL from CDA.pl."""
-    trace_config = aiohttp.TraceConfig()
-    trace_config.on_request_end.append(on_request_end)
-    async with aiohttp.ClientSession(trace_configs=[trace_config]) as session:
+    async with aiohttp.ClientSession() as session:
         video_data = await fetch_video_data(session, url)
         if not video_data:
             raise ValueError("Nie można pobrać danych wideo.")
@@ -85,7 +80,8 @@ async def get_video_from_cda_player(url: str) -> tuple:
         headers = {
             "User-Agent": get_random_agent(),
             "Content-Type": "application/json",
-            "X-Requested-With": "XMLHttpRequest"
+            "X-Requested-With": "XMLHttpRequest",
+            "X-Forwarded-For": "87.205.64.184"
         }
 
         async with session.post("https://www.cda.pl/", headers=headers, json=post_data) as response:
