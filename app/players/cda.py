@@ -4,6 +4,8 @@ import urllib.parse
 from bs4 import BeautifulSoup
 from app.routes.utils import get_random_agent
 
+proxy = "http://host657132.hostido.net.pl:5555"
+
 async def on_request_end(session, trace_config_ctx, params):
     print("Ending %s request for %s. I sent: %s" % (params.method, params.url, params.headers))
     print('Sent headers: %s' % params.response.request_info.headers)
@@ -40,7 +42,7 @@ async def fetch_video_data(session: aiohttp.ClientSession, url: str) -> dict:
         "Host": urllib.parse.urlparse(url).netloc,
         "X-Forwarded-For": "87.205.64.184"
     })
-    async with session.get(url, headers=headers) as response:
+    async with session.get(url, headers=headers, proxy=proxy) as response:
         response.raise_for_status()
         html = await response.text()
 
@@ -84,7 +86,7 @@ async def get_video_from_cda_player(url: str) -> tuple:
             "X-Forwarded-For": "87.205.64.184"
         }
 
-        async with session.post("https://www.cda.pl/", headers=headers, json=post_data) as response:
+        async with session.post("https://www.cda.pl/", headers=headers, json=post_data, proxy=proxy) as response:
             response.raise_for_status()
             result = await response.json()
 
