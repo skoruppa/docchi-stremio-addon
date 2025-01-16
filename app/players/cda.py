@@ -32,6 +32,10 @@ def get_highest_quality(qualities: dict) -> tuple:
 async def fetch_video_data(session: aiohttp.ClientSession, url: str) -> dict:
     """Fetch the video player data from the given CDA.pl URL."""
     headers = {"User-Agent": get_random_agent()}
+    headers.update({
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Host": urllib.parse.urlparse(url).netloc
+    })
     async with session.get(url, headers=headers) as response:
         response.raise_for_status()
         html = await response.text()
@@ -72,6 +76,7 @@ async def get_video_from_cda_player(url: str) -> tuple:
         headers = {
             "User-Agent": get_random_agent(),
             "Content-Type": "application/json",
+            "X-Requested-With": "XMLHttpRequest"
         }
 
         async with session.post("https://www.cda.pl/", headers=headers, json=post_data) as response:
