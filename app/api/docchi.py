@@ -1,6 +1,10 @@
+import logging
+
 import requests
 
 from urllib.parse import urlencode, quote
+
+from requests import HTTPError
 
 BASE_URL = "https://api.docchi.pl/v1"
 TIMEOUT = 30
@@ -150,9 +154,13 @@ class DocchiAPI:
         if query_params:
             url += f'?{query_params}'
 
-        resp = requests.get(url=url, timeout=TIMEOUT)
-        resp.raise_for_status()
-        return resp.json()
+        try:
+            resp = requests.get(url=url, timeout=TIMEOUT)
+            resp.raise_for_status()
+            return resp.json()
+        except HTTPError:
+            logging.error(resp.text)
+
 
     @staticmethod
     def get_trending_anime(**kwargs):
