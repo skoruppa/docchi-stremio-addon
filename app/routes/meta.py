@@ -36,6 +36,7 @@ def addon_meta(meta_type: str, meta_id: str):
         url += f"mal:{mal_id}.json"
 
         resp = requests.get(url=url, headers=HEADERS)
+        resp.raise_for_status()
     except requests.HTTPError as e:
         log_error(e)
         return respond_with({'meta': {}, 'message': str(e)}), e.response.status_code
