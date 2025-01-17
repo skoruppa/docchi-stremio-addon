@@ -30,7 +30,7 @@ def decrypt_url(url: str) -> str:
 
 
 def normalize_cda_url(url):
-    pattern = r"https?://(?:www\.)?cda\.pl/(?:video/)?(\d+)(?:\?.*)?|https?://ebd\.cda\.pl/\d+x\d+/(\d+)"
+    pattern = r"https?://(?:www\.)?cda\.pl/(?:video/)?([\w]+)(?:\?.*)?|https?://ebd\.cda\.pl/\d+x\d+/([\w]+)"
     match = re.match(pattern, url)
 
     if match:
