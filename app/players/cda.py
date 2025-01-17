@@ -1,3 +1,4 @@
+import re
 import aiohttp
 import json
 import urllib.parse
@@ -26,6 +27,18 @@ def decrypt_url(url: str) -> str:
         a = a.replace("/upstream", ".mp4/upstream")
         return "https://" + a
     return "https://" + a + ".mp4"
+
+
+def normalize_cda_url(url):
+    pattern = r"https?://(?:www\.)?cda\.pl/(?:video/)?(\d+)(?:\?.*)?|https?://ebd\.cda\.pl/\d+x\d+/(\d+)"
+    match = re.match(pattern, url)
+
+    if match:
+        video_id = match.group(1) or match.group(2)
+        return f"https://www.cda.pl/video/{video_id}"
+    else:
+        # Jeśli URL nie pasuje do wzorca
+        return None
 
 
 def get_highest_quality(qualities: dict) -> tuple:
@@ -58,7 +71,7 @@ async def fetch_video_data(session: aiohttp.ClientSession, url: str) -> dict:
 
 async def get_video_from_cda_player(url: str) -> tuple:
     """Get the highest quality video URL from CDA.pl."""
-    url = url.split("?")[0]
+    url = normalize_cda_url(url)
     original_url = url
     if PROXIFY_CDA:
         url = f'{CDA_PROXY_URL}/proxy/stream?d={url}&api_password={CDA_PROXY_PASSWORD}'
