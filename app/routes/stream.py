@@ -28,7 +28,7 @@ async def process_player(player):
     headers = None
 
     if player_hosting == 'cda':
-        url, quality = await get_video_from_cda_player(player['player'])
+        url, quality, headers = await get_video_from_cda_player(player['player'])
     elif player_hosting == 'lycoris.cafe':
         url, quality = await get_video_from_lycoris_player(player['player'])
     elif player_hosting == 'ok':

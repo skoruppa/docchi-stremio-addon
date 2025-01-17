@@ -3,12 +3,14 @@ import json
 import urllib.parse
 from bs4 import BeautifulSoup
 from app.routes.utils import get_random_agent
+from config import Config
 
-async def on_request_end(session, trace_config_ctx, params):
-    print("Ending %s request for %s. I sent: %s" % (params.method, params.url, params.headers))
-    print('Sent headers: %s' % params.response.request_info.headers)
+PROXIFY_CDA = Config.PROXIFY_CDA
+CDA_PROXY_URL = Config.CDA_PROXY_URL
+CDA_PROXY_PASSWORD = Config.CDA_PROXY_PASSWORD
 
-def decrypt_url(url: str) -> str:  # for future (?)
+
+def decrypt_url(url: str) -> str:
     for p in ("_XDDD", "_CDA", "_ADC", "_CXD", "_QWE", "_Q5", "_IKSDE"):
         url = url.replace(p, "")
     url = urllib.parse.unquote(url)
@@ -44,51 +46,57 @@ async def fetch_video_data(session: aiohttp.ClientSession, url: str) -> dict:
         response.raise_for_status()
         html = await response.text()
 
-    # Użyj BeautifulSoup do analizy strony
     soup = BeautifulSoup(html, "html.parser")
     player_div = soup.find("div", id=lambda x: x and x.startswith("mediaplayer"))
     if not player_div or "player_data" not in player_div.attrs:
         print("Nie znaleziono danych odtwarzacza.")
         return None
 
-    # Parsowanie player_data JSON
     player_data = json.loads(player_div["player_data"])
     return player_data
 
 
 async def get_video_from_cda_player(url: str) -> tuple:
     """Get the highest quality video URL from CDA.pl."""
+    url = url.split("?")[0]
+    original_url = url
+    if PROXIFY_CDA:
+        url = f'{CDA_PROXY_URL}/proxy/stream?d={url}&api_password={CDA_PROXY_PASSWORD}'
     async with aiohttp.ClientSession() as session:
         video_data = await fetch_video_data(session, url)
         if not video_data:
             raise ValueError("Nie można pobrać danych wideo.")
 
-        video_id = video_data['video']['id']
-        ts = video_data['video']['ts']
-        hash2 = video_data['video']['hash2']
         qualities = video_data['video']['qualities']
+        current_quality= video_data['video']['quality']
 
         highest_quality, quality_id = get_highest_quality(qualities)
+        if quality_id != current_quality:
+            url = f'{original_url}?wersja={highest_quality}'
+            if PROXIFY_CDA:
+                url = f'{CDA_PROXY_URL}/proxy/stream?d={url}&api_password={CDA_PROXY_PASSWORD}'
+            video_data = await fetch_video_data(session, url)
+            if not video_data:
+                raise ValueError("Nie można pobrać danych wideo.")
 
-        post_data = {
-            "jsonrpc": "2.0",
-            "method": "videoGetLink",
-            "params": [video_id, quality_id, ts, hash2, {}],
-            "id": 3,
-        }
+        file = video_data['video']['file']
+        decrypted_url = decrypt_url(file)
+        headers = {}
+        if PROXIFY_CDA:
+            post_data = {
+                "mediaflow_proxy_url": CDA_PROXY_URL,
+                "endpoint": "/proxy/stream",
+                "destination_url": decrypted_url,
+                "expiration": 7200,
+                "api_password": CDA_PROXY_PASSWORD,
+            }
+            async with session.post(f'{CDA_PROXY_URL}/generate_encrypted_or_encoded_url', json=post_data) as response:
+                response.raise_for_status()
+                result = await response.json()
+            headers = {'Accept': "*/*"}
+            decrypted_url = result.get("encoded_url", {})
 
-        headers = {
-            "User-Agent": get_random_agent(),
-            "Content-Type": "application/json",
-            "X-Requested-With": "XMLHttpRequest",
-            "X-Forwarded-For": "87.205.64.184"
-        }
-
-        async with session.post("https://www.cda.pl/", headers=headers, json=post_data) as response:
-            response.raise_for_status()
-            result = await response.json()
-
-        if result.get("result", {}).get("status") == "ok":
-            return result["result"]["resp"], highest_quality
+        if decrypted_url:
+            return decrypted_url, highest_quality, headers
 
         raise ValueError("Failed to fetch video URL.")
