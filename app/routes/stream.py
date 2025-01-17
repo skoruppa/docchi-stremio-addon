@@ -10,9 +10,10 @@ from app.players.lycoris import get_video_from_lycoris_player
 from app.players.okru import get_video_from_okru_player
 from app.players.sibnet import get_video_from_sibnet_player
 from app.players.dailymotion import get_video_from_dailymotion_player
+from config import Config
 
 stream_bp = Blueprint('stream', __name__)
-
+PROXIFY_CDA = Config.PROXIFY_CDA
 supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion']
 
 
@@ -28,7 +29,7 @@ async def process_player(player):
     headers = None
 
     if player_hosting == 'cda':
-        url, quality, headers = await get_video_from_cda_player(player['player'])
+        url, quality = await get_video_from_cda_player(player['player'])
     elif player_hosting == 'lycoris.cafe':
         url, quality = await get_video_from_lycoris_player(player['player'])
     elif player_hosting == 'ok':
@@ -56,6 +57,9 @@ async def process_players(players):
                 'name': f"[{stream['player_hosting']}][{stream['quality']}][{stream['translator_title']}]",
                 'url': stream['url']
             }
+            if stream['player_hosting'] == 'cda':
+                if PROXIFY_CDA:
+                    stream_data['behaviorHints'] = {'notWebReady': True}
             if stream.get('headers'):
                 stream_data['behaviorHints'] = {
                     'proxyHeaders': {

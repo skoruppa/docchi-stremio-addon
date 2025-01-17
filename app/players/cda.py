@@ -81,7 +81,6 @@ async def get_video_from_cda_player(url: str) -> tuple:
 
         file = video_data['video']['file']
         decrypted_url = decrypt_url(file)
-        headers = {}
         if PROXIFY_CDA:
             post_data = {
                 "mediaflow_proxy_url": CDA_PROXY_URL,
@@ -93,10 +92,9 @@ async def get_video_from_cda_player(url: str) -> tuple:
             async with session.post(f'{CDA_PROXY_URL}/generate_encrypted_or_encoded_url', json=post_data) as response:
                 response.raise_for_status()
                 result = await response.json()
-            headers = {'Accept': "*/*"}
             decrypted_url = result.get("encoded_url", {})
 
         if decrypted_url:
-            return decrypted_url, highest_quality, headers
+            return decrypted_url, highest_quality
 
         raise ValueError("Failed to fetch video URL.")
