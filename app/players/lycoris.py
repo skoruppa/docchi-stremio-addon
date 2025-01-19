@@ -1,6 +1,4 @@
 import logging
-from urllib.parse import quote, urlencode
-
 import aiohttp
 import base64
 import json
@@ -50,7 +48,6 @@ async def fetch_and_decode_video(session: aiohttp.ClientSession, episode_id: str
     """
     try:
         if is_secondary:
-            # Przekształć URL (analogicznie do funkcji fetch_and_decode_second)
             converted_text = bytes(episode_id, "utf-8").decode("unicode_escape")
             final_text = converted_text.encode("latin1").decode("utf-8")
             params = {"link": final_text}

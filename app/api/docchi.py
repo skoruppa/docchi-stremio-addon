@@ -1,9 +1,6 @@
 import logging
-
 import requests
-
 from urllib.parse import urlencode, quote
-
 from requests import HTTPError
 
 BASE_URL = "https://api.docchi.pl/v1"

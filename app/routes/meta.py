@@ -4,12 +4,13 @@ import requests
 from flask import Blueprint, abort
 
 from . import MAL_ID_PREFIX
+from config import Config
 from .manifest import MANIFEST
 from .utils import respond_with, log_error
 
 meta_bp = Blueprint('meta', __name__)
 
-kitsu_API = "https://anime-kitsu.strem.fun/meta"
+kitsu_API = Config.KITSU_STREMIO_API_URL
 HEADERS = {
     'User-Agent': "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:47.0) Gecko/20100101 Firefox/47.0",
     'Content-Type': 'application/json',
