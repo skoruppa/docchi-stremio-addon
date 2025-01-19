@@ -95,6 +95,7 @@ async def addon_stream(content_type: str, content_id: str):
         save_slug_from_mal_id(prefix_id, slug)
 
     players = docchi_client.get_episode_players(slug, episode)
-    streams = await process_players(players)
-
-    return respond_with(streams)
+    if players:
+        streams = await process_players(players)
+        return respond_with(streams)
+    return {}

@@ -46,11 +46,14 @@ class DocchiAPI:
         if episode is None:
             raise Exception("A Valid episode number Must Be Provided")
 
-        url = f'{BASE_URL}/episodes/find/{slug}/{episode}'
+        try:
+            url = f'{BASE_URL}/episodes/find/{slug}/{episode}'
 
-        resp = requests.get(url=url, timeout=TIMEOUT)
-        resp.raise_for_status()
-        return resp.json()
+            resp = requests.get(url=url, timeout=TIMEOUT)
+            resp.raise_for_status()
+            return resp.json()
+        except requests.exceptions.HTTPError:
+            return None
 
     @staticmethod
     def get_slug_from_mal_id(mal_id: str):
