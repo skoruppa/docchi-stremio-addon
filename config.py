@@ -11,6 +11,8 @@ class Config:
     """
     FLASK_HOST = os.getenv('FLASK_RUN_HOST', "localhost")
     FLASK_PORT = os.getenv('FLASK_RUN_PORT', "5000")
+    CACHE_TYPE = 'SimpleCache'
+    CACHE_DEFAULT_TIMEOUT = 600
     PROXIFY_CDA = os.getenv('PROXIFY_CDA', True)
     CDA_PROXY_URL = os.getenv('CDA_PROXY_URL', "")  # MediaFlow Proxy
     CDA_PROXY_PASSWORD = os.getenv('CDA_PROXY_PASSWORD', "")  # MediaFlowProxy API_PASSWORD

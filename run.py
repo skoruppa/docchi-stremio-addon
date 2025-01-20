@@ -2,12 +2,12 @@ import logging
 
 from flask import Flask, render_template, session, url_for, redirect
 from flask_compress import Compress
-
 from app.routes.catalog import catalog_bp
 from app.routes.manifest import manifest_blueprint
 from app.routes.meta import meta_bp
 from app.routes.stream import stream_bp
 from app.db import database
+from app.routes.utils import cache
 from config import Config
 
 app = Flask(__name__, template_folder='./templates', static_folder='./static')
@@ -18,6 +18,7 @@ app.register_blueprint(meta_bp)
 app.register_blueprint(stream_bp)
 
 Compress(app)
+cache.init_app(app)
 
 logging.basicConfig(format='%(asctime)s %(message)s')
 

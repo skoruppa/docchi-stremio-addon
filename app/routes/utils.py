@@ -1,6 +1,8 @@
 import logging
 import random
 from flask import jsonify, flash, make_response, url_for, redirect, Response
+from flask_caching import Cache
+cache = Cache()
 
 
 def handle_error(err) -> Response:
