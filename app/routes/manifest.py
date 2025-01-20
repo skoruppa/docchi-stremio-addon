@@ -17,7 +17,7 @@ MANIFEST = {
     'version': '0.0.1',
     'name': 'Docchi.pl Addon',
     'logo': 'https://docchi.pl/static/img/logo.svg',
-    'description': 'Provides users with series and episodes from Docchi.pl',
+    'description': 'Provides users with possibility to watch anime with polish subtitles based on data returned by Docchi.pl',
     'types': ['anime', 'series', 'movie'],
 
     'catalogs': [
