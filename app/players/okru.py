@@ -34,6 +34,7 @@ def videos_from_json(video_json):
 
     video_headers = {"response": {
         "Access-Control-Allow-Origin": "*",
+        "Content-Type": "video/mp4"
     }}
 
     return highest_quality_video['url'], f'{highest_quality_video['quality']}p', video_headers
