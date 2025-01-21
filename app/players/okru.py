@@ -31,7 +31,12 @@ def videos_from_json(video_json):
         if video_url.startswith("https://"):
             videos.append({'url': video_url, 'quality': quality})
     highest_quality_video = max(videos, key=lambda x: x['quality'])
-    return highest_quality_video['url'], f'{highest_quality_video['quality']}p'
+
+    video_headers = {"response": {
+        "Access-Control-Allow-Origin": "*",
+    }}
+
+    return highest_quality_video['url'], f'{highest_quality_video['quality']}p', video_headers
 
 
 async def get_video_from_okru_player(url):
@@ -42,7 +47,7 @@ async def get_video_from_okru_player(url):
     document = BeautifulSoup(text, "html.parser")
     player_string = document.select_one("div[data-options]")
     if not player_string:
-        return None, None
+        return None, None, None
 
     player_data = player_string.get("data-options", "")
     player_json = json.loads(player_data)

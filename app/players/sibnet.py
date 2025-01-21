@@ -25,9 +25,9 @@ async def get_video_from_sibnet_player(url: str) -> tuple:
                 .split('"', 2)[1]
             )
 
-            video_headers = {
+            video_headers = {"request": {
                 "Referer": url,
-            }
+            }}
 
             if "http" in slug:
                 video_url = slug

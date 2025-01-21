@@ -33,7 +33,7 @@ async def process_player(player):
     elif player_hosting == 'lycoris.cafe':
         url, quality = await get_video_from_lycoris_player(player['player'])
     elif player_hosting == 'ok':
-        url, quality = await get_video_from_okru_player(player['player'])
+        url, quality, headers = await get_video_from_okru_player(player['player'])
     elif player_hosting == 'sibnet':
         url, quality, headers = await get_video_from_sibnet_player(player['player'])
     elif player_hosting == 'dailymotion':
@@ -62,9 +62,7 @@ async def process_players(players):
                     stream_data['behaviorHints'] = {'notWebReady': True}
             if stream.get('headers'):
                 stream_data['behaviorHints'] = {
-                    'proxyHeaders': {
-                        'request': stream['headers']
-                    },
+                    'proxyHeaders': stream['headers'],
                     'notWebReady': True
                 }
             streams['streams'].append(stream_data)

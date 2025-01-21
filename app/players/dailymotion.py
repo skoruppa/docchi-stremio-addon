@@ -82,10 +82,14 @@ async def videos_from_daily_response(parsed: dict) -> tuple:
 
 
 def headers_builder() -> dict:
-    headers = {
+    headers = {"request": {
         "Accept": "*/*",
         "Referer": f"{DAILYMOTION_URL}/",
         "Origin": DAILYMOTION_URL
+    },
+        "response": {
+            "Access-Control-Allow-Origin": "*",
+        }
     }
 
     return headers
