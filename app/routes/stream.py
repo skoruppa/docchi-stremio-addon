@@ -1,6 +1,7 @@
 import asyncio
 import urllib.parse
 from flask import Blueprint
+from soupsieve.util import lower
 
 from app.routes import MAL_ID_PREFIX, docchi_client
 from app.routes.utils import respond_with
@@ -10,11 +11,12 @@ from app.players.lycoris import get_video_from_lycoris_player
 from app.players.okru import get_video_from_okru_player
 from app.players.sibnet import get_video_from_sibnet_player
 from app.players.dailymotion import get_video_from_dailymotion_player
+from app.players.vk import get_video_from_vk_player
 from config import Config
 
 stream_bp = Blueprint('stream', __name__)
 PROXIFY_CDA = Config.PROXIFY_CDA
-supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion']
+supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk']
 
 
 async def process_player(player):
@@ -27,6 +29,8 @@ async def process_player(player):
         'headers': None
     }
     headers = None
+    url = None
+    quality = None
 
     if player_hosting == 'cda':
         url, quality = await get_video_from_cda_player(player['player'])
@@ -38,8 +42,11 @@ async def process_player(player):
         url, quality, headers = await get_video_from_sibnet_player(player['player'])
     elif player_hosting == 'dailymotion':
         url, quality, headers = await get_video_from_dailymotion_player(player['player'])
-    else:
-        return stream
+    elif player_hosting == 'vk':
+        if player['isInverted'] == 'false':
+            url, quality, headers = await get_video_from_vk_player(player['player'])
+        else:
+            return None
 
     stream.update({'url': url, 'quality': quality, 'headers': headers})
     return stream
@@ -51,22 +58,35 @@ async def process_players(players):
 
     for task in asyncio.as_completed(tasks):
         stream = await task
-        if stream['url']:
-            stream_data = {
-                'title': f"[{stream['player_hosting']}][{stream['quality']}][{stream['translator_title']}]",
-                'name': f"[{stream['player_hosting']}][{stream['quality']}][{stream['translator_title']}]",
-                'url': stream['url']
-            }
-            if stream['player_hosting'] == 'cda':
-                if PROXIFY_CDA:
-                    stream_data['behaviorHints'] = {'notWebReady': True}
-            if stream.get('headers'):
-                stream_data['behaviorHints'] = {
-                    'proxyHeaders': stream['headers'],
-                    'notWebReady': True
+        if stream:
+            if stream['url']:
+                stream_data = {
+                    'title': f"[{stream['player_hosting']}][{stream['quality']}][{stream['translator_title']}]",
+                    'name': f"[{stream['player_hosting']}][{stream['quality']}][{stream['translator_title']}]",
+                    'url': stream['url'],
+                    'priority': sort_priority(stream)
                 }
-            streams['streams'].append(stream_data)
+                if stream['player_hosting'] == 'cda':
+                    if PROXIFY_CDA:
+                        stream_data['behaviorHints'] = {'notWebReady': True}
+                if stream.get('headers'):
+                    stream_data['behaviorHints'] = {
+                        'proxyHeaders': stream['headers'],
+                        'notWebReady': True
+                    }
+                streams['streams'].append(stream_data)
+    streams['streams'] = sorted(streams['streams'], key=lambda d: d['priority'])
     return streams
+
+
+def sort_priority(stream):
+    if stream['player_hosting'] == 'lycoris.cafe':
+        return 0
+    elif stream['player_hosting'] == 'cda':
+        return 1
+    elif 'ai' in lower(stream['translator_title']):
+        return 9
+    return 2
 
 
 @stream_bp.route('/stream/<content_type>/<content_id>.json')
