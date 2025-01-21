@@ -78,18 +78,20 @@ async def videos_from_daily_response(parsed: dict) -> tuple:
     master_headers = headers_builder()
     best_url, best_quality = await fetch_m3u8_url(master_url, master_headers)
 
-    return best_url, f"{best_quality}p", master_headers
+    stream_headers = {"request": master_headers,
+                      "response": {
+                          "Access-Control-Allow-Origin": "*",
+                      }
+                      }
+
+    return best_url, f"{best_quality}p", stream_headers
 
 
 def headers_builder() -> dict:
-    headers = {"request": {
+    headers = {
         "Accept": "*/*",
         "Referer": f"{DAILYMOTION_URL}/",
         "Origin": DAILYMOTION_URL
-    },
-        "response": {
-            "Access-Control-Allow-Origin": "*",
-        }
     }
 
     return headers
