@@ -92,7 +92,7 @@ def sort_priority(stream):
         return 1
     elif stream['player_hosting'] == 'uqload':
         return 4
-    elif 'ai' in stream['translator_title'].lower:
+    elif 'ai' in stream['translator_title'].lower():
         return 9
     return 2
 
