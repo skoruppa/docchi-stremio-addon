@@ -43,8 +43,8 @@ def addon_meta(meta_type: str, meta_id: str):
         log_error(e)
         return respond_with({'meta': {}, 'message': str(e)}), e.response.status_code
 
-    meta = kitsu_to_meta(resp.json())
-    meta['id'] = meta_id
+    meta = kitsu_to_meta(resp.json(), meta_id)
+
     meta['type'] = meta_type
     kitsu_id = meta['kitsu_id']
     for item in meta['videos']:
@@ -53,7 +53,7 @@ def addon_meta(meta_type: str, meta_id: str):
     return respond_with({'meta': meta})
 
 
-def kitsu_to_meta(kitsu_meta: dict) -> dict:
+def kitsu_to_meta(kitsu_meta: dict, meta_id: str) -> dict:
     """
     Convert kitsu item to a valid Stremio meta format
     :param kitsu_meta: The kitsu item to convert
@@ -75,13 +75,18 @@ def kitsu_to_meta(kitsu_meta: dict) -> dict:
     links = meta.get('links', [])
     runtime = meta.get('runtime', None)
     videos = meta.get('videos', [])
+    if not videos:
+        released = f'{releaseInfo}-01-01T01:00:00.000'
+        videos = [{'id': meta_id,
+                   'title': name,
+                   'released': released}]
     imdb_id = meta.get('imdb_id', None)
 
     return {
+        'id': meta_id,
         'cacheMaxAge': 43200,
         'staleRevalidate': 43200,
         'staleError': 3600,
-
         'kitsu_id': kitsu_id,
         'name': name,
         'genres': genres,

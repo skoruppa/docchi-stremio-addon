@@ -70,6 +70,8 @@ async def process_players(players):
         stream = await task
         if stream:
             if stream['url']:
+                if not stream['translator_title']:
+                    stream['translator_title'] = "unknown"
                 stream_data = {
                     'title': f"[{stream['player_hosting']}][{stream['quality']}][{stream['translator_title']}]",
                     'name': f"[{stream['player_hosting']}][{stream['quality']}][{stream['translator_title']}]",
