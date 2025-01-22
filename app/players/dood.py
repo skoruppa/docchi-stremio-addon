@@ -27,9 +27,8 @@ class HttpxSession:
 
 async def get_video_from_dood_player(url):
     quality = "unknown"
-    stream_headers = {"request": {"Referer": url}}
     user_agent = get_random_agent()
-    headers = {"User-Agent": user_agent}
+    headers = {"User-Agent": "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Mobile Safari/537.36"}
 
     session = HttpxSession()
 
@@ -39,6 +38,7 @@ async def get_video_from_dood_player(url):
 
         response = await session.fetch(url, "GET", headers=headers)
         new_url = str(response.url)
+        stream_headers = {"request": {"Referer": new_url}}
         content = response.text
         logging.info(content)
         if "'/pass_md5/" not in content:
