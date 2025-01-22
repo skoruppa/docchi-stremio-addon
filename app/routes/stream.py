@@ -2,7 +2,8 @@ import asyncio
 import urllib.parse
 from flask import Blueprint
 
-from app.routes import MAL_ID_PREFIX, docchi_client
+from app.api.kitsu import KitsuAPI
+from app.routes import MAL_ID_PREFIX, docchi_client, kitsu_client
 from app.routes.utils import respond_with
 from app.db.db import get_slug_from_mal_id, save_slug_from_mal_id
 from app.players.cda import get_video_from_cda_player
@@ -92,7 +93,7 @@ def sort_priority(stream):
         return 1
     elif stream['player_hosting'] == 'uqload':
         return 4
-    elif 'ai' in stream['translator_title'].lower():
+    elif stream['translator_title'].lower() == 'ai':
         return 9
     return 2
 
@@ -109,7 +110,11 @@ async def addon_stream(content_type: str, content_id: str):
     parts = content_id.split(":")
 
     prefix = parts[0]
+
     prefix_id = parts[1]
+    if prefix == 'kitsu':
+        prefix_id = KitsuAPI.get_mal_id_from_kitsu_id(prefix_id)
+        prefix = MAL_ID_PREFIX
     try:
         episode = parts[2]
     except IndexError:
