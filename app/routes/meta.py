@@ -83,13 +83,14 @@ def kitsu_to_meta(kitsu_meta: dict, meta_id: str) -> dict:
     imdb_id = meta.get('imdb_id', None)
 
     return {
-        'id': meta_id,
         'cacheMaxAge': 43200,
         'staleRevalidate': 43200,
         'staleError': 3600,
+
         'kitsu_id': kitsu_id,
         'name': name,
         'genres': genres,
+        'id': meta_id,
         'logo': logo,
         'poster': poster,
         'background': background,
