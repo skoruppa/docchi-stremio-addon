@@ -10,6 +10,7 @@ async def get_video_from_dood_player(url):
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
+                response.raise_for_status()
                 dood_host = re.search(r"https://(.*?)/", url).group(1)
                 content = await response.text()
 
