@@ -14,7 +14,7 @@ async def get_video_from_dood_player(url):
                 dood_host = re.search(r"https://(.*?)/", url).group(1)
 
                 content = await response.text()
-                logging.info(response.text())
+                logging.info(content)
                 if "'/pass_md5/" not in content:
                     return None, None, None
 
