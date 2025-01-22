@@ -1,5 +1,6 @@
 import re
 import aiohttp
+import logging
 
 
 async def get_video_from_dood_player(url):
@@ -25,5 +26,5 @@ async def get_video_from_dood_player(url):
 
                 return video_url, quality, stream_headers
     except Exception as e:
-        print(f"Error: {e}")
+        logging.error(f"Error: {e}")
         return None, None, None

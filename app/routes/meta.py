@@ -75,11 +75,11 @@ def kitsu_to_meta(kitsu_meta: dict, meta_id: str) -> dict:
     links = meta.get('links', [])
     runtime = meta.get('runtime', None)
     videos = meta.get('videos', [])
-    if not videos:
-        released = f'{releaseInfo}-01-01T01:00:00.000'
-        videos = [{'id': meta_id,
-                   'title': name,
-                   'released': released}]
+    # if not videos:
+    #     released = f'{releaseInfo}-01-01T01:00:00.000'
+    #     videos = [{'id': meta_id,
+    #                'title': name,
+    #                'released': released}]
     imdb_id = meta.get('imdb_id', None)
 
     return {
