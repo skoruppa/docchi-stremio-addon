@@ -1,7 +1,6 @@
 import asyncio
 import urllib.parse
 from flask import Blueprint
-from soupsieve.util import lower
 
 from app.routes import MAL_ID_PREFIX, docchi_client
 from app.routes.utils import respond_with
@@ -93,7 +92,7 @@ def sort_priority(stream):
         return 1
     elif stream['player_hosting'] == 'uqload':
         return 4
-    elif 'ai' in lower(stream['translator_title']):
+    elif 'ai' in stream['translator_title'].lower:
         return 9
     return 2
 
