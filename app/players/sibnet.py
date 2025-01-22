@@ -15,7 +15,7 @@ async def get_video_from_sibnet_player(url: str) -> tuple:
 
             script = document.select_one("script:-soup-contains('player.src')")
             if not script or not script.string:
-                return None, None
+                return None, None, None
 
             script_data = script.string
 
