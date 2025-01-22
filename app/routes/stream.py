@@ -12,13 +12,13 @@ from app.players.okru import get_video_from_okru_player
 from app.players.sibnet import get_video_from_sibnet_player
 from app.players.dailymotion import get_video_from_dailymotion_player
 from app.players.vk import get_video_from_vk_player
-from app.players.uqload import get_video_from_uqload_player
+# from app.players.uqload import get_video_from_uqload_player  #even proxified uqload throws an ip error
 from app.players.gdrive import get_video_from_gdrive_player
 from config import Config
 
 stream_bp = Blueprint('stream', __name__)
 PROXIFY_CDA = Config.PROXIFY_CDA
-supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'uqload', 'gdrive']
+supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive']
 
 
 async def process_player(player):
@@ -49,8 +49,6 @@ async def process_player(player):
             url, quality, headers = await get_video_from_vk_player(player['player'])
         else:
             return None
-    elif player_hosting == 'uqload':
-        url, quality, headers = await get_video_from_uqload_player(player['player'])
     elif player_hosting == 'gdrive':
         url, quality, headers = await get_video_from_gdrive_player(player['player'])
 
