@@ -8,4 +8,5 @@ Flask-Compress~=1.17
 python-dotenv~=1.0.1
 waitress~=3.0.2
 flask-caching~=2.3.0
-cloudscraper~=1.2.71
+h2~=4.1.0
+httpx~=0.28.1

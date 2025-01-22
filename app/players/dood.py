@@ -1,35 +1,28 @@
 import re
 import logging
-import cloudscraper
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
+
+import httpx
+
 from app.routes.utils import get_random_agent
 
 
-class CloudscraperSession:
+class HttpxSession:
     def __init__(self):
-        self.session = cloudscraper.create_scraper(browser={
-            "browser": "chrome",
-            "platform": "windows",
-        })
+        self.client = httpx.AsyncClient(http2=True, follow_redirects=True)  # Obsługa HTTP/2 (opcjonalna)
 
-    def fetch(self, url, method="GET", **kwargs):
+    async def fetch(self, url, method="GET", **kwargs):
         if method.upper() == "GET":
-            return self.session.get(url, **kwargs)
+            response = await self.client.get(url, **kwargs)
         elif method.upper() == "POST":
-            return self.session.post(url, **kwargs)
+            response = await self.client.post(url, **kwargs)
         else:
             raise ValueError(f"Unsupported method: {method}")
 
+        response.raise_for_status()  # Rzuć wyjątek, jeśli kod HTTP jest błędny
+        return response
 
-async def fetch_url_async(session, url, method="GET", **kwargs):
-    loop = asyncio.get_event_loop()
-    with ThreadPoolExecutor() as executor:
-        # Użycie funkcji lambda, aby przekazać `**kwargs`
-        return await loop.run_in_executor(
-            executor,
-            lambda: session.fetch(url, method, **kwargs)
-        )
+    async def close(self):
+        await self.client.aclose()
 
 
 async def get_video_from_dood_player(url):
@@ -38,12 +31,13 @@ async def get_video_from_dood_player(url):
     user_agent = get_random_agent()
     headers = {"User-Agent": user_agent}
 
-    session = CloudscraperSession()
+    session = HttpxSession()
+
     dood_host = re.search(r"https://(.*?)/", url).group(1)
 
     try:
 
-        response = await fetch_url_async(session, url, "GET", headers=headers)
+        response = await session.fetch(url, "GET", headers=headers)
         content = response.text
         logging.info(content)
         if "'/pass_md5/" not in content:
@@ -51,7 +45,7 @@ async def get_video_from_dood_player(url):
 
         md5 = content.split("'/pass_md5/")[1].split("',")[0]
 
-        video_response = await fetch_url_async(session,
+        video_response = await session.fetch(
                 f"https://{dood_host}/pass_md5/{md5}", "GET",
                 headers={"Referer": url,
                          "User-Agent": user_agent})
