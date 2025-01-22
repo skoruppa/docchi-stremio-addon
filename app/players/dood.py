@@ -38,6 +38,7 @@ async def get_video_from_dood_player(url):
     try:
 
         response = await session.fetch(url, "GET", headers=headers)
+        new_url = str(response.url)
         content = response.text
         logging.info(content)
         if "'/pass_md5/" not in content:
@@ -47,7 +48,7 @@ async def get_video_from_dood_player(url):
 
         video_response = await session.fetch(
                 f"https://{dood_host}/pass_md5/{md5}", "GET",
-                headers={"Referer": url,
+                headers={"Referer": new_url,
                          "User-Agent": user_agent})
         video_url = video_response.text
 
