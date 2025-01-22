@@ -1,15 +1,18 @@
 import re
 import aiohttp
 import logging
+from app.routes.utils import get_random_agent
 
 
 async def get_video_from_dood_player(url):
     quality = "unknown"
     stream_headers = {"request": {"Referer": url}}
+    user_agent = get_random_agent()
+    headers = {"User-Agent": user_agent}
 
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
+            async with session.get(url, headers=headers) as response:
                 response.raise_for_status()
                 dood_host = re.search(r"https://(.*?)/", url).group(1)
 
@@ -22,7 +25,8 @@ async def get_video_from_dood_player(url):
 
                 async with session.get(
                     f"https://{dood_host}/pass_md5/{md5}",
-                    headers={"Referer": url}
+                    headers={"Referer": url,
+                             "User-Agent": user_agent}
                 ) as video_response:
                     video_url = await video_response.text()
 
