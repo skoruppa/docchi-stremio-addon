@@ -1,5 +1,6 @@
 import aiohttp
 from bs4 import BeautifulSoup
+from app.routes.utils import get_random_agent
 import json
 
 
@@ -41,8 +42,9 @@ def videos_from_json(video_json):
 
 
 async def get_video_from_okru_player(url):
+    headers = {"User-Agent": get_random_agent()}
     async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
+        async with session.get(url, headers=headers) as response:
             text = await response.text()
 
     document = BeautifulSoup(text, "html.parser")
