@@ -3,7 +3,7 @@ from urllib.parse import unquote
 import requests
 from flask import Blueprint, abort
 
-from . import MAL_ID_PREFIX
+from . import MAL_ID_PREFIX, kitsu_client
 from config import Config
 from .manifest import MANIFEST
 from .utils import respond_with, log_error
@@ -31,6 +31,10 @@ def addon_meta(meta_type: str, meta_id: str):
 
     if meta_type not in MANIFEST['types']:
         abort(404)
+
+    if 'kitsu' in meta_id:
+        kitsu_id = meta_id.split(":")[1]
+        meta_id = f'{MAL_ID_PREFIX}:{kitsu_client.get_mal_id_from_kitsu_id(kitsu_id)}'
 
     url = f"{kitsu_API}/{meta_type}/"
     try:
