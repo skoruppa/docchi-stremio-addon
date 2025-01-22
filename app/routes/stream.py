@@ -13,7 +13,7 @@ from app.players.sibnet import get_video_from_sibnet_player
 from app.players.dailymotion import get_video_from_dailymotion_player
 from app.players.vk import get_video_from_vk_player
 # from app.players.uqload import get_video_from_uqload_player  #even proxified uqload throws an ip error
-from app.players.dood import get_video_from_dood_player
+# from app.players.dood import get_video_from_dood_player  # can't bypass cloudflare protection on a remote server
 from app.players.gdrive import get_video_from_gdrive_player
 from config import Config
 
@@ -52,11 +52,6 @@ async def process_player(player):
             return None
     elif player_hosting == 'gdrive':
         url, quality, headers = await get_video_from_gdrive_player(player['player'])
-    elif player_hosting == 'dood':
-        if player['isInverted'] == 'false':
-            url, quality, headers = await get_video_from_dood_player(player['player'])
-        else:
-            return None
 
     stream.update({'url': url, 'quality': quality, 'headers': headers})
     return stream
