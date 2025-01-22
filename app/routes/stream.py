@@ -108,7 +108,10 @@ async def addon_stream(content_type: str, content_id: str):
 
     prefix = parts[0]
     prefix_id = parts[1]
-    episode = parts[2]
+    try:
+        episode = parts[2]
+    except IndexError:
+        episode = '1'
 
     if prefix != MAL_ID_PREFIX:
         return respond_with({})
