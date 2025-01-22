@@ -55,9 +55,12 @@ async def fetch_video_data(session: aiohttp.ClientSession, url: str) -> dict:
         "Host": urllib.parse.urlparse(url).netloc,
         "X-Forwarded-For": "87.205.64.184"
     })
-    async with session.get(url, headers=headers) as response:
-        response.raise_for_status()
-        html = await response.text()
+    try:
+        async with session.get(url, headers=headers) as response:
+            response.raise_for_status()
+            html = await response.text()
+    except aiohttp.client_exceptions.ClientConnectorError:
+        return None
 
     soup = BeautifulSoup(html, "html.parser")
     player_div = soup.find("div", id=lambda x: x and x.startswith("mediaplayer"))
@@ -78,7 +81,7 @@ async def get_video_from_cda_player(url: str) -> tuple:
     async with aiohttp.ClientSession() as session:
         video_data = await fetch_video_data(session, url)
         if not video_data:
-            raise ValueError("Nie można pobrać danych wideo.")
+            return None, None
 
         qualities = video_data['video']['qualities']
         current_quality= video_data['video']['quality']
@@ -90,7 +93,7 @@ async def get_video_from_cda_player(url: str) -> tuple:
                 url = f'{CDA_PROXY_URL}/proxy/stream?d={url}&api_password={CDA_PROXY_PASSWORD}'
             video_data = await fetch_video_data(session, url)
             if not video_data:
-                raise ValueError("Nie można pobrać danych wideo.")
+                return None, None
 
         file = video_data['video']['file']
         decrypted_url = decrypt_url(file)
