@@ -12,13 +12,13 @@ from app.players.okru import get_video_from_okru_player
 from app.players.sibnet import get_video_from_sibnet_player
 from app.players.dailymotion import get_video_from_dailymotion_player
 from app.players.vk import get_video_from_vk_player
-from app.players.uqload import get_video_from_uqload_player  #even proxified uqload throws an ip error
+from app.players.uqload import get_video_from_uqload_player
 from app.players.dood import get_video_from_dood_player  # can't bypass cloudflare protection on a remote server
 from app.players.gdrive import get_video_from_gdrive_player
 from config import Config
 
 stream_bp = Blueprint('stream', __name__)
-PROXIFY_CDA = Config.PROXIFY_CDA
+PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'uqload']
 
 
@@ -46,7 +46,7 @@ async def process_player(player):
     elif player_hosting == 'dailymotion':
         url, quality, headers = await get_video_from_dailymotion_player(player['player'])
     elif player_hosting == 'uqload':
-        url, quality, headers = await get_video_from_uqload_player(player['player'])   
+        url, quality, headers = await get_video_from_uqload_player(player['player'])
     elif player_hosting == 'vk':
         if player['isInverted'] == 'false':
             url, quality, headers = await get_video_from_vk_player(player['player'])
@@ -75,8 +75,8 @@ async def process_players(players):
                     'url': stream['url'],
                     'priority': sort_priority(stream)
                 }
-                if stream['player_hosting'] == 'cda':
-                    if PROXIFY_CDA:
+                if stream['player_hosting'] == 'uqload':
+                    if PROXIFY_STREAMS:
                         stream_data['behaviorHints'] = {'notWebReady': True}
                 if stream.get('headers'):
                     stream_data['behaviorHints'] = {

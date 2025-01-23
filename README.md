@@ -4,7 +4,8 @@ This Stremio addon allows users to access anime streams with polish subtitles av
 
 ## Supported Players
 As the stream data needs to be extracted from web players, not all available players at dochi.pl are supported
-- **CDA**: on remote environments through the [MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy/issues). Locally deployed does need a proxy
+- **Uqload**: on remote environments through the [MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy/issues). Locally deployed does need a proxy
+- **CDA**
 - **OK.ru**
 - **VK.com**
 - **Lycoris.cafe**
