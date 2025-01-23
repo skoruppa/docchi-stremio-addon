@@ -1,46 +1,33 @@
 import re
 from bs4 import BeautifulSoup
 import aiohttp
-from config import Config
-
-PROXIFY_CDA = Config.PROXIFY_CDA
-CDA_PROXY_URL = Config.CDA_PROXY_URL
-CDA_PROXY_PASSWORD = Config.CDA_PROXY_PASSWORD
+from urllib.parse import urlparse
+from app.routes.utils import get_random_agent
 
 
 async def get_video_from_uqload_player(url: str):
-
-    if PROXIFY_CDA:
-        url = f'{CDA_PROXY_URL}/proxy/stream?d={url}&api_password={CDA_PROXY_PASSWORD}'
-
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             text = await response.text()
 
-            soup = BeautifulSoup(text, 'html.parser')
-            script_tags = soup.find_all('script')
+    parsed_url = urlparse(url)
 
-            headers = {"request": {"Referer": "https://uqload.co/"}}
-            quality = "unknown"
+    soup = BeautifulSoup(text, 'html.parser')
+    script_tags = soup.find_all('script')
 
-            for script in script_tags:
-                if script.string and 'sources:' in script.string:
-                    match = re.search(r'sources:\s*\["(https?.*?\.mp4)"\]', script.string)
-                    if match:
-                        stream_url = match.group(1)
-                        if PROXIFY_CDA:
-                            post_data = {
-                                "mediaflow_proxy_url": CDA_PROXY_URL,
-                                "endpoint": "/proxy/stream",
-                                "destination_url": stream_url,
-                                "expiration": 7200,
-                                "api_password": CDA_PROXY_PASSWORD,
-                            }
-                            async with session.post(f'{CDA_PROXY_URL}/generate_encrypted_or_encoded_url',
-                                                    json=post_data) as response:
-                                response.raise_for_status()
-                                result = await response.json()
-                            stream_url = result.get("encoded_url", {})
-                        return stream_url, quality, headers
+    headers = {
+        "request": {
+            "User-Agent": get_random_agent(),
+            "Referer": f"{parsed_url.scheme}://{parsed_url.netloc}",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+        }
+    }
+    quality = "unknown"
+
+    for script in script_tags:
+        if script.string and 'sources:' in script.string:
+            match = re.search(r'sources:\s*\["(https?.*?\.mp4)"\]', script.string)
+            if match:
+                return match.group(1), quality, headers
 
     return None, None, None
