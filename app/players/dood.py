@@ -2,12 +2,7 @@ import re
 import logging
 import aiohttp
 from app.routes.utils import get_random_agent
-from config import Config
 from flask import request
-
-PROXIFY_CDA = Config.PROXIFY_CDA
-CDA_PROXY_URL = Config.CDA_PROXY_URL
-CDA_PROXY_PASSWORD = Config.CDA_PROXY_PASSWORD
 
 
 async def get_video_from_dood_player(url):
@@ -15,9 +10,6 @@ async def get_video_from_dood_player(url):
     quality = "unknown"
 
     dood_host = re.search(r"https://(.*?)/", url).group(1)
-
-    if PROXIFY_CDA:
-        url = f'{CDA_PROXY_URL}/proxy/stream?d={url}&api_password={CDA_PROXY_PASSWORD}'
 
     try:
         async with aiohttp.ClientSession() as session:

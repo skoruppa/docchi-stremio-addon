@@ -19,7 +19,7 @@ from config import Config
 
 stream_bp = Blueprint('stream', __name__)
 PROXIFY_CDA = Config.PROXIFY_CDA
-supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'dood', 'uqload']
+supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'uqload']
 
 
 async def process_player(player):
@@ -45,8 +45,6 @@ async def process_player(player):
         url, quality, headers = await get_video_from_sibnet_player(player['player'])
     elif player_hosting == 'dailymotion':
         url, quality, headers = await get_video_from_dailymotion_player(player['player'])
-    elif player_hosting == 'dood':
-        url, quality, headers = await get_video_from_dood_player(player['player'])
     elif player_hosting == 'uqload':
         url, quality, headers = await get_video_from_uqload_player(player['player'])   
     elif player_hosting == 'vk':
