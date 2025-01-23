@@ -1,5 +1,7 @@
 import aiohttp
 from urllib.parse import urlparse, parse_qs
+from app.routes.utils import get_random_agent
+from flask import request
 
 DAILYMOTION_URL = "https://www.dailymotion.com"
 
@@ -78,17 +80,24 @@ async def videos_from_daily_response(parsed: dict) -> tuple:
     master_headers = headers_builder()
     best_url, best_quality = await fetch_m3u8_url(master_url, master_headers)
 
-    stream_headers = {"request": master_headers,
-                      "response": {
-                          "Access-Control-Allow-Origin": "*",
-                      }
-                      }
+    stream_headers = {
+        "request": master_headers,
+        "response": {
+            "Access-Control-Allow-Origin": "*",
+                    }
+        }
 
     return best_url, f"{best_quality}p", stream_headers
 
 
 def headers_builder() -> dict:
+    referer = request.headers.get('Referer', None)
+    user_agent = request.headers.get('User-Agent', None)
+
+    if not referer or "web.stremio.com" not in str(referer):
+        user_agent = get_random_agent()
     headers = {
+        "User-Agent": user_agent,
         "Accept": "*/*",
         "Referer": f"{DAILYMOTION_URL}/",
         "Origin": DAILYMOTION_URL
