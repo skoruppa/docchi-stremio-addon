@@ -1,6 +1,8 @@
 import re
 from bs4 import BeautifulSoup
 import aiohttp
+from app.routes.utils import get_random_agent
+from flask import request
 
 VK_URL = "https://vk.com"
 
@@ -34,14 +36,21 @@ def extract_qualities_from_script(data):
 
 
 async def get_video_from_vk_player(url):
-    request_headers = {
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-    }
-    video_headers = {"request": {
-        "Accept": "*/*",
-        "Origin": VK_URL,
-        "Referer": f"{VK_URL}/",
-    }}
+    referer = request.headers.get('Referer', None)
+    user_agent = request.headers.get('User-Agent', None)
+
+    if not referer and "web.stremio.com" not in referer:
+        user_agent = get_random_agent()
+
+    request_headers = {"User-Agent": user_agent,
+                       "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"}
+    video_headers = {
+        "request": {
+            "User-Agent": user_agent,
+            "Accept": "*/*",
+            "Origin": VK_URL,
+            "Referer": f"{VK_URL}/",
+        }}
 
     if "video_ext" in url:
         url = url.replace("video_ext", "video_embed")

@@ -4,6 +4,7 @@ from app.routes.utils import get_random_agent
 import json
 from flask import request
 
+
 def fix_quality(quality):
     quality_mapping = {
         "ultra": 2160,
@@ -50,11 +51,9 @@ async def get_video_from_okru_player(url):
     referer = request.headers.get('Referer', None)
     user_agent = request.headers.get('User-Agent', None)
 
-    if referer and "web.stremio.com" in referer:
-        headers = {"User-Agent": user_agent}
-    else:
+    if not referer and "web.stremio.com" not in referer:
         user_agent = get_random_agent()
-        headers = {"User-Agent": user_agent}
+    headers = {"User-Agent": user_agent}
 
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
