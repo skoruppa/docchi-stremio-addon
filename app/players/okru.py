@@ -51,7 +51,7 @@ async def get_video_from_okru_player(url):
     referer = request.headers.get('Referer', None)
     user_agent = request.headers.get('User-Agent', None)
 
-    if not referer and "web.stremio.com" not in referer:
+    if not referer or "web.stremio.com" not in str(referer):
         user_agent = get_random_agent()
     headers = {"User-Agent": user_agent}
 
