@@ -3,8 +3,7 @@ import aiohttp
 import json
 import urllib.parse
 from bs4 import BeautifulSoup
-from app.routes.utils import get_random_agent
-from config import Config
+
 
 def decrypt_url(url: str) -> str:
     for p in ("_XDDD", "_CDA", "_ADC", "_CXD", "_QWE", "_Q5", "_IKSDE"):
