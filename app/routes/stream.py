@@ -1,6 +1,6 @@
 import asyncio
 import urllib.parse
-from flask import Blueprint
+from flask import Blueprint, request
 
 
 from app.routes import MAL_ID_PREFIX, docchi_client, kitsu_client
@@ -12,14 +12,14 @@ from app.players.okru import get_video_from_okru_player
 from app.players.sibnet import get_video_from_sibnet_player
 from app.players.dailymotion import get_video_from_dailymotion_player
 from app.players.vk import get_video_from_vk_player
-# from app.players.uqload import get_video_from_uqload_player  #even proxified uqload throws an ip error
-# from app.players.dood import get_video_from_dood_player  # can't bypass cloudflare protection on a remote server
+from app.players.uqload import get_video_from_uqload_player  #even proxified uqload throws an ip error
+from app.players.dood import get_video_from_dood_player  # can't bypass cloudflare protection on a remote server
 from app.players.gdrive import get_video_from_gdrive_player
 from config import Config
 
 stream_bp = Blueprint('stream', __name__)
 PROXIFY_CDA = Config.PROXIFY_CDA
-supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'dood']
+supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'dood', 'uqload']
 
 
 async def process_player(player):
@@ -36,7 +36,7 @@ async def process_player(player):
     quality = None
 
     if player_hosting == 'cda':
-        url, quality = await get_video_from_cda_player(player['player'])
+        url, quality, headers = await get_video_from_cda_player(player['player'])
     elif player_hosting == 'lycoris.cafe':
         url, quality = await get_video_from_lycoris_player(player['player'])
     elif player_hosting == 'ok':
@@ -45,6 +45,10 @@ async def process_player(player):
         url, quality, headers = await get_video_from_sibnet_player(player['player'])
     elif player_hosting == 'dailymotion':
         url, quality, headers = await get_video_from_dailymotion_player(player['player'])
+    elif player_hosting == 'dood':
+        url, quality, headers = await get_video_from_dood_player(player['player'])
+    elif player_hosting == 'uqload':
+        url, quality, headers = await get_video_from_uqload_player(player['player'])   
     elif player_hosting == 'vk':
         if player['isInverted'] == 'false':
             url, quality, headers = await get_video_from_vk_player(player['player'])
