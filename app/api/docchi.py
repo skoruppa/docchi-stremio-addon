@@ -2,6 +2,7 @@ import logging
 import requests
 from urllib.parse import urlencode, quote
 from requests import HTTPError
+from datetime import datetime
 from bs4 import BeautifulSoup
 import json
 
@@ -85,20 +86,24 @@ class DocchiAPI:
         :return: tuple of season and season_year
         """
 
-        url = 'https://docchi.pl/'
+        now = datetime.now()
+        current_year = now.year
 
-        resp = requests.get(url=url, timeout=TIMEOUT)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, 'html.parser')
-
-        script_tag = soup.find('script', id='__NEXT_DATA__')
-
-        data = json.loads(script_tag.string)
-
-        season_data = data.get('props', {}).get('pageProps', {}).get('season', {})
-        season = season_data[0]['season']
-        season_year = season_data[0]['season_year']
-        return season, season_year
+        # 1 kwietnia zaczyna się wiosna
+        if now < datetime(current_year, 4, 1):
+            # [1 stycznia ~ 31 marca)
+            return "winter", current_year
+        if now < datetime(current_year, 7, 1):
+            # [1 kwietnia ~ 30 czerwca)
+            return "spring", current_year
+        if now < datetime(current_year, 10, 1):
+            # [1 lipca ~ 30 września)
+            return "summer", current_year
+        if now < datetime(current_year, 12, 1):
+            # [1 października ~ 30 listopada)
+            return "fall", current_year
+        # [1 grudnia ~ 31 grudnia]
+        return "winter", current_year
 
     @staticmethod
     def get_available_episodes(slug: str):
