@@ -34,7 +34,7 @@ def _is_valid_catalog(catalog_type: str, catalog_id: str):
     """
     if catalog_type in MANIFEST['types']:
         for catalog in MANIFEST['catalogs']:
-            if catalog['id'] == catalog_id:
+            if catalog['id'] == catalog_id or catalog_id == 'winter_2025':
                 return True
     return False
 
@@ -92,11 +92,13 @@ def _fetch_anime_list(search, catalog_id, genre):
     if catalog_id == 'latest':
         latest = docchi_client.get_latest_episodes()
         return _process_latest_anime(latest)
-    if catalog_id == "trending":
+    elif catalog_id == "trending":
         trending = docchi_client.get_trending_anime()
         return _process_latest_anime(trending)
-
-    if "_" in catalog_id:
+    elif catalog_id == "season":
+        season, season_year = docchi_client.get_current_season()
+        return docchi_client.get_seasonal_anime(season, season_year)
+    elif "_" in catalog_id:  # for compatibility with previous version
         season = catalog_id.split("_")
         return docchi_client.get_seasonal_anime(season[0], season[1])
     return {}

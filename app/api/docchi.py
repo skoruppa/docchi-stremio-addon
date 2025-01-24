@@ -2,6 +2,8 @@ import logging
 import requests
 from urllib.parse import urlencode, quote
 from requests import HTTPError
+from bs4 import BeautifulSoup
+import json
 
 BASE_URL = "https://api.docchi.pl/v1"
 TIMEOUT = 30
@@ -75,6 +77,28 @@ class DocchiAPI:
             if item['mal_id'] == int(mal_id):
                 return item['slug']
         return None
+
+    @staticmethod
+    def get_current_season():
+        """
+        Get current anime season
+        :return: tuple of season and season_year
+        """
+
+        url = 'https://docchi.pl/'
+
+        resp = requests.get(url=url, timeout=TIMEOUT)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        script_tag = soup.find('script', id='__NEXT_DATA__')
+
+        data = json.loads(script_tag.string)
+
+        season_data = data.get('props', {}).get('pageProps', {}).get('season', {})
+        season = season_data[0]['season']
+        season_year = season_data[0]['season_year']
+        return season, season_year
 
     @staticmethod
     def get_available_episodes(slug: str):

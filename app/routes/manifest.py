@@ -14,14 +14,14 @@ genres = ['Action', 'Adventure', 'Avant Garde',
 
 MANIFEST = {
     'id': 'com.skoruppa.docchi-stremio-addon',
-    'version': '0.0.2',
+    'version': '0.0.3',
     'name': 'Docchi.pl Addon',
     'logo': 'https://docchi.pl/static/img/logo.svg',
     'description': 'Provides users with possibility to watch anime with polish subtitles based on data returned by Docchi.pl',
     'types': ['anime', 'series', 'movie'],
 
     'catalogs': [
-        {'type': 'anime', 'id': 'winter_2025', 'name': 'Winter 2025',
+        {'type': 'anime', 'id': 'season', 'name': 'Current Season',
          'extra': [{'name': 'genre', 'options': genres}],
          'genre': genres},
         {'type': 'anime', 'id': 'latest', 'name': 'Latest',
