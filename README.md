@@ -8,6 +8,7 @@ As the stream data needs to be extracted from web players, not all available pla
 - **CDA**
 - **OK.ru**
 - **VK.com**
+- **Sibnet.ru**
 - **Lycoris.cafe**
 - **Dailymotion**
 - **Google Drive**

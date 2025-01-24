@@ -1,5 +1,6 @@
 import re
 import aiohttp
+from aiohttp.client_exceptions import ClientConnectorError, ClientResponseError
 import json
 import urllib.parse
 from bs4 import BeautifulSoup
@@ -44,7 +45,7 @@ async def fetch_video_data(session: aiohttp.ClientSession, url: str, video_id: s
         async with session.get(url) as response:
             response.raise_for_status()
             html = await response.text()
-    except aiohttp.client_exceptions.ClientConnectorError:
+    except (ClientConnectorError, ClientResponseError):
         return None
 
     soup = BeautifulSoup(html, "html.parser")
@@ -60,12 +61,12 @@ async def fetch_video_data(session: aiohttp.ClientSession, url: str, video_id: s
 async def get_video_from_cda_player(url: str) -> tuple:
     url, video_id = normalize_cda_url(url)
     if not url:
-        return None, None
+        return None, None, None
     
     async with aiohttp.ClientSession() as session:
         video_data = await fetch_video_data(session, url, video_id)
         if not video_data:
-            return None, None
+            return None, None, None
 
         qualities = video_data['video']['qualities']
         current_quality = video_data['video']['quality']
@@ -75,7 +76,7 @@ async def get_video_from_cda_player(url: str) -> tuple:
             url = f'{url}?wersja={highest_quality}'
             video_data = await fetch_video_data(session, url, video_id)
             if not video_data:
-                return None, None
+                return None, None, None
 
         file = video_data['video']['file']
         decrypted_url = decrypt_url(file)

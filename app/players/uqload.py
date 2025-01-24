@@ -29,7 +29,10 @@ async def get_video_from_uqload_player(url: str):
             text = await response.text()
 
         soup = BeautifulSoup(text, 'html.parser')
-        match = re.search(r"\[\d+x(\d+),", soup.find("div", id="forumcode").textarea.text)
+        try:
+            match = re.search(r"\[\d+x(\d+),", soup.find("div", id="forumcode").textarea.text)
+        except AttributeError:
+            return None, None, None
         quality = f'{match.group(1)}p' if match else "unknown"
 
         script_tags = soup.find_all('script')
