@@ -18,7 +18,7 @@ class Config:
     STREAM_PROXY_PASSWORD = os.getenv('STREAM_PROXY_PASSWORD', "")  # MediaFlowProxy API_PASSWORD
     KITSU_STREMIO_API_URL = os.getenv('KITSU_STREMIO_API_URL', "https://anime-kitsu.strem.fun/meta")
 
-    DEBUG = os.getenv('FLASK_DEBUG', True)
+    DEBUG = os.getenv('FLASK_DEBUG', False)
     DATABASE = "/tmp/database.json"
 
     # Env dependent configs
