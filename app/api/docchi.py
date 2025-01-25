@@ -171,14 +171,18 @@ class DocchiAPI:
         return resp.json()
 
     @staticmethod
-    def get_latest_episodes(**kwargs):
+    def get_latest_episodes(season: str = None, year: str = None, **kwargs):
         """
         Get anime list from Docchi
+        :param season: Season
+        :param year: Year
         :param kwargs: Additional query parameters
         :return: JSON response
         """
-
-        url = f'{BASE_URL}/episodes/latest'
+        if not season and not year:
+            url = f'{BASE_URL}/episodes/latest'
+        else:
+            url = f'{BASE_URL}/episodes/latest?season=${season}&season_year=${year}'
         query_params = DocchiAPI.__to_query_string(kwargs)
         if query_params:
             url += f'?{query_params}'

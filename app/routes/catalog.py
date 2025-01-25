@@ -75,6 +75,8 @@ def _fetch_anime_list(search, catalog_id, genre):
     :param genre: The fields to return
     :return: The list of anime
     """
+    season, season_year = docchi_client.get_current_season()
+
     if search:
         search = urllib.parse.unquote(search)
     if search and not genre:
@@ -90,13 +92,12 @@ def _fetch_anime_list(search, catalog_id, genre):
             return filtered_results
         return results
     if catalog_id == 'latest':
-        latest = docchi_client.get_latest_episodes()
+        latest = docchi_client.get_latest_episodes(season, season_year)
         return _process_latest_anime(latest)
     elif catalog_id == "trending":
         trending = docchi_client.get_trending_anime()
         return _process_latest_anime(trending)
     elif catalog_id == "season":
-        season, season_year = docchi_client.get_current_season()
         return docchi_client.get_seasonal_anime(season, season_year)
     elif "_" in catalog_id:  # for compatibility with previous version
         season = catalog_id.split("_")
