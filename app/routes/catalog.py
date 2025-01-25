@@ -101,7 +101,7 @@ def _fetch_anime_list(search, catalog_id, genre):
         return docchi_client.get_seasonal_anime(season, season_year)
     elif "_" in catalog_id:  # for compatibility with previous version
         season = catalog_id.split("_")
-        return docchi_client.get_seasonal_anime(season[0], season[1])
+        return docchi_client.get_latest_episodes(season, season_year)
     return {}
 
 

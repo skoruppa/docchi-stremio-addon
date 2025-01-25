@@ -137,4 +137,4 @@ async def addon_stream(content_type: str, content_id: str):
     if players:
         streams = await process_players(players)
         return respond_with(streams)
-    return {}
+    return {'streams': []}
