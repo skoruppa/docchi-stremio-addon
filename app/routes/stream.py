@@ -15,11 +15,12 @@ from app.players.vk import get_video_from_vk_player
 from app.players.uqload import get_video_from_uqload_player
 from app.players.dood import get_video_from_dood_player  # can't bypass cloudflare protection on a remote server
 from app.players.gdrive import get_video_from_gdrive_player
+from app.players.lulustream import get_video_from_lulustream_player
 from config import Config
 
 stream_bp = Blueprint('stream', __name__)
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
-supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'uqload']
+supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'uqload', 'lulustream']
 
 
 async def process_player(player):
@@ -54,6 +55,8 @@ async def process_player(player):
             return None
     elif player_hosting == 'gdrive':
         url, quality, headers = await get_video_from_gdrive_player(player['player'])
+    elif player_hosting == 'lulustream':
+        url, quality, headers = await get_video_from_lulustream_player(player['player'])
 
     stream.update({'url': url, 'quality': quality, 'headers': headers})
     return stream
