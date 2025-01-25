@@ -182,7 +182,7 @@ class DocchiAPI:
         if not season and not year:
             url = f'{BASE_URL}/episodes/latest'
         else:
-            url = f'{BASE_URL}/episodes/latest?season=${season}&season_year=${year}'
+            url = f'{BASE_URL}/episodes/latest?season={season}&season_year={year}'
         query_params = DocchiAPI.__to_query_string(kwargs)
         if query_params:
             url += f'?{query_params}'
