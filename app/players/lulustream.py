@@ -87,8 +87,11 @@ async def get_video_from_lulustream_player(filelink):
             return None, None
 
         stream_url = fix_m3u8_link(m3u8_match.group(1))
-        quality = await fetch_resolution_from_m3u8(session, stream_url, headers)
-
+        try:
+            quality = await fetch_resolution_from_m3u8(session, stream_url, headers)
+            quality = f'{quality}p'
+        except:
+            quality = 'unknown'
         stream_headers = {'request': headers}
 
-        return stream_url, f'{quality}p', stream_headers
+        return stream_url, quality, stream_headers
