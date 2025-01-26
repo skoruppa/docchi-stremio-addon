@@ -1,6 +1,7 @@
 import asyncio
 import urllib.parse
-from flask import Blueprint, request
+from flask import Blueprint, abort
+from .manifest import MANIFEST
 
 
 from app.routes import MAL_ID_PREFIX, docchi_client, kitsu_client
@@ -13,7 +14,7 @@ from app.players.sibnet import get_video_from_sibnet_player
 from app.players.dailymotion import get_video_from_dailymotion_player
 from app.players.vk import get_video_from_vk_player
 from app.players.uqload import get_video_from_uqload_player
-from app.players.dood import get_video_from_dood_player  # can't bypass cloudflare protection on a remote server
+# from app.players.dood import get_video_from_dood_player  # can't bypass cloudflare protection on a remote server
 from app.players.gdrive import get_video_from_gdrive_player
 from app.players.lulustream import get_video_from_lulustream_player
 from config import Config
@@ -113,6 +114,9 @@ async def addon_stream(content_type: str, content_id: str):
     """
     content_id = urllib.parse.unquote(content_id)
     parts = content_id.split(":")
+
+    if content_type not in MANIFEST['types']:
+        abort(404)
 
     prefix = parts[0]
 

@@ -38,17 +38,24 @@ def fix_m3u8_link(link: str) -> str:
     params = re.findall(r'[?&]([^=]*)=([^&]*)', link)
 
     param_dict = {}
+    extra_params = {}
+
     for i, (key, value) in enumerate(params):
         if not key:
             if i < len(param_order):
                 param_dict[param_order[i]] = value
         else:
-            param_dict[key] = value
+            extra_params[key] = value
+
+    extra_params['i'] = '0.3'
+    extra_params['sp'] = '0'
 
     base_url = link.split('?')[0]
+
     fixed_link = base_url + '?' + '&'.join(f"{k}={v}" for k, v in param_dict.items() if k in param_order)
 
-    fixed_link = f'{fixed_link}&i=0.3&sp=0'
+    if extra_params:
+        fixed_link += '&' + '&'.join(f"{k}={v}" for k, v in extra_params.items())
 
     return fixed_link
 
@@ -84,14 +91,14 @@ async def get_video_from_lulustream_player(filelink):
 
         m3u8_match = re.search(r"sources:\[\{file:\"([^\"]+)\"", player_data)
         if not m3u8_match:
-            return None, None
+            return None, None, None
 
         stream_url = fix_m3u8_link(m3u8_match.group(1))
         try:
             quality = await fetch_resolution_from_m3u8(session, stream_url, headers)
             quality = f'{quality}p'
         except:
-            quality = 'unknown'
+            return None, None, None
         stream_headers = {'request': headers}
 
         return stream_url, quality, stream_headers

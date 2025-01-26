@@ -5,6 +5,8 @@ import json
 from bs4 import BeautifulSoup
 import re
 from app.routes.utils import get_random_agent
+from aiocache import cached
+from aiocache.serializers import PickleSerializer
 
 headers = {"User-Agent": get_random_agent()}
 GET_SECONDARY_URL = "https://www.lycoris.cafe/api/getSecondaryLink"
@@ -84,6 +86,7 @@ def get_highest_quality(video_links):
     return filtered_links[highest_quality], highest_resolution
 
 
+@cached(ttl=50, serializer=PickleSerializer())
 async def get_video_from_lycoris_player(url: str):
     try:
         async with aiohttp.ClientSession() as session:

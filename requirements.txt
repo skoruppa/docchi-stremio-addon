@@ -10,3 +10,4 @@ waitress~=3.0.2
 flask-caching~=2.3.0
 h2~=4.1.0
 httpx~=0.28.1
+aiocache~=0.12.3
