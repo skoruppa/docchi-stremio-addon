@@ -26,7 +26,7 @@ async def get_video_from_streamtape_player(url: str):
         "Referer": new_url,
     }
 
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as session:
         async with session.get(new_url, headers=headers) as response:
             if response.status != 200:
                 return None, None, None
