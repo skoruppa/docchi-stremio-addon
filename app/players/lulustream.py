@@ -81,7 +81,7 @@ async def get_video_from_lulustream_player(filelink):
     }
 
     async with aiohttp.ClientSession() as session:
-        async with session.get(filelink, headers=headers, timeout=10) as response:
+        async with session.get(filelink, headers=headers, timeout=30) as response:
             response.raise_for_status()
             html_content = await response.text()
 

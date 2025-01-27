@@ -16,12 +16,13 @@ from app.players.vk import get_video_from_vk_player
 from app.players.uqload import get_video_from_uqload_player
 # from app.players.dood import get_video_from_dood_player  # can't bypass cloudflare protection on a remote server
 from app.players.gdrive import get_video_from_gdrive_player
+from app.players.streamtape import get_video_from_streamtape_player
 from app.players.lulustream import get_video_from_lulustream_player
 from config import Config
 
 stream_bp = Blueprint('stream', __name__)
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
-supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'uqload', 'lulustream']
+supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'uqload', 'lulustream', 'streamtape']
 
 
 async def process_player(player):
@@ -58,6 +59,8 @@ async def process_player(player):
         url, quality, headers = await get_video_from_gdrive_player(player['player'])
     elif player_hosting == 'lulustream':
         url, quality, headers = await get_video_from_lulustream_player(player['player'])
+    elif player_hosting == 'streamtape':
+        url, quality, headers = await get_video_from_streamtape_player(player['player'])
 
     stream.update({'url': url, 'quality': quality, 'headers': headers})
     return stream
@@ -99,6 +102,8 @@ def sort_priority(stream):
         return 1
     elif stream['player_hosting'] == 'uqload':
         return 4
+    elif stream['player_hosting'] == 'streamtape':
+        return 5
     elif stream['translator_title'].lower() == 'ai':
         return 9
     return 2
