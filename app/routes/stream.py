@@ -128,7 +128,10 @@ async def addon_stream(content_type: str, content_id: str):
     prefix_id = parts[1]
     if prefix == 'kitsu':
         prefix_id = kitsu_client.get_mal_id_from_kitsu_id(prefix_id)
-        prefix = MAL_ID_PREFIX
+        if prefix_id:
+            prefix = MAL_ID_PREFIX
+        else:
+            return respond_with({})
     try:
         episode = parts[2]
     except IndexError:
