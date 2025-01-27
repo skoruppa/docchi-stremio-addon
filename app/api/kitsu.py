@@ -29,9 +29,11 @@ class KitsuAPI:
             raise Exception("A Valid kitsu id ug Must Be Provided")
 
         url = f'{BASE_URL}/anime/{kitsu_id}/mappings'
-
-        resp = requests.get(url=url, timeout=TIMEOUT)
-        resp.raise_for_status()
+        try:
+            resp = requests.get(url=url, timeout=TIMEOUT)
+            resp.raise_for_status()
+        except requests.exceptions.HTTPError:
+            return None
         mappings = resp.json()
         for mapping in mappings['data']:
             if mapping['attributes']['externalSite'] == 'myanimelist/anime':
