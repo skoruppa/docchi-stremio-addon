@@ -2,35 +2,7 @@ import re
 import aiohttp
 
 from app.routes.utils import get_random_agent
-
-
-def unpack(encoded_js):  # taken from https://github.com/LcdoWalterGarcia/Luluvdo-Link-Direct/blob/main/JavaScriptUnpacker.php
-    match = re.search(r"}\('(.*)', *(\d+), *(\d+), *'(.*?)'\.split\('\|'\)", encoded_js)
-    if not match:
-        return ""
-
-    payload, radix, count, symtab = match.groups()
-    radix, count = int(radix), int(count)
-    symtab = symtab.split('|')
-
-    if len(symtab) != count:
-        raise ValueError("Malformed p.a.c.k.e.r symtab")
-
-    def unbase(val):
-        alphabet = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'[:radix]
-        base_dict = {char: index for index, char in enumerate(alphabet)}
-        result = 0
-        for i, char in enumerate(reversed(val)):
-            result += base_dict[char] * (radix ** i)
-        return result
-
-    def lookup(match):
-        word = match.group(0)
-        index = unbase(word)
-        return symtab[index] if index < len(symtab) else word
-
-    decoded = re.sub(r'\b\w+\b', lookup, payload)
-    return decoded.replace('\\', '')
+from app.players.utils import unpack_js
 
 
 def fix_m3u8_link(link: str) -> str:
@@ -87,7 +59,7 @@ async def get_video_from_lulustream_player(filelink):
 
         player_data = ""
         if re.search(r"eval\(function\(p,a,c,k,e", html_content):
-            player_data = unpack(html_content)
+            player_data = unpack_js(html_content)
 
         m3u8_match = re.search(r"sources:\[\{file:\"([^\"]+)\"", player_data)
         if not m3u8_match:
