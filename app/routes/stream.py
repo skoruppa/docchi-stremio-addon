@@ -83,7 +83,7 @@ async def process_players(players):
                     'priority': sort_priority(stream)
                 }
                 if stream['inverted']:
-                    stream_data['data']['title'] = f"{stream_data['data']['title']}[inverted]"
+                    stream_data['title'] = f"{stream_data['title']}[inverted]"
                     stream_data['priority'] = 8
                 if stream['player_hosting'] == 'uqload':
                     if PROXIFY_STREAMS:
