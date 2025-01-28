@@ -37,6 +37,7 @@ async def process_player(player):
     headers = None
     url = None
     quality = None
+    inverted = False
 
     if player_hosting == 'cda':
         url, quality, headers = await get_video_from_cda_player(player['player'])
@@ -51,10 +52,9 @@ async def process_player(player):
     elif player_hosting == 'uqload':
         url, quality, headers = await get_video_from_uqload_player(player['player'])
     elif player_hosting == 'vk':
-        if player['isInverted'] == 'false':
-            url, quality, headers = await get_video_from_vk_player(player['player'])
-        else:
-            return None
+        url, quality, headers = await get_video_from_vk_player(player['player'])
+        if player['isInverted']:
+            inverted = True
     elif player_hosting == 'gdrive':
         url, quality, headers = await get_video_from_gdrive_player(player['player'])
     elif player_hosting == 'lulustream':
@@ -62,7 +62,7 @@ async def process_player(player):
     elif player_hosting == 'streamtape':
         url, quality, headers = await get_video_from_streamtape_player(player['player'])
 
-    stream.update({'url': url, 'quality': quality, 'headers': headers})
+    stream.update({'url': url, 'quality': quality, 'headers': headers, 'inverted': inverted})
     return stream
 
 
@@ -82,6 +82,9 @@ async def process_players(players):
                     'url': stream['url'],
                     'priority': sort_priority(stream)
                 }
+                if stream['inverted']:
+                    stream_data['data']['title'] = f"{stream_data['data']['title']}[inverted]"
+                    stream_data['priority'] = 8
                 if stream['player_hosting'] == 'uqload':
                     if PROXIFY_STREAMS:
                         stream_data['behaviorHints'] = {'notWebReady': True}
