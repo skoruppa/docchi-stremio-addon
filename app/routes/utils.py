@@ -2,6 +2,7 @@ import logging
 import random
 from flask import jsonify, flash, make_response, url_for, redirect, Response, request
 from flask_caching import Cache
+import json
 import hashlib
 cache = Cache()
 
@@ -30,12 +31,13 @@ def log_error(err):
     logging.error(f"{error_label} [{err.response.status_code}] -> {message}\n HINT: {hint}\n")
 
 
-def generate_etag(data):
-    return hashlib.md5(data.encode()).hexdigest()
+def generate_etag(data: dict) -> str:
+    data_str = json.dumps(data, sort_keys=True)
+    return hashlib.md5(data_str.encode()).hexdigest()
 
 
 # Enable CORS
-def respond_with(data) -> Response:
+def respond_with(data: dict) -> Response:
     """
     Respond with CORS headers to the client
     """
