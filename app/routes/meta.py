@@ -38,6 +38,8 @@ def addon_meta(meta_type: str, meta_id: str):
 
     url = f"{kitsu_API}/{meta_type}/"
     try:
+        if '_' in meta_id:
+            meta_id = meta_id.replace("_", ":")
         mal_id = meta_id.replace(f"{MAL_ID_PREFIX}:", '')
         url += f"mal:{mal_id}.json"
 
