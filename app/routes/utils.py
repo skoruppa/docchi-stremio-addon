@@ -35,7 +35,7 @@ def respond_with(data) -> Response:
     Respond with CORS headers to the client
     """
     resp = jsonify(data)
-    resp.headers['Cache-Control'] = 'public, max-age=600'
+    resp.headers['Cache-Control'] = 'public, s-max-age=600'
     resp.headers['Access-Control-Allow-Origin'] = "*"
     resp.headers['Access-Control-Allow-Headers'] = '*'
     return resp
