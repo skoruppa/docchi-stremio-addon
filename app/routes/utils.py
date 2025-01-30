@@ -47,7 +47,7 @@ def respond_with(data: dict) -> Response:
         return Response(status=304)
 
     resp = jsonify(data)
-    resp.headers['Cache-Control'] = 'public, s-max-age=600'
+    resp.headers['Cache-Control'] = 'public, s-max-age=3600'
     resp.headers['ETag'] = etag
     resp.headers['Access-Control-Allow-Origin'] = "*"
     resp.headers['Access-Control-Allow-Headers'] = '*'
