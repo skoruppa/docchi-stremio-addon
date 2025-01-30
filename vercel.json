@@ -10,13 +10,5 @@
              "src": "/(.*)",
              "dest": "run.py"
          }
-     ],
-     "headers": [
-         {
-             "source": "/catalog/(.*)",
-             "headers": [
-             { "key": "Cache-Control", "value": "public, max-age=3600, s-max-age=3600" }
      ]
-    }
-  ]
  }
