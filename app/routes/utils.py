@@ -43,8 +43,8 @@ def respond_with(data: dict) -> Response:
     """
 #    etag = generate_etag(data)
 
-    if request.headers.get('If-None-Match') == etag:
-        return Response(status=304)
+#    if request.headers.get('If-None-Match') == etag:
+#        return Response(status=304)
 
     resp = jsonify(data)
 #    resp.headers['Cache-Control'] = 'public, s-max-age=3600, max-age=3600'
