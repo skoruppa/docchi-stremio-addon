@@ -19,7 +19,7 @@ MANIFEST = {
     'logo': 'https://docchi.pl/static/img/logo.svg',
     'description': 'Provides users with possibility to watch anime with polish subtitles based on data returned by Docchi.pl',
     'types': ['anime', 'series', 'movie'],
-
+    'contactEmail': 'skoruppa@gmail.com',
     'catalogs': [
         {'type': 'anime', 'id': 'season', 'name': 'Current Season',
          'extra': [{'name': 'genre', 'options': genres}],
