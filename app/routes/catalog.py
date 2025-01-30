@@ -9,7 +9,7 @@ from . import docchi_client, MAL_ID_PREFIX
 from app.db.db import save_slug_from_mal_id, save_mal_id_from_slug, get_mal_id_from_slug
 from app.routes.utils import cache
 from .manifest import MANIFEST, genres as manifest_genres
-from .utils import respond_with, log_error, docache
+from .utils import respond_with, log_error
 
 catalog_bp = Blueprint('catalog', __name__)
 
@@ -110,7 +110,6 @@ def _fetch_anime_list(search, catalog_id, genre):
 @catalog_bp.route('/catalog/<catalog_type>/<catalog_id>/genre=<genre>.json')
 @catalog_bp.route('/catalog/<catalog_type>/<catalog_id>/genre=<genre>&search=<search>.json')
 @cache.cached()
-@docache(minutes=10, content_type='application/json')
 def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None,
                   search: str = None):
     """

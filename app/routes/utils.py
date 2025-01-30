@@ -2,8 +2,6 @@ import logging
 import random
 from flask import jsonify, flash, make_response, url_for, redirect, Response
 from flask_caching import Cache
-from datetime import datetime, date, timedelta
-from functools import wraps
 cache = Cache()
 
 
@@ -37,24 +35,10 @@ def respond_with(data) -> Response:
     Respond with CORS headers to the client
     """
     resp = jsonify(data)
+    resp.headers['Cache-Control'] = 'public, max-age=600'
     resp.headers['Access-Control-Allow-Origin'] = "*"
     resp.headers['Access-Control-Allow-Headers'] = '*'
     return resp
-
-
-def docache(minutes=5, content_type='application/json; charset=utf-8'):
-    """ Flask decorator that allow to set Expire and Cache headers. """
-    def fwrap(f):
-        @wraps(f)
-        def wrapped_f(*args, **kwargs):
-            r = f(*args, **kwargs)
-            then = datetime.now() + timedelta(minutes=minutes)
-            rsp = Response(r, content_type=content_type)
-            rsp.headers.add('Expires', then.strftime("%a, %d %b %Y %H:%M:%S GMT"))
-            rsp.headers.add('Cache-Control', 'public,max-age=%d' % int(60 * minutes))
-            return rsp
-        return wrapped_f
-    return fwrap
 
 
 def get_random_agent() -> str:

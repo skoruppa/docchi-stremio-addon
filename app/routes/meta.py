@@ -6,7 +6,7 @@ from flask import Blueprint, abort
 from . import MAL_ID_PREFIX, kitsu_client
 from config import Config
 from .manifest import MANIFEST
-from .utils import respond_with, log_error, docache
+from .utils import respond_with, log_error
 
 meta_bp = Blueprint('meta', __name__)
 
@@ -20,7 +20,6 @@ HEADERS = {
 
 @meta_bp.route('/meta/<meta_type>/<meta_id>.json')
 @lru_cache(maxsize=1000)
-@docache(minutes=5, content_type='application/json')
 def addon_meta(meta_type: str, meta_id: str):
     """
     Provides metadata for a specific content
