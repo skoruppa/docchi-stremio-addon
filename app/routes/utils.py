@@ -48,6 +48,8 @@ def respond_with(data: dict) -> Response:
 
     resp = jsonify(data)
     resp.headers['Cache-Control'] = 'public, s-max-age=3600, max-age=3600'
+    resp.headers['CDN-Cache-Control'] = 'public, s-maxage=60'
+    resp.headers['Vercel-CDN-Cache-Control'] = 'public, s-maxage=3600'
     resp.headers['ETag'] = etag
     resp.headers['Access-Control-Allow-Origin'] = "*"
     resp.headers['Access-Control-Allow-Headers'] = '*'
