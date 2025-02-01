@@ -56,7 +56,7 @@ def addon_meta(meta_type: str, meta_id: str):
     for item in meta['videos']:
         if 'kitsu:' in item.get("id"):
             item["id"] = item["id"].replace(f"kitsu:{kitsu_id}", f"{MAL_ID_PREFIX}:{mal_id}")
-    return respond_with({'meta': meta})
+    return respond_with({'meta': meta}, 86400)
 
 
 def kitsu_to_meta(kitsu_meta: dict, meta_id: str) -> dict:

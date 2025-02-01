@@ -37,20 +37,21 @@ def generate_etag(data: dict) -> str:
 
 
 # Enable CORS
-def respond_with(data: dict) -> Response:
+def respond_with(data: dict, cache_time: int = None) -> Response:
     """
     Respond with CORS headers to the client
     """
-#    etag = generate_etag(data)
+    #    etag = generate_etag(data)
 
-#    if request.headers.get('If-None-Match') == etag:
-#        return Response(status=304)
+    #    if request.headers.get('If-None-Match') == etag:
+    #        return Response(status=304)
 
     resp = jsonify(data)
-#    resp.headers['Cache-Control'] = 'public, s-max-age=3600, max-age=3600'
-#    resp.headers['CDN-Cache-Control'] = 'public, s-maxage=60'
-#    resp.headers['Vercel-CDN-Cache-Control'] = 'public, s-maxage=3600'
-#    resp.headers['ETag'] = etag
+    if cache_time:
+        resp.headers['Cache-Control'] = f'public, s-max-age={cache_time}'
+        resp.headers['CDN-Cache-Control'] = f'public, s-maxage={cache_time}'
+        resp.headers['Vercel-CDN-Cache-Control'] = f'public, s-maxage={cache_time}'
+    #    resp.headers['ETag'] = etag
     resp.headers['Access-Control-Allow-Origin'] = "*"
     resp.headers['Access-Control-Allow-Headers'] = '*'
     return resp

@@ -54,4 +54,4 @@ def addon_manifest():
     Provides the manifest for the addon after the user has authenticated with MyAnimeList
     :return: JSON response
     """
-    return respond_with(MANIFEST)
+    return respond_with(MANIFEST, 7200)
