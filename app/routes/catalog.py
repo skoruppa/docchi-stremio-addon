@@ -81,13 +81,13 @@ def _fetch_anime_list(search, catalog_id, genre):
         search = urllib.parse.unquote(search)
     if search and not genre:
         if len(search) < 3:
-            raise ValueError('Search query must be at least 3 characters long')
+            return {}
         return docchi_client.search_anime(name=search)
     if genre:
         results = docchi_client.get_anime_by_genre(genre=genre)
         if search:
             if len(search) < 3:
-                raise ValueError('Search query must be at least 3 characters long')
+                return {}
             filtered_results = list(filter(lambda x: search.lower() in x["title"].lower(), results))
             return filtered_results
         return results
