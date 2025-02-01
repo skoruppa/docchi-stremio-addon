@@ -37,7 +37,7 @@ def generate_etag(data: dict) -> str:
 
 
 # Enable CORS
-def respond_with(data: dict, cache_time: int = None) -> Response:
+def respond_with(data: dict, cache_time: int = None, client_cache_time: int = 0) -> Response:
     """
     Respond with CORS headers to the client
     """
@@ -48,7 +48,7 @@ def respond_with(data: dict, cache_time: int = None) -> Response:
 
     resp = jsonify(data)
     if cache_time:
-        resp.headers['Cache-Control'] = f'public, s-max-age={cache_time}, max-age=900'
+        resp.headers['Cache-Control'] = f'public, s-max-age={cache_time}, max-age={client_cache_time}'
         resp.headers['CDN-Cache-Control'] = f'public, s-maxage={cache_time}, maxage={cache_time}'
         resp.headers['Vercel-CDN-Cache-Control'] = f'public, s-maxage={cache_time}'
         resp.headers['Cloudflare-CDN-Cache-Control'] = f'public, maxage={cache_time}'

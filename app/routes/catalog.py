@@ -152,7 +152,7 @@ def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None,
         return respond_with({'metas': [], 'message': str(e)}), 400
     except requests.HTTPError as e:
         log_error(e)
-        return respond_with({'metas': []}, cache_time)
+        return respond_with({'metas': []}, cache_time, 900)
 
 
 def docchi_to_meta(anime_item: dict, catalog_type: str, catalog_id: str, transport_url: str):
