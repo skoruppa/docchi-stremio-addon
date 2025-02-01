@@ -67,6 +67,21 @@ def _process_latest_anime(results):
     return unique_anime_list
 
 
+def _set_cache_time(catalog_id):
+    if catalog_id == 'search_list':
+        cache_time = 3600
+    elif catalog_id == 'latest':
+        cache_time = 900
+    elif catalog_id == 'season':
+        cache_time = 86400
+    elif catalog_id == 'trending':
+        cache_time = 86400
+    else:
+        cache_time = 0
+
+    return cache_time
+
+
 def _fetch_anime_list(search, catalog_id, genre):
     """
     Fetch a list of anime from Docchi API based on the provided parameters
@@ -123,6 +138,8 @@ def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None,
     if not _is_valid_catalog(catalog_type, catalog_id):
         abort(404)
 
+    cache_time = _set_cache_time(catalog_id)
+
     try:
         response_data = _fetch_anime_list(search, catalog_id, genre)
 
@@ -130,12 +147,12 @@ def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None,
         for anime_item in response_data:
             meta = docchi_to_meta(anime_item, catalog_type=catalog_type, catalog_id=catalog_id, transport_url=_get_transport_url(request))
             meta_previews.append(meta)
-        return respond_with({'metas': meta_previews}, 900)
+        return respond_with({'metas': meta_previews}, cache_time)
     except ValueError as e:
         return respond_with({'metas': [], 'message': str(e)}), 400
     except requests.HTTPError as e:
         log_error(e)
-        return respond_with({'metas': []}, 900)
+        return respond_with({'metas': []}, cache_time)
 
 
 def docchi_to_meta(anime_item: dict, catalog_type: str, catalog_id: str, transport_url: str):
