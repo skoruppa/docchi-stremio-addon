@@ -14,7 +14,7 @@ genres = ['Action', 'Adventure', 'Avant Garde',
 
 MANIFEST = {
     'id': 'com.skoruppa.docchi-stremio-addon',
-    'version': '0.0.3',
+    'version': '0.0.4',
     'name': 'Docchi.pl Addon',
     'logo': 'https://docchi.pl/static/img/logo.svg',
     'description': 'Provides users with possibility to watch anime with polish subtitles based on data returned by Docchi.pl',
@@ -44,7 +44,7 @@ MANIFEST = {
 
     'behaviorHints': {'configurable': False},
     'resources': ['catalog', 'meta', 'stream'],
-    'idPrefixes': [MAL_ID_PREFIX, 'kitsu']
+    'idPrefixes': [MAL_ID_PREFIX]
 }
 
 
