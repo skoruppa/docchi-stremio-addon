@@ -147,7 +147,7 @@ def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None,
         for anime_item in response_data:
             meta = docchi_to_meta(anime_item, catalog_type=catalog_type, catalog_id=catalog_id, transport_url=_get_transport_url(request))
             meta_previews.append(meta)
-        return respond_with({'metas': meta_previews}, cache_time)
+        return respond_with({'metas': meta_previews}, cache_time, 900)
     except ValueError as e:
         return respond_with({'metas': [], 'message': str(e)}), 400
     except requests.HTTPError as e:
