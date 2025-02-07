@@ -60,8 +60,9 @@ async def get_video_from_lulustream_player(filelink):
         player_data = ""
         if re.search(r"eval\(function\(p,a,c,k,e", html_content):
             player_data = unpack_js(html_content)
-
-        m3u8_match = re.search(r"sources:\[\{file:\"([^\"]+)\"", player_data)
+            m3u8_match = re.search(r"sources:\[\{file:\"([^\"]+)\"", player_data)
+        else:
+            m3u8_match = re.search(r"sources:\[\{file:\"([^\"]+)\"", html_content)
         if not m3u8_match:
             print(html_content)
             return None, None, None
