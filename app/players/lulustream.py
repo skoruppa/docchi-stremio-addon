@@ -57,17 +57,19 @@ async def get_video_from_lulustream_player(filelink):
             response.raise_for_status()
             html_content = await response.text()
 
+        m3u8_match = ""
         player_data = ""
         if re.search(r"eval\(function\(p,a,c,k,e", html_content):
             player_data = unpack_js(html_content)
             m3u8_match = re.search(r"sources:\[\{file:\"([^\"]+)\"", player_data)
+            stream_url = fix_m3u8_link(m3u8_match.group(1))
         else:
-            m3u8_match = re.search(r"sources:\[\{file:\"([^\"]+)\"", html_content)
+            m3u8_match = re.search(r'sources: \[\{file:"(https?://[^"]+)"\}\]', html_content)
+            stream_url = m3u8_match.group(1)
         if not m3u8_match:
             print(html_content)
             return None, None, None
 
-        stream_url = fix_m3u8_link(m3u8_match.group(1))
         try:
             quality = await fetch_resolution_from_m3u8(session, stream_url, headers)
             quality = f'{quality}p'
