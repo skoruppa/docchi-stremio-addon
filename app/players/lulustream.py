@@ -63,6 +63,7 @@ async def get_video_from_lulustream_player(filelink):
 
         m3u8_match = re.search(r"sources:\[\{file:\"([^\"]+)\"", player_data)
         if not m3u8_match:
+            print(html_content)
             return None, None, None
 
         stream_url = fix_m3u8_link(m3u8_match.group(1))
