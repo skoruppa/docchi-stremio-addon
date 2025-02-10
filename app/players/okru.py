@@ -3,6 +3,11 @@ from bs4 import BeautifulSoup
 from app.routes.utils import get_random_agent
 import json
 from flask import request
+from config import Config
+
+PROXIFY_STREAMS = Config.PROXIFY_STREAMS
+STREAM_PROXY_URL = Config.STREAM_PROXY_URL
+STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 
 
 def fix_quality(quality):
@@ -50,6 +55,8 @@ def videos_from_json(video_json, user_agent):
 async def get_video_from_okru_player(url):
     referer = request.headers.get('Referer', None)
     user_agent = request.headers.get('User-Agent', None)
+    if PROXIFY_STREAMS:
+        url = f'{STREAM_PROXY_URL}/proxy/stream?d={url}&api_password={STREAM_PROXY_PASSWORD}'
 
     if not referer or "web.stremio.com" not in str(referer):
         user_agent = get_random_agent()
