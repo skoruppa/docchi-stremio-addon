@@ -62,7 +62,7 @@ async def get_video_from_okru_player(url):
         user_agent = get_random_agent()
     headers = {"User-Agent": user_agent}
 
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as session:
         async with session.get(url, headers=headers) as response:
             text = await response.text()
 
