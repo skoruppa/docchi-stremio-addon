@@ -41,16 +41,16 @@ def videos_from_json(video_json, user_agent):
             videos.append({'url': video_url, 'quality': quality})
     highest_quality_video = max(videos, key=lambda x: x['quality'])
 
-    video_headers = {
-        "request": {
-            "User-Agent": user_agent,
-            "Origin": "https://ok.ru",
-            "Referer": "https://ok.ru/",
-            "host": urlparse(highest_quality_video['url']).hostname
-        }
-    }
+    # video_headers = {
+    #     "request": {
+    #         "User-Agent": user_agent,
+    #         "Origin": "https://ok.ru",
+    #         "Referer": "https://ok.ru/",
+    #         "host": urlparse(highest_quality_video['url']).hostname
+    #     }
+    # }
 
-    return highest_quality_video['url'], f"{highest_quality_video['quality']}p", video_headers
+    return highest_quality_video['url'], f"{highest_quality_video['quality']}p", None
 
 
 async def get_video_from_okru_player(url):
