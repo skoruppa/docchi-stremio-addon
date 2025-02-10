@@ -62,7 +62,7 @@ async def get_video_from_okru_player(url):
     document = BeautifulSoup(text, "html.parser")
     player_string = document.select_one("div[data-options]")
     if not player_string:
-        print(response.text)
+        print(document.prettify())
         return None, None, None
 
     player_data = player_string.get("data-options", "")
