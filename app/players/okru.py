@@ -1,3 +1,5 @@
+from urllib.parse import urlparse
+
 import aiohttp
 from bs4 import BeautifulSoup
 from app.routes.utils import get_random_agent
@@ -41,11 +43,10 @@ def videos_from_json(video_json, user_agent):
 
     video_headers = {
         "request": {
-            "User-Agent": user_agent
-        },
-        "response": {
-            "Access-Control-Allow-Origin": "*",
-            "Content-Type": "video/mp4"
+            "User-Agent": user_agent,
+            "Origin": "https://ok.ru",
+            "Referer": "https://ok.ru/",
+            "host": urlparse(highest_quality_video['url']).hostname
         }
     }
 
