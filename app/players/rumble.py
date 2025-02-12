@@ -11,7 +11,7 @@ async def get_video_from_rumble_player(url):
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
             if response.status != 200:
-                raise Exception("Nie udało się pobrać strony")
+                return None, None, None
 
             text = await response.text()
 
