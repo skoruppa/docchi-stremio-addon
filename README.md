@@ -12,6 +12,7 @@ As the stream data needs to be extracted from web players, not all available pla
 - **Lycoris.cafe**
 - **Dailymotion**
 - **Google Drive**
+- **Rumble.com**
 
 ## Usage 🧑‍💻
 
