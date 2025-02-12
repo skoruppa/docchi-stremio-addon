@@ -9,8 +9,8 @@ from aiocache import cached
 from aiocache.serializers import PickleSerializer
 
 headers = {"User-Agent": get_random_agent()}
-GET_SECONDARY_URL = "https://www.lycoris.cafe/api/getSecondaryLink"
-GET_THIRD_URL = "https://www.lycoris.cafe/api/getLink"
+GET_SECONDARY_URL = "https://www.lycoris.cafe/api/watch/getSecondaryLink"
+GET_LINK_URL = "https://www.lycoris.cafe/api/watch/getLink"
 
 
 def decode_video_links(encoded_url):
@@ -49,11 +49,11 @@ async def fetch_and_decode_video(session: aiohttp.ClientSession, episode_id: str
     Jeśli is_secondary jest True, konwertuje link do odpowiedniego formatu.
     """
     try:
-        if is_secondary:
+        if not is_secondary:
             converted_text = bytes(episode_id, "utf-8").decode("unicode_escape")
             final_text = converted_text.encode("latin1").decode("utf-8")
             params = {"link": final_text}
-            url = GET_THIRD_URL
+            url = GET_LINK_URL
         else:
             params = {"id": episode_id}
             url = GET_SECONDARY_URL
@@ -98,10 +98,10 @@ async def get_video_from_lycoris_player(url: str):
             scripts = soup.find_all('script')
 
             for script in scripts:
-                if script.string and "episodeData" in script.string:
+                if script.string and "episodeInfo" in script.string:
                     script_content = script.string.strip()
 
-                    match = re.search(r'episodeData\s*:\s*({.*?}),', script_content, re.DOTALL)
+                    match = re.search(r'episodeInfo\s*:\s*({.*?}),', script_content, re.DOTALL)
                     if match:
                         episode_data = match.group(1)
                         match = re.search(r'id\s*:\s*(\d+)', episode_data)
@@ -125,9 +125,9 @@ async def get_video_from_lycoris_player(url: str):
                             highest_quality = {"url": qualities['SD'], 'quality': 480}
                         if match:
                             episode_id = match.group(1)
-                            video_links = await fetch_and_decode_video(session, episode_id, is_secondary=False)
+                            video_links = await fetch_and_decode_video(session, episode_id, is_secondary=True)
                             if not video_links:
-                                video_link = await fetch_and_decode_video(session, highest_quality['url'], is_secondary=True)
+                                video_link = await fetch_and_decode_video(session, highest_quality['url'], is_secondary=False)
                                 return video_link, highest_quality['quality']
                             else:
                                 return get_highest_quality(video_links)
