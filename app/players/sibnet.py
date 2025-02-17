@@ -13,6 +13,7 @@ async def get_video_from_sibnet_player(url: str) -> tuple:
     headers = {
         "User-Agent": get_random_agent(),
     }
+    original_url = url
     if PROXIFY_STREAMS:
         url = f'{STREAM_PROXY_URL}/proxy/stream?d={url}&api_password={STREAM_PROXY_PASSWORD}'
     async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as session:
@@ -39,7 +40,7 @@ async def get_video_from_sibnet_player(url: str) -> tuple:
 
             video_headers = {
                 "request": {
-                    "Referer": url,
+                    "Referer": original_url,
                     "User-Agent": headers['User-Agent']
                 }
             }
@@ -47,7 +48,7 @@ async def get_video_from_sibnet_player(url: str) -> tuple:
             if "http" in slug:
                 video_url = slug
             else:
-                host = urlparse(url).netloc
+                host = urlparse(original_url).netloc
                 video_url = f"https://{host}{slug}"
 
             async with session.head(video_url, headers=video_headers["request"]) as head_response:
