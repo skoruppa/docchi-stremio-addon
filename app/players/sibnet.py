@@ -8,6 +8,7 @@ async def get_video_from_sibnet_player(url: str) -> tuple:
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             if response.status != 200:
+                print(response.status)
                 return None, None, None
 
             html = await response.text()
