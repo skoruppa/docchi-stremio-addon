@@ -16,7 +16,7 @@ async def get_video_from_sibnet_player(url: str) -> tuple:
 
             script = document.select_one("script:-soup-contains('player.src')")
             if not script or not script.string:
-                print(document.text)
+                print(response.text)
                 return None, None, None
 
             script_data = script.string
@@ -36,7 +36,6 @@ async def get_video_from_sibnet_player(url: str) -> tuple:
 
             if "http" in slug:
                 video_url = slug
-                print(video_url)
             else:
                 host = urlparse(url).netloc
                 video_url = f"https://{host}{slug}"
@@ -47,7 +46,5 @@ async def get_video_from_sibnet_player(url: str) -> tuple:
                     if not location.startswith("http"):
                         location = urljoin(f"https://{host}", location)
                     video_url = location
-                else:
-                    print(head_response.headers)
 
     return video_url, "unknown", video_headers
