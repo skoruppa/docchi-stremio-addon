@@ -2,13 +2,19 @@ import aiohttp
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
 from app.routes.utils import get_random_agent
+from config import Config
+
+PROXIFY_STREAMS = Config.PROXIFY_STREAMS
+STREAM_PROXY_URL = Config.STREAM_PROXY_URL
+STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 
 
 async def get_video_from_sibnet_player(url: str) -> tuple:
     headers = {
         "User-Agent": get_random_agent(),
-        "Host": "video.sibnet.ru"
     }
+    if PROXIFY_STREAMS:
+        url = f'{STREAM_PROXY_URL}/proxy/stream?d={url}&api_password={STREAM_PROXY_PASSWORD}'
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
             if response.status != 200:
