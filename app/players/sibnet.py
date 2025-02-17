@@ -5,10 +5,13 @@ from app.routes.utils import get_random_agent
 
 
 async def get_video_from_sibnet_player(url: str) -> tuple:
+    headers = {
+        "User-Agent": get_random_agent()
+    }
     async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
+        async with session.get(url, headers=headers) as response:
             if response.status != 200:
-                print(f'Wrong Status: {response.status}')
+                print(f'Wrong Status: {response.text}')
                 return None, None, None
 
             html = await response.text()
@@ -30,7 +33,7 @@ async def get_video_from_sibnet_player(url: str) -> tuple:
             video_headers = {
                 "request": {
                     "Referer": url,
-                    "User-Agent": get_random_agent()
+                    "User-Agent": headers['User-Agent']
                 }
             }
 
