@@ -8,7 +8,7 @@ async def get_video_from_sibnet_player(url: str) -> tuple:
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             if response.status != 200:
-                print(response.status)
+                print(f'Wrong Status: {response.status}')
                 return None, None, None
 
             html = await response.text()
@@ -16,7 +16,7 @@ async def get_video_from_sibnet_player(url: str) -> tuple:
 
             script = document.select_one("script:-soup-contains('player.src')")
             if not script or not script.string:
-                print(response.text)
+                print(f'Wrong Body: {response.text}')
                 return None, None, None
 
             script_data = script.string
