@@ -6,7 +6,8 @@ from app.routes.utils import get_random_agent
 
 async def get_video_from_sibnet_player(url: str) -> tuple:
     headers = {
-        "User-Agent": get_random_agent()
+        "User-Agent": get_random_agent(),
+        "Host": "video.sibnet.ru"
     }
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
