@@ -1,4 +1,4 @@
-# docchi-stremio-addon
+# Docchi Stremio Addon
 
 This Stremio addon allows users to access anime streams with polish subtitles available on the [Docchi.pl](http://docchi.pl) site. 
 
