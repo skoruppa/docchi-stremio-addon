@@ -23,7 +23,7 @@ from config import Config
 
 stream_bp = Blueprint('stream', __name__)
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
-supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'uqload', 'lulustream', 'streamtape', 'rumble']
+supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'google drive', 'uqload', 'lulustream', 'streamtape', 'rumble']
 
 
 async def process_player(player):
@@ -56,7 +56,7 @@ async def process_player(player):
         url, quality, headers = await get_video_from_vk_player(player['player'])
         if player['isInverted']:
             inverted = True
-    elif player_hosting == 'gdrive':
+    elif player_hosting == 'gdrive' or player_hosting == 'google drive':
         url, quality, headers = await get_video_from_gdrive_player(player['player'])
     elif player_hosting == 'lulustream':
         url, quality, headers = await get_video_from_lulustream_player(player['player'])

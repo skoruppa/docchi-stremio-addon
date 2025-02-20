@@ -39,10 +39,5 @@ async def get_video_from_gdrive_player(drive_url: str):
     soup = BeautifulSoup(text, "html.parser")
     quality = "unknown"
 
-    video_params = {
-        input_elem["name"]: input_elem["value"]
-        for input_elem in soup.select("input[type=hidden]")
-    }
-
     final_video_url = build_video_url(video_url, soup)
     return final_video_url, quality, headers
