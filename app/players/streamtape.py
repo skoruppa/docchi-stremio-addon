@@ -8,6 +8,7 @@ PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 STREAM_PROXY_URL = Config.STREAM_PROXY_URL
 STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 
+
 async def get_video_from_streamtape_player(url: str):
     quality = "unknown"
     base_url = "https://streamtape.com/e/"
@@ -57,11 +58,14 @@ async def get_video_from_streamtape_player(url: str):
                     "request_headers": headers,
                     "api_password": STREAM_PROXY_PASSWORD,
                 }
-                async with session.post(f'{STREAM_PROXY_URL}/generate_encrypted_or_encoded_url',
-                                        json=post_data) as response:
-                    response.raise_for_status()
-                    result = await response.json()
-                stream_url = result.get("encoded_url", {})
+                try:
+                    async with session.post(f'{STREAM_PROXY_URL}/generate_encrypted_or_encoded_url',
+                                            json=post_data) as response:
+                        response.raise_for_status()
+                        result = await response.json()
+                    stream_url = result.get("encoded_url", {})
+                except aiohttp.client_exceptions.ClientConnectorError:
+                    return None, None, None
             else:
                 video_headers = {'request': headers}
 

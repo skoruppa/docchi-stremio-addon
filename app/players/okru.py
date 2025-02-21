@@ -63,9 +63,12 @@ async def get_video_from_okru_player(url):
         user_agent = get_random_agent()
     headers = {"User-Agent": user_agent}
 
-    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as session:
-        async with session.get(url, headers=headers) as response:
-            text = await response.text()
+    try:
+        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as session:
+            async with session.get(url, headers=headers) as response:
+                text = await response.text()
+    except aiohttp.client_exceptions.ClientConnectorError:
+        return None, None, None
 
     document = BeautifulSoup(text, "html.parser")
     player_string = document.select_one("div[data-options]")
