@@ -46,3 +46,8 @@ Please refer to these API references for detailed information on how to interact
 ## Acknowledgements
 
 - **MAL-Stremio Addon**: I based a lot of this extension on a code from the [MAL-Stremio Addon](https://github.com/SageTendo/mal-stremio-addo)
+
+
+## Support 🤝
+
+If you want to thank me for the addon, you can [buy me a coffe](https://buycoffee.to/skoruppa) 
