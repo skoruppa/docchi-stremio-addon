@@ -95,45 +95,32 @@ async def get_video_from_lycoris_player(url: str):
                 html = await response.text()
 
             soup = BeautifulSoup(html, 'html.parser')
-            scripts = soup.find_all('script')
+            script = soup.find('script', {'type': 'application/json'})
 
-            for script in scripts:
-                if script.string and "episodeInfo" in script.string:
-                    script_content = script.string.strip()
+            if script.string and "episodeInfo" in script.string:
+                script_content = script.string.strip()
 
-                    match = re.search(r'episodeInfo\s*:\s*({.*?}),', script_content, re.DOTALL)
-                    if match:
-                        episode_data = match.group(1)
-                        match = re.search(r'id\s*:\s*(\d+)', episode_data)
-                        streams_data = re.findall(r'(FHD|HD|SD):"([^"]+)"', episode_data)
+                data = json.loads(script_content)
+                body = json.loads(data["body"])
 
-                        # Przyjmujemy kolejność FHD > HD > SD
-                        qualities = {'FHD': None, 'HD': None, 'SD': None}
+                # Wybieramy najwyższą jakość
+                highest_quality = None
+                if body['episodeInfo']['FHD']:
+                    highest_quality = {"url": body['episodeInfo']['FHD'], 'quality': 1080}
+                elif body['episodeInfo']['HD']:
+                    highest_quality = {"url": body['episodeInfo']['HD'], 'quality': 720}
+                elif body['episodeInfo']['SD']:
+                    highest_quality = {"url": body['episodeInfo']['SD'], 'quality': 480}
+                if body['episodeInfo']['id']:
+                    video_links = await fetch_and_decode_video(session, body['episodeInfo']['id'], is_secondary=True)
+                    if not video_links:
+                        video_link = await fetch_and_decode_video(session, highest_quality['url'], is_secondary=False)
+                        return video_link, highest_quality['quality']
+                    else:
+                        return get_highest_quality(video_links)
 
-                        for stream_data in streams_data:
-                            quality, value = stream_data
-                            if qualities[quality] is None:
-                                qualities[quality] = value
-
-                        # Wybieramy najwyższą jakość
-                        highest_quality = None
-                        if qualities['FHD']:
-                            highest_quality = {"url": qualities['FHD'], 'quality': 1080}
-                        elif qualities['HD']:
-                            highest_quality = {"url": qualities['HD'], 'quality': 720}
-                        elif qualities['SD']:
-                            highest_quality = {"url": qualities['SD'], 'quality': 480}
-                        if match:
-                            episode_id = match.group(1)
-                            video_links = await fetch_and_decode_video(session, episode_id, is_secondary=True)
-                            if not video_links:
-                                video_link = await fetch_and_decode_video(session, highest_quality['url'], is_secondary=False)
-                                return video_link, highest_quality['quality']
-                            else:
-                                return get_highest_quality(video_links)
-
-        return None
+        return None, None
     except Exception as e:
         logging.error(response.text)
         pass
-        return None
+        return None, None
