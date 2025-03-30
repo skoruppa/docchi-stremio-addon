@@ -36,6 +36,7 @@ def normalize_cda_url(url):
 
 
 def get_highest_quality(qualities: dict) -> tuple:
+    qualities.pop('auto')  # worthless quality
     highest_quality = max(qualities.keys(), key=lambda x: int(x.rstrip('p')))
     return highest_quality, qualities[highest_quality]
 
@@ -79,10 +80,13 @@ async def get_video_from_cda_player(url: str) -> tuple:
                 return None, None, None
 
         file = video_data['video']['file']
-        decrypted_url = decrypt_url(file)
+        if file:
+            url = decrypt_url(file)
+        else:
+            url = video_data['video']['manifest']
 
-        if decrypted_url:
+        if url:
             headers = {"request": {"Referer": f"https://ebd.cda.pl/620x368/{video_id}" }}
-            return decrypted_url, highest_quality, headers
+            return url, highest_quality, headers
 
         raise ValueError("Failed to fetch video URL.")
