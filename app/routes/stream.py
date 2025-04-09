@@ -18,12 +18,13 @@ from app.players.uqload import get_video_from_uqload_player
 from app.players.gdrive import get_video_from_gdrive_player
 from app.players.streamtape import get_video_from_streamtape_player
 from app.players.lulustream import get_video_from_lulustream_player
+from app.players.savefiles import get_video_from_savefiles_player
 from app.players.rumble import get_video_from_rumble_player
 from config import Config
 
 stream_bp = Blueprint('stream', __name__)
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
-supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'google drive', 'uqload', 'lulustream', 'streamtape', 'rumble']
+supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'google drive', 'uqload', 'lulustream', 'streamtape', 'rumble', 'default']
 
 
 async def process_player(player):
@@ -64,6 +65,9 @@ async def process_player(player):
         url, quality, headers = await get_video_from_streamtape_player(player['player'])
     elif player_hosting == 'rumble':
         url, quality, headers = await get_video_from_rumble_player(player['player'])
+    elif player_hosting == 'default':
+        if 'savefiles.com' in player['player']:
+            url, quality, headers = await get_video_from_savefiles_player(player['player'])
 
     stream.update({'url': url, 'quality': quality, 'headers': headers, 'inverted': inverted})
     return stream
