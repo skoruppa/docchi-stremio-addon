@@ -36,7 +36,7 @@ def normalize_cda_url(url):
 
 
 def get_highest_quality(qualities: dict) -> tuple:
-    qualities.pop('auto')  # worthless quality
+    qualities.pop('auto', None)  # worthless quality
     highest_quality = max(qualities.keys(), key=lambda x: int(x.rstrip('p')))
     return highest_quality, qualities[highest_quality]
 
