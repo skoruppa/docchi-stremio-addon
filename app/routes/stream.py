@@ -20,6 +20,7 @@ from app.players.streamtape import get_video_from_streamtape_player
 from app.players.lulustream import get_video_from_lulustream_player
 from app.players.savefiles import get_video_from_savefiles_player
 from app.players.rumble import get_video_from_rumble_player
+from app.players.bigwarpio import get_video_from_bigwarp_player
 from config import Config
 
 stream_bp = Blueprint('stream', __name__)
@@ -68,6 +69,8 @@ async def process_player(player):
     elif player_hosting == 'default':
         if 'savefiles.com' in player['player']:
             url, quality, headers = await get_video_from_savefiles_player(player['player'])
+        elif 'bigwarp' in player['player']:
+            url, quality, headers = await get_video_from_bigwarp_player(player['player'])
 
     stream.update({'url': url, 'quality': quality, 'headers': headers, 'inverted': inverted})
     return stream
