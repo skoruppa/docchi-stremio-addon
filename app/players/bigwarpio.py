@@ -1,40 +1,36 @@
 import re
 import aiohttp
 from urllib.parse import urlparse
-
-# Zakładamy, że ta funkcja jest zawsze dostępna w środowisku wtyczki
 from app.routes.utils import get_random_agent
 
 
 async def get_video_from_bigwarp_player(filelink: str):
     dl_url = "https://bigwarp.io/dl"
     final_referer = "https://bigwarp.io/"
-    random_agent = get_random_agent()  # Pobierz raz i używaj w obu miejscach jeśli potrzebne
+    random_agent = get_random_agent()
 
     try:
-        # --- Krok 1: Wyciągnij file_code z filelink ---
         parsed_url = urlparse(filelink)
         path_parts = parsed_url.path.strip('/').split('/')
         if not path_parts:
-            return None, None, None  # Nieprawidłowy URL
+            return None, None, None
 
-        # Ostatnia część ścieżki, potencjalnie z rozszerzeniem .html
         filename = path_parts[-1]
         if filename.lower().endswith('.html'):
-            file_code = filename[:-5]  # Usuń '.html'
+            file_code = filename[:-5]
         else:
-            file_code = filename  # Jeśli nie ma .html, użyj całej nazwy
+            file_code = filename
 
         post_data = {
             'op': 'embed',
             'file_code': file_code,
             'auto': '1',
-            'referer': filelink  # Użyj oryginalnego linku jako referera dla POST
+            'referer': filelink
         }
 
         headers_post = {
-            "User-Agent": random_agent,  # Użyj tego samego agenta
-            "Referer": filelink,  # WAŻNE: Referer dla POST to strona embed
+            "User-Agent": random_agent,
+            "Referer": filelink,
             "Origin": "https://bigwarp.io",
             "Content-Type": "application/x-www-form-urlencoded"
         }
@@ -44,7 +40,6 @@ async def get_video_from_bigwarp_player(filelink: str):
                 response.raise_for_status()
                 player_html_content = await response.text()
 
-        # --- Krok 3: Wyciągnij dane strumienia z odpowiedzi ---
         setup_match = re.search(
             r'jwplayer\("vplayer"\)\.setup\(\s*(\{.*?\})\s*\);',
             player_html_content,
@@ -58,7 +53,6 @@ async def get_video_from_bigwarp_player(filelink: str):
             if sources_match:
                 source_data = sources_match.group(1)
         else:
-            # Fallback: szukaj 'sources:' bezpośrednio w HTML
             sources_match_fallback = re.search(r'sources:\s*\[\s*\{(.*?)\}\s*\]', player_html_content,
                                                re.DOTALL | re.IGNORECASE)
             if sources_match_fallback:
@@ -97,7 +91,5 @@ async def get_video_from_bigwarp_player(filelink: str):
         return stream_url, quality, stream_headers
 
     except (aiohttp.ClientError, TimeoutError, AttributeError, ValueError, IndexError, Exception):
-        # ValueError/IndexError mogą wystąpić przy parsowaniu URL
-        # Ogólna obsługa błędów bez logowania
         return None, None, None
 
