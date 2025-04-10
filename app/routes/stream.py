@@ -21,11 +21,13 @@ from app.players.lulustream import get_video_from_lulustream_player
 from app.players.savefiles import get_video_from_savefiles_player
 from app.players.rumble import get_video_from_rumble_player
 from app.players.bigwarpio import get_video_from_bigwarp_player
+from app.players.vidtube import get_video_from_vidtube_player
 from config import Config
 
 stream_bp = Blueprint('stream', __name__)
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
-supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'google drive', 'uqload', 'lulustream', 'streamtape', 'rumble', 'default']
+supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'google drive', 'uqload',
+                     'lulustream', 'streamtape', 'rumble', 'default', 'vidtube']
 
 
 async def process_player(player):
@@ -66,6 +68,8 @@ async def process_player(player):
         url, quality, headers = await get_video_from_streamtape_player(player['player'])
     elif player_hosting == 'rumble':
         url, quality, headers = await get_video_from_rumble_player(player['player'])
+    elif player_hosting == 'vidtube':
+        url, quality, headers = await get_video_from_vidtube_player(player['player'])
     elif player_hosting == 'default':
         if 'savefiles.com' in player['player']:
             url, quality, headers = await get_video_from_savefiles_player(player['player'])
