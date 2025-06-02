@@ -71,6 +71,7 @@ async def get_video_from_streamhls_player(filelink: str):
         stream_url = file_url_match.group(1)
 
         quality = 'unknown'
+
         if label_match:
             label_string = label_match.group(1)
 
@@ -93,4 +94,3 @@ async def get_video_from_streamhls_player(filelink: str):
 
     except (aiohttp.ClientError, TimeoutError, AttributeError, ValueError, IndexError, Exception):
         return None, None, None
-
