@@ -21,6 +21,8 @@ async def get_video_from_bigwarp_player(filelink: str):
         else:
             file_code = filename
 
+        file_code = file_code.replace('embed-', '')
+
         post_data = {
             'op': 'embed',
             'file_code': file_code,

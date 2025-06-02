@@ -5,8 +5,8 @@ from app.routes.utils import get_random_agent
 
 
 async def get_video_from_streamhls_player(filelink: str):
-    dl_url = "https://streamhls.io/dl"
-    final_referer = "https://streamhls.io/"
+    dl_url = "https://streamhls.to/dl"
+    final_referer = "https://streamhls.to"
     random_agent = get_random_agent()
 
     try:
@@ -21,17 +21,18 @@ async def get_video_from_streamhls_player(filelink: str):
         else:
             file_code = filename
 
+        file_code = file_code.replace('embed-', '')
         post_data = {
             'op': 'embed',
             'file_code': file_code,
-            'auto': '1',
+            'auto': '0',
             'referer': filelink
         }
 
         headers_post = {
             "User-Agent": random_agent,
             "Referer": filelink,
-            "Origin": "https://streamhls.io",
+            "Origin": "https://streamhls.to",
             "Content-Type": "application/x-www-form-urlencoded"
         }
 
