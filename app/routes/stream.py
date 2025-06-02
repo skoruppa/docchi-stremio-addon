@@ -21,6 +21,7 @@ from app.players.lulustream import get_video_from_lulustream_player
 from app.players.savefiles import get_video_from_savefiles_player
 from app.players.rumble import get_video_from_rumble_player
 from app.players.bigwarpio import get_video_from_bigwarp_player
+from app.players.streamhls import get_video_from_streamhls_player
 from app.players.vidtube import get_video_from_vidtube_player
 from config import Config
 
@@ -75,6 +76,8 @@ async def process_player(player):
             url, quality, headers = await get_video_from_savefiles_player(player['player'])
         elif 'bigwarp' in player['player']:
             url, quality, headers = await get_video_from_bigwarp_player(player['player'])
+        elif 'streamhls' in player['player']:
+            url, quality, headers = await get_video_from_streamhls_player(player['player'])
 
     stream.update({'url': url, 'quality': quality, 'headers': headers, 'inverted': inverted})
     return stream
