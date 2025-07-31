@@ -85,7 +85,7 @@ async def get_video_from_cda_player(url: str) -> tuple:
             url = decrypt_url(file)
             headers = {"request": {"Referer": f"https://ebd.cda.pl/620x368/{video_id}" }}
         else:
-            url = video_data['video']['manifest']
+            url = video_data['video']['manifest_apple']
 
         if url:
             return url, highest_quality, headers
