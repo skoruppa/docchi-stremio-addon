@@ -68,9 +68,11 @@ async def get_video_from_rumble_player(url):
     data = extract_ua_section(json_str)
 
     # Spróbuj mp4 najpierw, potem tar
+    highest_quality_url_string = ""
     video_data = None
     if 'mp4' in data['ua'] and data['ua']['mp4']:
         video_data = data['ua']['mp4']
+        highest_quality_url_string = "?u=0&b=0"
     elif 'tar' in data['ua'] and data['ua']['tar']:
         video_data = data['ua']['tar']
 
@@ -80,7 +82,7 @@ async def get_video_from_rumble_player(url):
     highest_resolution = max(video_data.keys(), key=lambda res: int(res))
     highest_quality_url = video_data[highest_resolution]['url'].replace('\\/', '/')
 
-    highest_quality_url += "?u=0&b=0"
+    highest_quality_url += highest_quality_url_string
 
     stream_headers = {'request': {
         "Range": "bytes=0-",
