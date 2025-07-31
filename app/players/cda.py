@@ -41,6 +41,35 @@ def get_highest_quality(qualities: dict) -> tuple:
     return highest_quality, qualities[highest_quality]
 
 
+async def get_video_url_from_mpd(session: aiohttp.ClientSession, mpd_url: str, target_quality: str) -> str:
+    try:
+        async with session.get(mpd_url) as response:
+            response.raise_for_status()
+            mpd_content = await response.text()
+    except (ClientConnectorError, ClientResponseError) as e:
+        print(f"Błąd podczas pobierania MPD: {e}")
+        return None
+
+    try:
+        pattern = fr'<BaseURL>([^<]*{target_quality}[^<]*\.mp4)</BaseURL>'
+        match = re.search(pattern, mpd_content, re.IGNORECASE)
+
+        if match:
+            base_url = match.group(1)
+
+            base_mpd_url = mpd_url.rsplit('/', 1)[0]
+            full_video_url = f"{base_mpd_url}/{base_url}"
+
+            return full_video_url
+
+        print(f"Nie znaleziono pliku wideo o jakości {target_quality} w pliku MPD")
+        return None
+
+    except Exception as e:
+        print(f"Błąd podczas przetwarzania pliku MPD: {e}")
+        return None
+
+
 async def fetch_video_data(session: aiohttp.ClientSession, url: str, video_id: str) -> dict:
     try:
         async with session.get(url) as response:
@@ -63,7 +92,7 @@ async def get_video_from_cda_player(url: str) -> tuple:
     url, video_id = normalize_cda_url(url)
     if not url:
         return None, None, None
-    
+
     async with aiohttp.ClientSession() as session:
         video_data = await fetch_video_data(session, url, video_id)
         if not video_data:
@@ -81,12 +110,20 @@ async def get_video_from_cda_player(url: str) -> tuple:
 
         file = video_data['video']['file']
         if file:
-            url = decrypt_url(file)
+            video_url = decrypt_url(file)
+            quality = highest_quality
         else:
-            url = video_data['video']['manifest']
+            manifest_url = video_data['video']['manifest']
+            if manifest_url:
+                video_url = await get_video_url_from_mpd(session, manifest_url, highest_quality)
+                if not video_url:
+                    return None, None, None
+                quality = highest_quality
+            else:
+                raise ValueError("Nie znaleziono ani pliku wideo ani manifestu.")
 
-        if url:
-            headers = {"request": {"Referer": f"https://ebd.cda.pl/620x368/{video_id}" }}
-            return url, highest_quality, headers
+        if video_url:
+            headers = {"request": {"Referer": f"https://ebd.cda.pl/620x368/{video_id}"}}
+            return video_url, quality, headers
 
         raise ValueError("Failed to fetch video URL.")
