@@ -4,7 +4,6 @@ from aiohttp.client_exceptions import ClientConnectorError, ClientResponseError
 import json
 import urllib.parse
 from bs4 import BeautifulSoup
-from config import Config
 
 
 def decrypt_url(url: str) -> str:
@@ -66,6 +65,7 @@ async def get_video_from_cda_player(url: str) -> tuple:
         return None, None, None
 
     async with aiohttp.ClientSession() as session:
+        headers = None
         video_data = await fetch_video_data(session, url, video_id)
         if not video_data:
             return None, None, None
@@ -82,20 +82,12 @@ async def get_video_from_cda_player(url: str) -> tuple:
 
         file = video_data['video']['file']
         if file:
-            video_url = decrypt_url(file)
-            quality = highest_quality
+            url = decrypt_url(file)
+            headers = {"request": {"Referer": f"https://ebd.cda.pl/620x368/{video_id}" }}
         else:
-            manifest_url = video_data['video']['manifest']
-            if manifest_url:
-                encoded_manifest_url = urllib.parse.quote(manifest_url, safe='')
-                video_url = f'{Config.PROTOCOL}://{Config.REDIRECT_URL}/cda-proxy?url={encoded_manifest_url}'
+            url = video_data['video']['manifest']
 
-                quality = highest_quality
-            else:
-                raise ValueError("Nie znaleziono ani pliku wideo ani manifestu.")
-
-        if video_url:
-            headers = {"request": {"Referer": f"https://ebd.cda.pl/620x368/{video_id}"}}
-            return video_url, quality, headers
+        if url:
+            return url, highest_quality, headers
 
         raise ValueError("Failed to fetch video URL.")
