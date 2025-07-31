@@ -4,6 +4,7 @@ from aiohttp.client_exceptions import ClientConnectorError, ClientResponseError
 import json
 import urllib.parse
 from bs4 import BeautifulSoup
+from config import Config
 
 
 def decrypt_url(url: str) -> str:
@@ -39,35 +40,6 @@ def get_highest_quality(qualities: dict) -> tuple:
     qualities.pop('auto', None)  # worthless quality
     highest_quality = max(qualities.keys(), key=lambda x: int(x.rstrip('p')))
     return highest_quality, qualities[highest_quality]
-
-
-async def get_video_url_from_mpd(session: aiohttp.ClientSession, mpd_url: str, target_quality: str) -> str:
-    try:
-        async with session.get(mpd_url) as response:
-            response.raise_for_status()
-            mpd_content = await response.text()
-    except (ClientConnectorError, ClientResponseError) as e:
-        print(f"Błąd podczas pobierania MPD: {e}")
-        return None
-
-    try:
-        pattern = fr'<BaseURL>([^<]*{target_quality}[^<]*\.mp4)</BaseURL>'
-        match = re.search(pattern, mpd_content, re.IGNORECASE)
-
-        if match:
-            base_url = match.group(1)
-
-            base_mpd_url = mpd_url.rsplit('/', 1)[0]
-            full_video_url = f"{base_mpd_url}/{base_url}"
-
-            return full_video_url
-
-        print(f"Nie znaleziono pliku wideo o jakości {target_quality} w pliku MPD")
-        return None
-
-    except Exception as e:
-        print(f"Błąd podczas przetwarzania pliku MPD: {e}")
-        return None
 
 
 async def fetch_video_data(session: aiohttp.ClientSession, url: str, video_id: str) -> dict:
@@ -115,9 +87,9 @@ async def get_video_from_cda_player(url: str) -> tuple:
         else:
             manifest_url = video_data['video']['manifest']
             if manifest_url:
-                video_url = await get_video_url_from_mpd(session, manifest_url, highest_quality)
-                if not video_url:
-                    return None, None, None
+                encoded_manifest_url = urllib.parse.quote(manifest_url, safe='')
+                video_url = f'{Config.PROTOCOL}://{Config.REDIRECT_URL}/cda-proxy?url={encoded_manifest_url}'
+
                 quality = highest_quality
             else:
                 raise ValueError("Nie znaleziono ani pliku wideo ani manifestu.")

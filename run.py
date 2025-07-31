@@ -6,6 +6,7 @@ from app.routes.catalog import catalog_bp
 from app.routes.manifest import manifest_blueprint
 from app.routes.meta import meta_bp
 from app.routes.stream import stream_bp
+from app.routes.cda_proxy import cda_proxy_bp
 from app.db import database
 from app.routes.utils import cache
 from config import Config
@@ -16,6 +17,7 @@ app.register_blueprint(manifest_blueprint)
 app.register_blueprint(catalog_bp)
 app.register_blueprint(meta_bp)
 app.register_blueprint(stream_bp)
+app.register_blueprint(cda_proxy_bp)
 
 Compress(app)
 cache.init_app(app)
