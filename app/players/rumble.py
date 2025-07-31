@@ -47,6 +47,16 @@ def extract_ua_section(js_string):
         return None, None
 
 
+def extract_m3u8_url_regex(url):
+    """
+    Wyciąga URL do m3u8 z pełnego URL-a (metoda regex)
+    """
+    match = re.match(r'(.*?m3u8)', url)
+    if match:
+        return match.group(1)
+    return url
+
+
 async def get_video_from_rumble_player(url):
     headers = {
         "User-Agent": get_random_agent()
@@ -82,6 +92,7 @@ async def get_video_from_rumble_player(url):
     highest_resolution = max(video_data.keys(), key=lambda res: int(res))
     highest_quality_url = video_data[highest_resolution]['url'].replace('\\/', '/')
 
+    highest_quality_url = extract_m3u8_url_regex(highest_quality_url)
     highest_quality_url += highest_quality_url_string
 
     stream_headers = {'request': {
