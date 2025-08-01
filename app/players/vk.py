@@ -8,9 +8,9 @@ from flask import request
 VK_URL = "https://vk.com"
 
 
-async def handle_waf_challenge(session, url, video_id):
+async def handle_waf_challenge(session, url, video_id, request_headers):
     try:
-        async with session.get(url) as response:
+        async with session.get(url, headers=request_headers) as response:
             response_url = str(response.url)
             if response_url.startswith('https://vk.com/429.html?'):
                 hash429_cookie = None
@@ -144,8 +144,13 @@ def extract_video_alternative_method(html_content):
 
 async def get_video_from_vk_player(url):
     referer = request.headers.get('Referer', None)
+    user_agent = request.headers.get('User-Agent', None)
+
+    if not referer or "web.stremio.com" not in str(referer):
+        user_agent = get_random_agent()
 
     request_headers = {
+        "User-Agent": user_agent,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
         "Accept-Encoding": "gzip, deflate, br",
@@ -159,6 +164,7 @@ async def get_video_from_vk_player(url):
 
     video_headers = {
         "request": {
+            "User-Agent": user_agent,
             "Accept": "video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5",
             "Origin": VK_URL,
             "Referer": f"{VK_URL}/",
@@ -187,7 +193,7 @@ async def get_video_from_vk_player(url):
 
     async with aiohttp.ClientSession() as session:
         try:
-            html_content = await handle_waf_challenge(session, embed_url, video_id)
+            html_content = await handle_waf_challenge(session, embed_url, video_id, request_headers)
 
             if not html_content:
                 async with session.get(embed_url, headers=request_headers, timeout=30) as response:
