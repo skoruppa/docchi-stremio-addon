@@ -23,9 +23,9 @@ async def handle_waf_challenge(session, url, video_id, request_headers):
                     hash429 = hashlib.md5(hash429_cookie.encode('ascii')).hexdigest()
                     challenge_url = f"{response_url}&key={hash429}"
                     print(f"Dealing with WAF: {challenge_url}")
-                    async with session.get(challenge_url) as challenge_response:
+                    async with session.get(challenge_url, headers=request_headers) as challenge_response:
                         pass
-                    async with session.get(url) as new_response:
+                    async with session.get(url, headers=request_headers) as new_response:
                         return await new_response.text()
 
             return await response.text()
