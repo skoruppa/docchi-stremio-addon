@@ -165,10 +165,10 @@ async def get_video_from_vk_player(url):
     video_headers = {
         "request": {
             "User-Agent": user_agent,
-            "Accept": "*/*",
+            "Accept": "video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5",
             "Origin": VK_URL,
             "Referer": f"{VK_URL}/",
-            'X-Requested-With': 'XMLHttpRequest'
+            'X-Requested-With': 'XMLHttpRequest',
         }
     }
 
@@ -203,6 +203,7 @@ async def get_video_from_vk_player(url):
 
             video_url, quality = extract_highest_quality_video(html_content)
 
+            video_url = video_url.replace("^", "")
             if video_url:
                 return video_url, f'{quality}p', video_headers
             else:
