@@ -51,6 +51,7 @@ async def get_video_from_rumble_player(url):
     headers = {
         "User-Agent": get_random_agent()
     }
+    stream_headers = None
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
             if response.status != 200:
@@ -73,6 +74,13 @@ async def get_video_from_rumble_player(url):
     if 'mp4' in data['ua'] and data['ua']['mp4']:
         video_data = data['ua']['mp4']
         highest_quality_url_string = "?u=0&b=0"
+        stream_headers = {'request': {
+            "Range": "bytes=0-",
+            "Priority": "u=4",
+            "Referer": "https://rumble.com/",
+            "User-Agent": headers['User-Agent']
+            }
+        }
     elif 'tar' in data['ua'] and data['ua']['tar']:
         video_data = data['ua']['tar']
 
@@ -84,12 +92,6 @@ async def get_video_from_rumble_player(url):
 
     highest_quality_url += highest_quality_url_string
 
-    stream_headers = {'request': {
-        "Range": "bytes=0-",
-        "Priority": "u=4",
-        "Referer": "https://rumble.com/",
-        "User-Agent": headers['User-Agent']
-    }
-    }
+
 
     return highest_quality_url, f"{highest_resolution}p", stream_headers
