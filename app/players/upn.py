@@ -3,11 +3,6 @@ import aiohttp
 from urllib.parse import urlparse
 from Crypto.Cipher import AES
 from app.routes.utils import get_random_agent
-from config import Config
-
-PROXIFY_STREAMS = Config.PROXIFY_STREAMS
-STREAM_PROXY_URL = Config.STREAM_PROXY_URL
-STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 
 
 DECRYPTION_KEY_HEX = "6b69656d7469656e6d75613931316361"
@@ -60,9 +55,6 @@ async def get_video_from_upn_player(player_url: str):
 
         video_id = video_id_match.group(1)
         api_url = f"{base_url_with_scheme}/api/v1/video?id={video_id}&w=1920&h=1200&r="
-
-        if PROXIFY_STREAMS:
-            api_url = f'{STREAM_PROXY_URL}/proxy/stream?d={api_url}&api_password={STREAM_PROXY_PASSWORD}'
 
         async with aiohttp.ClientSession() as session:
             async with session.get(api_url, headers=headers, timeout=15) as response:
