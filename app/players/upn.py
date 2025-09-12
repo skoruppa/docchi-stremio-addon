@@ -63,13 +63,13 @@ async def get_video_from_upn_player(player_url: str):
             decrypted_text = _decrypt_to_raw_text(encrypted_response_hex, DECRYPTION_KEY_HEX)
 
             stream_url = None
-            cf_match = re.search(r'"cf"\s*:\s*"([^"]+)"', decrypted_text)
-            if cf_match:
-                stream_url = cf_match.group(1).replace('\\/', '/')
-            else:
-                source_match = re.search(r'"source"\s*:\s*"([^"]+)"', decrypted_text)
-                if source_match:
-                    stream_url = source_match.group(1).replace('\\/', '/')
+            # cf_match = re.search(r'"cf"\s*:\s*"([^"]+)"', decrypted_text)
+            # if cf_match:
+            #     stream_url = cf_match.group(1).replace('\\/', '/')
+            # else:
+            source_match = re.search(r'"source"\s*:\s*"([^"]+)"', decrypted_text)
+            if source_match:
+                stream_url = source_match.group(1).replace('\\/', '/')
 
             if not stream_url:
                 print("UPN Player Error: no 'cf' or 'source' found")
