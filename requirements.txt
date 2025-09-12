@@ -9,3 +9,4 @@ aiocache~=0.12.3
 Flask-Compress~=1.17
 waitress~=3.0.2
 python-dotenv~=1.0.1
+pycryptodome~=3.23.0

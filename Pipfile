@@ -19,7 +19,8 @@ aiocache = "~=0.12.3"
 flask-compress = "~=1.17"
 waitress = "~=3.0.2"
 python-dotenv = "~=1.0.1"
-flask = {extras = ["async"], version = "*"}
+pycryptodome = "~=3.23.0"
+flask = {extras = ["async"], version = "~=3.1.0"}
 
 [requires]
 python_version = "3.12.7"

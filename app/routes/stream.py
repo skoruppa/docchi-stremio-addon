@@ -78,6 +78,8 @@ async def process_player(player):
             url, quality, headers = await get_video_from_bigwarp_player(player['player'])
         elif 'streamhls' in player['player']:
             url, quality, headers = await get_video_from_streamhls_player(player['player'])
+    elif player_hosting in ('upn', 'upns', 'rpm', 'rpmhub'):
+        url, quality, headers = await get_video_from_vidtube_player(player['player'])
 
     stream.update({'url': url, 'quality': quality, 'headers': headers, 'inverted': inverted})
     return stream
