@@ -13,6 +13,14 @@ As the stream data needs to be extracted from web players, not all available pla
 - **Dailymotion**
 - **Google Drive**
 - **Rumble.com**
+- **Bigwarp.io**
+- **Doodstream**
+- **Lulustream**
+- **Streamhls.to**
+- **Streamtape.com**
+- **Vidtube.one**
+- **RPMHub**
+- **UPNS.pro**
 
 ## Usage 🧑‍💻
 
