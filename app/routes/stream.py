@@ -23,12 +23,13 @@ from app.players.rumble import get_video_from_rumble_player
 from app.players.bigwarpio import get_video_from_bigwarp_player
 from app.players.streamhls import get_video_from_streamhls_player
 from app.players.vidtube import get_video_from_vidtube_player
+from app.players.upn import get_video_from_upn_player
 from config import Config
 
 stream_bp = Blueprint('stream', __name__)
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'google drive', 'uqload',
-                     'lulustream', 'streamtape', 'rumble', 'default', 'vidtube']
+                     'lulustream', 'streamtape', 'rumble', 'default', 'vidtube', 'upn', 'upns', 'rpm', 'rpmhub']
 
 
 async def process_player(player):
@@ -79,7 +80,7 @@ async def process_player(player):
         elif 'streamhls' in player['player']:
             url, quality, headers = await get_video_from_streamhls_player(player['player'])
     elif player_hosting in ('upn', 'upns', 'rpm', 'rpmhub'):
-        url, quality, headers = await get_video_from_vidtube_player(player['player'])
+        url, quality, headers = await get_video_from_upn_player(player['player'])
 
     stream.update({'url': url, 'quality': quality, 'headers': headers, 'inverted': inverted})
     return stream

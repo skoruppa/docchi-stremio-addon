@@ -37,7 +37,7 @@ async def _fetch_resolution_from_m3u8(session: aiohttp.ClientSession, m3u8_url: 
     return None
 
 
-async def get_video_from_upn(player_url: str):
+async def get_video_from_upn_player(player_url: str):
     try:
         parsed_url = urlparse(player_url)
         base_url_with_scheme = f"{parsed_url.scheme}://{parsed_url.netloc}"
@@ -99,7 +99,7 @@ async def test_run():
         print("-" * 50)
         print(f"Testing: {test_url}")
 
-        video_link, video_quality, video_headers = await get_video_from_upn(test_url)
+        video_link, video_quality, video_headers = await get_video_from_upn_player(test_url)
 
         if video_link:
             print("\n--- SUCCESS ---")
