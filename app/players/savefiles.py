@@ -3,6 +3,7 @@ import aiohttp
 
 from app.routes.utils import get_random_agent
 from app.players.utils import unpack_js
+from app.players.utils import fetch_resolution_from_m3u8
 
 
 def fix_m3u8_link(link: str) -> str:
@@ -31,18 +32,6 @@ def fix_m3u8_link(link: str) -> str:
 
     return fixed_link
 
-
-async def fetch_resolution_from_m3u8(session, m3u8_url, headers):
-    m3u8_url = m3u8_url
-    async with session.get(m3u8_url, headers=headers, timeout=10) as response:
-        response.raise_for_status()
-        m3u8_content = await response.text()
-
-    resolution_match = re.search(r'RESOLUTION=\d+x(\d+)', m3u8_content)
-
-    if resolution_match:
-        return int(resolution_match.group(1))
-    return None
 
 
 async def get_video_from_savefiles_player(filelink):

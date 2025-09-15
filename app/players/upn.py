@@ -3,6 +3,7 @@ import aiohttp
 from urllib.parse import urlparse
 from Crypto.Cipher import AES
 from app.routes.utils import get_random_agent
+from app.players.utils import fetch_resolution_from_m3u8
 
 
 DECRYPTION_KEY_HEX = "6b69656d7469656e6d75613931316361"
@@ -25,17 +26,6 @@ def _decrypt_to_raw_text(encrypted_hex_str: str, key_hex: str) -> str:
     decrypted_padded_bytes = cipher.decrypt(ciphertext)
     decrypted_bytes = _unpad_pkcs7(decrypted_padded_bytes)
     return decrypted_bytes.decode('utf-8', errors='ignore')
-
-
-async def _fetch_resolution_from_m3u8(session: aiohttp.ClientSession, m3u8_url: str, headers: dict) -> str | None:
-    async with session.get(m3u8_url, headers=headers, timeout=10) as response:
-        response.raise_for_status()
-        m3u8_content = await response.text()
-    resolutions = re.findall(r'RESOLUTION=\d+x(\d+)', m3u8_content)
-    if resolutions:
-        max_resolution = max(int(r) for r in resolutions)
-        return f"{max_resolution}p"
-    return None
 
 
 async def get_video_from_upn_player(player_url: str):
@@ -64,19 +54,15 @@ async def get_video_from_upn_player(player_url: str):
             decrypted_text = _decrypt_to_raw_text(encrypted_response_hex, DECRYPTION_KEY_HEX)
 
             stream_url = None
-            # cf_match = re.search(r'"cf"\s*:\s*"([^"]+)"', decrypted_text)
-            # if cf_match:
-            #     stream_url = cf_match.group(1).replace('\\/', '/')
-            # else:
             source_match = re.search(r'"source"\s*:\s*"([^"]+)"', decrypted_text)
             if source_match:
                 stream_url = source_match.group(1).replace('\\/', '/')
 
             if not stream_url:
-                print("UPN Player Error: no 'cf' or 'source' found")
+                print("UPN Player Error: no 'source' found")
                 return None, None, None
 
-            quality = await _fetch_resolution_from_m3u8(session, stream_url, headers)
+            quality = await fetch_resolution_from_m3u8(session, stream_url, headers)
             if not quality:
                 quality = "unknown"
 
@@ -89,31 +75,13 @@ async def get_video_from_upn_player(player_url: str):
         return None, None, None
 
 
-async def test_run():
-    test_urls = [
+if __name__ == '__main__':
+    from app.players.test import run_tests
+
+    urls_to_test = [
         "https://mioro.upns.pro/#pubv6n",
         "https://tokyosubs.rpmhub.site/#9prqi",
         "https://uploader-keyaru-mioro-subs.rpmvip.com/#6r3c9"
     ]
 
-    for test_url in test_urls:
-        print("-" * 50)
-        print(f"Testing: {test_url}")
-
-        video_link, video_quality, video_headers = await get_video_from_upn_player(test_url)
-
-        if video_link:
-            print("\n--- SUCCESS ---")
-            print(f"URL: {video_link}")
-            print(f"Quality: {video_quality}")
-            print(f"Headers: {video_headers}")
-        else:
-            print("\n--- FAILURE ---")
-            print("Unknown error")
-        print("-" * 50)
-
-
-if __name__ == '__main__':
-    import asyncio
-
-    asyncio.run(test_run())
+    run_tests(get_video_from_upn_player, urls_to_test)

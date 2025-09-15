@@ -1,4 +1,5 @@
 import re
+import aiohttp
 
 
 def unpack_js(encoded_js):  # based on https://github.com/LcdoWalterGarcia/Luluvdo-Link-Direct/blob/main/JavaScriptUnpacker.php
@@ -28,3 +29,16 @@ def unpack_js(encoded_js):  # based on https://github.com/LcdoWalterGarcia/Luluv
 
     decoded = re.sub(r'\b\w+\b', lookup, payload)
     return decoded.replace('\\', '')
+
+
+async def fetch_resolution_from_m3u8(session: aiohttp.ClientSession, m3u8_url: str, headers: dict) -> str | None:
+    async with session.get(m3u8_url, headers=headers, timeout=10) as response:
+        response.raise_for_status()
+        m3u8_content = await response.text()
+    resolutions = re.findall(r'RESOLUTION=\d+x(\d+)', m3u8_content)
+    if resolutions:
+        max_resolution = max(int(r) for r in resolutions)
+        return f"{max_resolution}p"
+    return None
+
+

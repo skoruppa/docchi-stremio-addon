@@ -24,12 +24,16 @@ from app.players.bigwarpio import get_video_from_bigwarp_player
 from app.players.streamhls import get_video_from_streamhls_player
 from app.players.vidtube import get_video_from_vidtube_player
 from app.players.upn import get_video_from_upn_player
+from app.players.mp4upload import get_video_from_mp4upload_player
+from app.players.earnvid import get_video_from_earnvid_player
+from app.players.filemoon import get_video_from_filemoon_player
 from config import Config
 
 stream_bp = Blueprint('stream', __name__)
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'google drive', 'uqload',
-                     'lulustream', 'streamtape', 'rumble', 'default', 'vidtube', 'upn', 'upns', 'rpm', 'rpmhub']
+                     'lulustream', 'streamtape', 'rumble', 'default', 'vidtube', 'upn', 'upns', 'rpm', 'rpmhub',
+                     'mp4upload', 'filemoon', 'earnvid']
 
 
 async def process_player(player):
@@ -81,6 +85,12 @@ async def process_player(player):
             url, quality, headers = await get_video_from_streamhls_player(player['player'])
     elif player_hosting in ('upn', 'upns', 'rpm', 'rpmhub'):
         url, quality, headers = await get_video_from_upn_player(player['player'])
+    elif player_hosting == 'mp4upload':
+        url, quality, headers = await get_video_from_mp4upload_player(player['player'])
+    elif player_hosting == 'earnvid':
+        url, quality, headers = await get_video_from_earnvid_player(player['player'])
+    elif player_hosting == 'filemoon':
+        url, quality, headers = await get_video_from_filemoon_player(player['player'])
 
     stream.update({'url': url, 'quality': quality, 'headers': headers, 'inverted': inverted})
     return stream
