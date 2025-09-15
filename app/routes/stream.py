@@ -28,13 +28,15 @@ from app.players.mp4upload import get_video_from_mp4upload_player
 from app.players.earnvid import get_video_from_earnvid_player
 from app.players.filemoon import get_video_from_filemoon_player
 from app.players.streamup import get_video_from_streamup_player
+from app.players.abyss import get_video_from_abyss_player
+
 from config import Config
 
 stream_bp = Blueprint('stream', __name__)
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'google drive', 'uqload',
                      'lulustream', 'streamtape', 'rumble', 'default', 'vidtube', 'upn', 'upns', 'rpm', 'rpmhub',
-                     'mp4upload', 'filemoon', 'earnvid', 'streamup']
+                     'mp4upload', 'filemoon', 'earnvid', 'streamup', 'abyss']
 
 
 async def process_player(player):
@@ -94,6 +96,8 @@ async def process_player(player):
         url, quality, headers = await get_video_from_filemoon_player(player['player'])
     elif player_hosting == 'streamup':
         url, quality, headers = await get_video_from_streamup_player(player['player'])
+    elif player_hosting == 'abyss':
+        url, quality, headers = await get_video_from_abyss_player(player['player'])
 
     stream.update({'url': url, 'quality': quality, 'headers': headers, 'inverted': inverted})
     return stream
