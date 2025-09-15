@@ -23,6 +23,7 @@ As the stream data needs to be extracted from web players, not all available pla
 - **MP4Upload**
 - **Filemoon**
 - **EarnVid**
+- **StreamUP**
 
 ## Usage 🧑‍💻
 
