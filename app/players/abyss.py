@@ -186,4 +186,4 @@ if __name__ == '__main__':
         "https://abysscdn.com/?v=50AVrRTHN",
         "https://abysscdn.com/?v=9sT02O89c"
     ]
-    run_tests(get_video_from_abyss, urls_to_test)
+    run_tests(get_video_from_abyss_player, urls_to_test)
