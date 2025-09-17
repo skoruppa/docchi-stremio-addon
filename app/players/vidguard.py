@@ -13,6 +13,12 @@ from app.players.utils import fetch_resolution_from_m3u8
 
 sys.setrecursionlimit(2000)
 
+from config import Config
+
+PROXIFY_STREAMS = Config.PROXIFY_STREAMS
+STREAM_PROXY_URL = Config.STREAM_PROXY_URL
+STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
+
 
 
 def _decode_e(hex_string: str, key: int) -> str:
@@ -57,6 +63,9 @@ async def get_video_from_vidguard_player(player_url: str):
     try:
         parsed_url = urlparse(player_url)
         origin = f"{parsed_url.scheme}://{parsed_url.netloc}"
+
+        if PROXIFY_STREAMS:
+            player_url = f'{STREAM_PROXY_URL}/proxy/stream?d={player_url}&api_password={STREAM_PROXY_PASSWORD}'
 
         headers = {
             "User-Agent": get_random_agent(),
@@ -123,7 +132,10 @@ async def get_video_from_vidguard_player(player_url: str):
 
             quality = "unknown"
             try:
-                fetched_quality = await fetch_resolution_from_m3u8(session, final_stream_url, headers)
+                if PROXIFY_STREAMS:
+                    fetched_quality = await fetch_resolution_from_m3u8(session, f'{STREAM_PROXY_URL}/proxy/stream?d={final_stream_url}&api_password={STREAM_PROXY_PASSWORD}', headers)
+                else:
+                    fetched_quality = await fetch_resolution_from_m3u8(session, final_stream_url, headers)
                 if fetched_quality:
                     quality = fetched_quality
             except Exception as e:
