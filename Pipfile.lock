@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "b4a00e7a3458ef0f9f444199bad2985da93e16d65123e0b3f499e167d286ba28"
+            "sha256": "113ff32b51095bc8db1dd81716d2951ff4641ac21defa31e566b9f2dffa251ef"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -1079,6 +1079,16 @@
             ],
             "markers": "python_version >= '3.9'",
             "version": "==0.3.2"
+        },
+        "py-mini-racer": {
+            "hashes": [
+                "sha256:346e73bb89a2024888244d487834be24a121089ceb0641dd0200cb96c4e24b57",
+                "sha256:42896c24968481dd953eeeb11de331f6870917811961c9b26ba09071e07180e2",
+                "sha256:97cab31bbf63ce462ba4cd6e978c572c916d8b15586156c7c5e0b2e42c10baab",
+                "sha256:f71e36b643d947ba698c57cd9bd2232c83ca997b0802fc2f7f79582377040c11"
+            ],
+            "index": "pypi",
+            "version": "==0.6.0"
         },
         "pycryptodome": {
             "hashes": [
