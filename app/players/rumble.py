@@ -51,7 +51,6 @@ async def get_video_from_rumble_player(url):
     headers = {
         "User-Agent": get_random_agent()
     }
-    stream_headers = None
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
             if response.status != 200:
