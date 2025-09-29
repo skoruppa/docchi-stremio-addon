@@ -142,9 +142,9 @@ async def get_video_from_lycoris_player(url: str):
                             if rumble_url:
                                 rumble = await get_video_from_rumble_player(rumble_url)
                                 return rumble
-                            return None, None
+                            return None, None, None
 
-                        return url_candidate, quality
+                        return url_candidate, quality, None
 
         return None, None, None
     except Exception as e:
