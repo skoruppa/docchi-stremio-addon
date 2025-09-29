@@ -7,7 +7,7 @@ import re
 from app.routes.utils import get_random_agent
 from aiocache import cached
 from aiocache.serializers import PickleSerializer
-from rumble import get_video_from_rumble_player
+from app.players.rumble import get_video_from_rumble_player
 
 headers = {"User-Agent": get_random_agent()}
 GET_SECONDARY_URL = "https://www.lycoris.cafe/api/watch/getSecondaryLink"
