@@ -7,10 +7,25 @@ import re
 from app.routes.utils import get_random_agent
 from aiocache import cached
 from aiocache.serializers import PickleSerializer
+from rumble import get_video_from_rumble_player
 
 headers = {"User-Agent": get_random_agent()}
 GET_SECONDARY_URL = "https://www.lycoris.cafe/api/watch/getSecondaryLink"
 GET_LINK_URL = "https://www.lycoris.cafe/api/watch/getLink"
+
+async def check_url_status(session, url):
+    try:
+        async with session.head(url, allow_redirects=True) as resp:
+            if resp.status not in (405, 501):
+                return resp.status
+    except:
+        pass
+
+    try:
+        async with session.get(url, headers={"Range": "bytes=0-0"}, allow_redirects=True) as resp:
+            return resp.status
+    except:
+        return None
 
 
 def decode_video_links(encoded_url):
@@ -78,7 +93,7 @@ def get_highest_quality(video_links):
     filtered_links = {k: v for k, v in video_links.items() if k in quality_map}
 
     if not filtered_links:
-        return None, None
+        return None, None, None
 
     highest_quality = max(filtered_links.keys(), key=lambda q: quality_map.get(q, 0))
     highest_resolution = f"{quality_map[highest_quality]}p"
@@ -103,7 +118,7 @@ async def get_video_from_lycoris_player(url: str):
                 data = json.loads(script_content)
                 body = json.loads(data["body"])
 
-                # Wybieramy najwyższą jakość
+                # wybieramy najwyższą jakość
                 highest_quality = None
                 if body['episodeInfo']['FHD']:
                     highest_quality = {"url": body['episodeInfo']['FHD'], 'quality': 1080}
@@ -111,16 +126,36 @@ async def get_video_from_lycoris_player(url: str):
                     highest_quality = {"url": body['episodeInfo']['HD'], 'quality': 720}
                 elif body['episodeInfo']['SD']:
                     highest_quality = {"url": body['episodeInfo']['SD'], 'quality': 480}
+
                 if body['episodeInfo']['id']:
                     video_links = await fetch_and_decode_video(session, body['episodeInfo']['id'], is_secondary=True)
+
                     if not video_links:
                         video_link = await fetch_and_decode_video(session, highest_quality['url'], is_secondary=False)
                         return video_link, highest_quality['quality']
                     else:
-                        return get_highest_quality(video_links)
+                        url_candidate, quality = get_highest_quality(video_links)
 
-        return None, None
+                        status = await check_url_status(session, url_candidate)
+                        if status == 403:
+                            rumble_url = body['episodeInfo'].get('rumbleLink')
+                            if rumble_url:
+                                rumble = await get_video_from_rumble_player(rumble_url)
+                                return rumble
+                            return None, None
+
+                        return url_candidate, quality
+
+        return None, None, None
     except Exception as e:
         logging.error(response.text)
-        pass
-        return None, None
+        return None, None, None
+
+if __name__ == '__main__':
+    from app.players.test import run_tests
+
+    urls_to_test = [
+        "https://www.lycoris.cafe/embed?id=178025&episode=12",
+    ]
+
+    run_tests(get_video_from_lycoris_player, urls_to_test)

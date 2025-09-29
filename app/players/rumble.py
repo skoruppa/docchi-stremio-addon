@@ -77,12 +77,19 @@ async def get_video_from_rumble_player(url):
         stream_headers = {'request': {
             "Range": "bytes=0-",
             "Priority": "u=4",
+            "Origin": "https://rumble.com/",
             "Referer": "https://rumble.com/",
             "User-Agent": headers['User-Agent']
             }
         }
     elif 'tar' in data['ua'] and data['ua']['tar']:
         video_data = data['ua']['tar']
+        stream_headers = {'request': {
+            "Origin": "https://rumble.com/",
+            "Referer": "https://rumble.com/",
+            "User-Agent": headers['User-Agent']
+        }
+        }
 
     if not video_data:
         return None, None, None
