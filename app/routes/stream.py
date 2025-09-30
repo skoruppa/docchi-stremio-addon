@@ -20,7 +20,6 @@ from app.players.streamtape import get_video_from_streamtape_player
 from app.players.lulustream import get_video_from_lulustream_player
 from app.players.savefiles import get_video_from_savefiles_player
 from app.players.rumble import get_video_from_rumble_player
-from app.players.bigwarpio import get_video_from_bigwarp_player
 from app.players.vidtube import get_video_from_vidtube_player
 from app.players.upn import get_video_from_upn_player
 from app.players.mp4upload import get_video_from_mp4upload_player
@@ -84,7 +83,7 @@ async def process_player(player):
         if 'savefiles' in player['player']:
             url, quality, headers = await get_video_from_savefiles_player(player['player'])
         elif 'bigwarp' in player['player']:
-            url, quality, headers = await get_video_from_bigwarp_player(player['player'])
+            url, quality, headers = await get_video_from_savefiles_player(player['player'])
         elif 'streamhls' in player['player']:
             url, quality, headers = await get_video_from_savefiles_player(player['player'])
     elif player_hosting in ('upn', 'upns', 'rpm', 'rpmhub'):
