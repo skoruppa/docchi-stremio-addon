@@ -38,7 +38,7 @@ stream_bp = Blueprint('stream', __name__)
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'google drive', 'uqload',
                      'lulustream', 'streamtape', 'rumble', 'default', 'vidtube', 'upn', 'upns', 'rpm', 'rpmhub',
-                     'mp4upload', 'filemoon', 'earnvid', 'streamup']
+                     'mp4upload', 'filemoon', 'earnvid', 'streamup', 'savefiles']
 
 
 async def process_player(player):
@@ -98,6 +98,8 @@ async def process_player(player):
         url, quality, headers = await get_video_from_filemoon_player(player['player'])
     elif player_hosting == 'streamup':
         url, quality, headers = await get_video_from_streamup_player(player['player'])
+    elif player_hosting == 'savefiles':
+        url, quality, headers = await get_video_from_savefiles_player(player['player'])
         
     stream.update({'url': url, 'quality': quality, 'headers': headers, 'inverted': inverted})
     return stream
