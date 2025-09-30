@@ -62,3 +62,13 @@ async def get_video_from_sibnet_player(url: str) -> tuple:
         return None, None, None
 
     return video_url, "unknown", video_headers
+
+
+if __name__ == '__main__':
+    from app.players.test import run_tests
+
+    urls_to_test = [
+        "https://video.sibnet.ru/shell.php?videoid=1028952",
+    ]
+
+    run_tests(get_video_from_sibnet_player, urls_to_test)
