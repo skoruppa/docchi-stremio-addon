@@ -28,7 +28,7 @@ async def get_video_from_streamup_player(player_url: str):
             session_id = session_id_match.group(1)
             encrypted_data_b64 = encrypted_data_match.group(1)
 
-            parsed_url = urlparse(player_url)
+            parsed_url = urlparse(str(page_response.url))
             base_url_with_scheme = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
             key_url = f"{base_url_with_scheme}/ajax/stream?session={session_id}"
@@ -74,7 +74,7 @@ async def get_video_from_streamup_player(player_url: str):
 if __name__ == '__main__':
     from app.players.test import run_tests
     urls_to_test = [
-        "https://strmup.to/wpVmyon50fFld"
+        "https://strmup.to/rhNq4BtUoJvsi"
     ]
 
     run_tests(get_video_from_streamup_player, urls_to_test)
