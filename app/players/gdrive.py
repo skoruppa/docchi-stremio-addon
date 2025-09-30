@@ -33,7 +33,9 @@ async def get_video_from_gdrive_player(drive_url: str):
         async with session.get(video_url, headers=headers) as response:
             text = await response.text()
 
-    if not text.startswith("<!DOCTYPE html>"):
+    if 'Error 404 (Not Found)' in text:
+        return None, None, None
+    elif not text.startswith("<!DOCTYPE html>"):
         return video_url, "unknown", headers
 
     soup = BeautifulSoup(text, "html.parser")
