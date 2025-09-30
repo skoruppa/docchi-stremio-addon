@@ -1,72 +1,70 @@
 import re
 import aiohttp
+from urllib.parse import urlparse
 
 from app.routes.utils import get_random_agent
-from app.players.utils import unpack_js
 from app.players.utils import fetch_resolution_from_m3u8
 
 
-def fix_m3u8_link(link: str) -> str:
-    param_order = ['t', 's', 'e', 'f']
-    params = re.findall(r'[?&]([^=]*)=([^&]*)', link)
+async def get_video_from_savefiles_player(filelink: str):
+    dl_url = "https://savefiles.com/dl"
+    random_agent = get_random_agent()
 
-    param_dict = {}
-    extra_params = {}
+    try:
+        parsed_url = urlparse(filelink)
+        file_code = parsed_url.path.split('/')[-1]
 
-    for i, (key, value) in enumerate(params):
-        if not key:
-            if i < len(param_order):
-                param_dict[param_order[i]] = value
-        else:
-            extra_params[key] = value
+        post_data = {
+            'op': 'embed',
+            'file_code': file_code,
+            'auto': '0'
+        }
 
-    extra_params['i'] = '0.0'
-    extra_params['sp'] = '0'
+        headers_post = {
+            "User-Agent": random_agent,
+            "Referer": filelink,
+            "Origin": "https://savefiles.com",
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
 
-    base_url = link.split('?')[0]
+        async with aiohttp.ClientSession() as session:
+            async with session.post(dl_url, data=post_data, headers=headers_post, timeout=30) as response:
+                response.raise_for_status()
+                player_html_content = await response.text()
 
-    fixed_link = base_url + '?' + '&'.join(f"{k}={v}" for k, v in param_dict.items() if k in param_order)
+            stream_url_match = re.search(r'sources:\s*\[{file:"([^"]+)"', player_html_content)
 
-    if extra_params:
-        fixed_link += '&' + '&'.join(f"{k}={v}" for k, v in extra_params.items())
-
-    return fixed_link
-
-
-
-async def get_video_from_savefiles_player(filelink):
-    headers = {
-        "User-Agent": get_random_agent(),
-        "Referer": "https://savefiles.com",
-        "Origin": "https://savefiles.com"
-    }
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(filelink, headers=headers, timeout=30) as response:
-            response.raise_for_status()
-            html_content = await response.text()
-
-        m3u8_match = ""
-        player_data = ""
-        try:
-            if re.search(r"eval\(function\(p,a,c,k,e", html_content):
-                player_data = unpack_js(html_content)
-                m3u8_match = re.search(r"sources:\[\{file:\"([^\"]+)\"", player_data)
-                stream_url = fix_m3u8_link(m3u8_match.group(1))
-            else:
-                m3u8_match = re.search(r'sources: \[\{file:"(https?://[^"]+)"\}\]', html_content)
-                stream_url = m3u8_match.group(1)
-            if not m3u8_match or not stream_url:
-                print(html_content)
+            if not stream_url_match:
+                print("SaveFiles Player Error: Could not find stream URL in POST response.")
                 return None, None, None
-        except AttributeError:
-            return None, None, None
 
-        try:
-            quality = await fetch_resolution_from_m3u8(session, stream_url, headers)
-            quality = f'{quality}p'
-        except:
-            return None, None, None
-        stream_headers = {'request': headers}
+            stream_url = stream_url_match.group(1)
 
-        return stream_url, quality, stream_headers
+            stream_get_headers = {
+                "User-Agent": random_agent,
+                "Referer": "https://savefiles.com/",
+                "Origin": "https://savefiles.com"
+            }
+
+            try:
+                quality = await fetch_resolution_from_m3u8(session, stream_url, stream_get_headers)
+            except Exception:
+                quality = "unknown"
+
+            stream_headers = {'request': stream_get_headers}
+
+            return stream_url, quality, stream_headers
+
+    except (aiohttp.ClientError, TimeoutError, AttributeError, ValueError, IndexError, Exception) as e:
+        print(f"SaveFiles Player Error: An unexpected error occurred: {e}")
+        return None, None, None
+
+
+if __name__ == '__main__':
+    from app.players.test import run_tests
+
+    urls_to_test = [
+        "https://savefiles.com/e/ko901kakbuho"
+    ]
+
+    run_tests(get_video_from_savefiles_player, urls_to_test)
