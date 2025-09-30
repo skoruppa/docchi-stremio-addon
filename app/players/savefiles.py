@@ -7,11 +7,12 @@ from app.players.utils import fetch_resolution_from_m3u8
 
 
 async def get_video_from_savefiles_player(filelink: str):
-    dl_url = "https://savefiles.com/dl"
     random_agent = get_random_agent()
 
     try:
         parsed_url = urlparse(filelink)
+        base_domain = f"{parsed_url.scheme}://{parsed_url.netloc}"
+        dl_url = f"{base_domain}/dl"
         file_code = parsed_url.path.split('/')[-1]
 
         post_data = {
@@ -23,7 +24,7 @@ async def get_video_from_savefiles_player(filelink: str):
         headers_post = {
             "User-Agent": random_agent,
             "Referer": filelink,
-            "Origin": "https://savefiles.com",
+            "Origin": base_domain,
             "Content-Type": "application/x-www-form-urlencoded"
         }
 
@@ -35,15 +36,14 @@ async def get_video_from_savefiles_player(filelink: str):
             stream_url_match = re.search(r'sources:\s*\[{file:"([^"]+)"', player_html_content)
 
             if not stream_url_match:
-                print("SaveFiles Player Error: Could not find stream URL in POST response.")
                 return None, None, None
 
             stream_url = stream_url_match.group(1)
 
             stream_get_headers = {
                 "User-Agent": random_agent,
-                "Referer": "https://savefiles.com/",
-                "Origin": "https://savefiles.com"
+                "Referer": f"{base_domain}/",
+                "Origin": base_domain
             }
 
             try:
@@ -56,7 +56,6 @@ async def get_video_from_savefiles_player(filelink: str):
             return stream_url, quality, stream_headers
 
     except (aiohttp.ClientError, TimeoutError, AttributeError, ValueError, IndexError, Exception) as e:
-        print(f"SaveFiles Player Error: An unexpected error occurred: {e}")
         return None, None, None
 
 
