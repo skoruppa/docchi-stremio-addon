@@ -18,39 +18,46 @@ async def get_video_from_streamup_player(player_url: str):
                 page_response.raise_for_status()
                 page_content = await page_response.text()
 
-            session_id_match = re.search(r"['\"]([a-f0-9]{32})['\"]", page_content)
-            encrypted_data_match = re.search(r"['\"]([A-Za-z0-9+/=]{200,})['\"]", page_content)
-
-            if not encrypted_data_match or not session_id_match:
-                print("Error StreamUP: could not find 'encrypted data' or 'session id'")
-                return None, None, None
-
-            session_id = session_id_match.group(1)
-            encrypted_data_b64 = encrypted_data_match.group(1)
+            media_id = player_url.split('/')[-1]
+            session_id_match = re.search(r"'([a-f0-9]{32})'", page_content)
+            encrypted_data_match = re.search(r"'([A-Za-z0-9+/=]{200,})'", page_content)
 
             parsed_url = urlparse(str(page_response.url))
             base_url_with_scheme = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
-            key_url = f"{base_url_with_scheme}/ajax/stream?session={session_id}"
-            key_headers = {"User-Agent": user_agent, "Referer": player_url}
+            headers = {"User-Agent": user_agent, "Referer": player_url}
 
-            async with session.get(key_url, headers=key_headers, timeout=15) as key_response:
-                key_response.raise_for_status()
-                key_b64 = await key_response.text()
+            if encrypted_data_match and session_id_match:
+                session_id = session_id_match.group(1)
+                encrypted_data_b64 = encrypted_data_match.group(1)
 
-            key = base64.b64decode(key_b64)
+                key_url = f"{base_url_with_scheme}/ajax/stream?session={session_id}"
 
-            encrypted_data = base64.b64decode(encrypted_data_b64)
-            iv = encrypted_data[:16]
-            ciphertext = encrypted_data[16:]
+                async with session.get(key_url, headers=headers, timeout=15) as key_response:
+                    key_response.raise_for_status()
+                    key_b64 = await key_response.text()
 
-            cipher = AES.new(key, AES.MODE_CBC, iv)
-            decrypted_padded = cipher.decrypt(ciphertext)
-            decrypted_data_str = unpad(decrypted_padded, AES.block_size).decode('utf-8')
+                key = base64.b64decode(key_b64)
 
-            stream_info = json.loads(decrypted_data_str)
+                encrypted_data = base64.b64decode(encrypted_data_b64)
+                iv = encrypted_data[:16]
+                ciphertext = encrypted_data[16:]
+
+                cipher = AES.new(key, AES.MODE_CBC, iv)
+                decrypted_padded = cipher.decrypt(ciphertext)
+                decrypted_data_str = unpad(decrypted_padded, AES.block_size).decode('utf-8')
+                stream_info = json.loads(decrypted_data_str)
+
+            else:
+                s_url = f"{base_url_with_scheme}/ajax/stream?filecode={media_id}"
+
+                async with session.get(s_url, headers=headers, timeout=15) as s_response:
+                    s_response.raise_for_status()
+                    response = await s_response.text()
+                stream_info = json.loads(response)
+
+
             stream_url = stream_info.get("streaming_url")
-
             if not stream_url:
                 print("Error StreamUP: 'streaming_url' not found.")
                 return None, None, None
