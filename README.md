@@ -1,6 +1,13 @@
 # Docchi Stremio Addon
+![Version](https://img.shields.io/badge/version-0.0.5-blue.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Status](https://img.shields.io/badge/status-Active-brightgreen.svg)
 
-This Stremio addon allows users to access anime streams with polish subtitles available on the [Docchi.pl](http://docchi.pl) site. 
+<div align="center">
+  <img src="https://docchi.pl/static/img/logo.svg" alt="Docchi.pl Logo" width="300">
+</div>
+
+This Stremio addon allows users to access anime streams with polish subtitles available on the [Docchi.pl](http://docchi.pl/) site. 
 
 ## Supported Players
 As the stream data needs to be extracted from web players, not all available players at dochi.pl are supported
