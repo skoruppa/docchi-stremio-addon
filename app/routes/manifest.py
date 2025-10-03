@@ -1,4 +1,4 @@
-from flask import Blueprint, abort, redirect
+from flask import Blueprint, abort
 
 from . import MAL_ID_PREFIX
 from .utils import respond_with
@@ -59,8 +59,3 @@ def addon_manifest():
     :return: JSON response
     """
     return respond_with(MANIFEST, 7200)
-
-
-@manifest_blueprint.route('/kodi')
-def doc_redirect():
-    return redirect("https://skoruppa.github.io/plugin.video.docchipl/", code=307)
