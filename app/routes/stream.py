@@ -36,7 +36,7 @@ from config import Config
 stream_bp = Blueprint('stream', __name__)
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'google drive', 'uqload',
-                     'lulustream', 'streamtape', 'rumble', 'default', 'vidtube', 'upn', 'upns', 'rpm', 'rpmhub',
+                     'lulustream', 'streamtape', 'rumble', 'default', 'vidtube', 'upn', 'upns', 'rpm', 'rpmhub', 'rpmvid',
                      'mp4upload', 'filemoon', 'earnvid', 'streamup', 'savefiles', 'pixeldrain']
 
 
@@ -87,7 +87,7 @@ async def process_player(player):
             url, quality, headers = await get_video_from_savefiles_player(player['player'])
         elif 'streamhls' in player['player']:
             url, quality, headers = await get_video_from_savefiles_player(player['player'])
-    elif player_hosting in ('upn', 'upns', 'rpm', 'rpmhub'):
+    elif player_hosting in ('upn', 'upns', 'rpm', 'rpmhub', 'rpmvid'):
         url, quality, headers = await get_video_from_upn_player(player['player'])
     elif player_hosting == 'mp4upload':
         url, quality, headers = await get_video_from_mp4upload_player(player['player'])
