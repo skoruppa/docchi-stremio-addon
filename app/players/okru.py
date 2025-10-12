@@ -65,7 +65,7 @@ async def get_video_from_okru_player(url):
             api_url = "https://www.ok.ru/dk?cmd=videoPlayerMetadata"
             payload = {'mid': media_id}
             if PROXIFY_STREAMS:
-                api_url = f'{STREAM_PROXY_URL}/proxy/stream?d={api_url}&api_password={STREAM_PROXY_PASSWORD}'
+                api_url = f'{STREAM_PROXY_URL}/proxy/stream?d={api_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
 
             try:
                 async with session.post(api_url, data=payload, headers=headers) as response:
@@ -78,7 +78,7 @@ async def get_video_from_okru_player(url):
 
             embed_url = f"https://ok.ru/videoembed/{media_id}"
             if PROXIFY_STREAMS:
-                embed_url = f'{STREAM_PROXY_URL}/proxy/stream?d={embed_url}&api_password={STREAM_PROXY_PASSWORD}'
+                embed_url = f'{STREAM_PROXY_URL}/proxy/stream?d={embed_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
 
             async with session.get(embed_url) as response:
                 text = await response.text()
