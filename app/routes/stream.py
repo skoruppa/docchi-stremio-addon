@@ -35,7 +35,7 @@ from config import Config
 
 stream_bp = Blueprint('stream', __name__)
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
-supported_streams = ['cda', 'lycoris.cafe', 'ok', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'google drive', 'uqload',
+supported_streams = ['cda', 'lycoris.cafe', 'ok', 'okru', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'google drive', 'uqload',
                      'lulustream', 'streamtape', 'rumble', 'default', 'vidtube', 'upn', 'upns', 'rpm', 'rpmhub', 'rpmvid',
                      'mp4upload', 'filemoon', 'earnvid', 'streamup', 'savefiles', 'pixeldrain']
 
@@ -58,7 +58,7 @@ async def process_player(player):
         url, quality, headers = await get_video_from_cda_player(player['player'])
     elif player_hosting == 'lycoris.cafe':
         url, quality, headers = await get_video_from_lycoris_player(player['player'])
-    elif player_hosting == 'ok':
+    elif player_hosting in ('ok', 'okru'):
         url, quality, headers = await get_video_from_okru_player(player['player'])
     elif player_hosting == 'sibnet':
         url, quality, headers = await get_video_from_sibnet_player(player['player'])
