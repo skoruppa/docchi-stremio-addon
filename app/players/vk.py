@@ -143,11 +143,13 @@ def extract_video_alternative_method(html_content):
 
 
 async def get_video_from_vk_player(url):
-    referer = request.headers.get('Referer', None)
-    user_agent = request.headers.get('User-Agent', None)
+    try:
+        user_agent = request.headers.get('User-Agent', None)
+    except:
+        user_agent = None
 
-    if not referer or "web.stremio.com" not in str(referer):
-        user_agent = get_random_agent()
+    if not user_agent:
+        user_agent = get_random_agent("firefox")
 
     request_headers = {
         "User-Agent": user_agent,
@@ -212,3 +214,13 @@ async def get_video_from_vk_player(url):
         except Exception as e:
             print(f"Error extracting VK video: {str(e)}")
             return None, None, None
+
+
+if __name__ == '__main__':
+    from app.players.test import run_tests
+
+    urls_to_test = [
+        "https://vk.com/video_ext.php?oid=730161010&id=456239729&hash=ed6702421a50aae8&hd=2"
+    ]
+
+    run_tests(get_video_from_vk_player, urls_to_test)

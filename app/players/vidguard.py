@@ -7,7 +7,6 @@ import base64
 from urllib.parse import urlparse, parse_qs, urlencode
 from py_mini_racer import MiniRacer
 
-from app.players.test import run_tests
 from app.routes.utils import get_random_agent
 from app.players.utils import fetch_resolution_from_m3u8
 
@@ -137,6 +136,8 @@ async def get_video_from_vidguard_player(player_url: str):
 
 
 if __name__ == '__main__':
+    from app.players.test import run_tests
+
     urls_to_test = [
         "https://listeamed.net/e/JzkPxzX4NpAObyd"
     ]
