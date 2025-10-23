@@ -60,7 +60,7 @@ async def get_video_from_filemoon_player(player_url: str):
         if PROXIFY_STREAMS:
             player_url = f'{STREAM_PROXY_URL}/proxy/stream?d={player_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
 
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as session:
             async with session.get(player_url, headers=headers, timeout=15) as response:
                 response.raise_for_status()
                 html_content = await response.text()
@@ -94,9 +94,30 @@ async def get_video_from_filemoon_player(player_url: str):
             stream_url = fix_filemoon_m3u8_link(raw_stream_url)
 
             try:
-                quality = await fetch_resolution_from_m3u8(session, stream_url, headers) or "unknown"
+                quality_check = stream_url
+                if PROXIFY_STREAMS:
+                    quality_check = f'{STREAM_PROXY_URL}/proxy/stream?d={quality_check}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
+                quality = await fetch_resolution_from_m3u8(session, quality_check, headers) or "unknown"
             except Exception:
                 quality = "unknown"
+
+            if PROXIFY_STREAMS:
+                post_data = {
+                    "mediaflow_proxy_url": STREAM_PROXY_URL,
+                    "endpoint": "/proxy/hls/manifest.m3u8",
+                    "destination_url": stream_url,
+                    "expiration": 7200,
+                    "request_headers": headers,
+                    "api_password": STREAM_PROXY_PASSWORD,
+                }
+                try:
+                    async with session.post(f'{STREAM_PROXY_URL}/generate_encrypted_or_encoded_url',
+                                            json=post_data) as response:
+                        response.raise_for_status()
+                        result = await response.json()
+                    stream_url = result.get("encoded_url", {})
+                except aiohttp.client_exceptions.ClientConnectorError:
+                    return None, None, None
 
             stream_headers = {'request': headers}
 
