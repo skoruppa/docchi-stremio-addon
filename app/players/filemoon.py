@@ -1,6 +1,6 @@
 import re
 import aiohttp
-from urllib.parse import urlparse, urlencode
+from urllib.parse import urlparse, urlencode, urljoin
 from app.routes.utils import get_random_agent
 from app.players.utils import unpack_js
 from app.players.utils import fetch_resolution_from_m3u8
@@ -51,6 +51,15 @@ async def get_video_from_filemoon_player(player_url: str):
                 response.raise_for_status()
                 html_content = await response.text()
 
+            iframe_match = re.search(r'<iframe[^>]+src="([^"]+)"', html_content)
+            if iframe_match:
+                iframe_src = iframe_match.group(1)
+                iframe_url = urljoin(player_url, iframe_src)
+
+                async with session.get(iframe_url, headers=headers, timeout=15) as iframe_response:
+                    iframe_response.raise_for_status()
+                    html_content = await iframe_response.text()
+
             if not re.search(r"eval\(function\(p,a,c,k,e", html_content):
                 return None, None, None
 
@@ -83,7 +92,7 @@ if __name__ == '__main__':
     from app.players.test import run_tests
 
     urls_to_test = [
-        "https://zjet7.com/bkg/p37e1mdklccc",
+        "https://filemoon.sx/e/lxdu2hvivd44",
     ]
 
     run_tests(get_video_from_filemoon_player, urls_to_test)
