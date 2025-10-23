@@ -24,7 +24,7 @@ from app.players.vidtube import get_video_from_vidtube_player
 from app.players.upn import get_video_from_upn_player
 from app.players.mp4upload import get_video_from_mp4upload_player
 from app.players.earnvid import get_video_from_earnvid_player
-from app.players.filemoon import get_video_from_filemoon_player
+# from app.players.filemoon import get_video_from_filemoon_player # stream bound to ip
 from app.players.streamup import get_video_from_streamup_player
 # from app.players.abyss import get_video_from_abyss_player  #was fun, but can't support their binary playlist
 # from app.players.vidguard import get_video_from_vidguard_player # was also fun, but the stream is probably bound to ip - does not work remotely
@@ -37,7 +37,7 @@ stream_bp = Blueprint('stream', __name__)
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 supported_streams = ['cda', 'lycoris.cafe', 'ok', 'okru', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'google drive', 'uqload',
                      'lulustream', 'streamtape', 'rumble', 'default', 'vidtube', 'upn', 'upns', 'rpm', 'rpmhub', 'rpmvid',
-                     'mp4upload', 'filemoon', 'earnvid', 'streamup', 'savefiles', 'pixeldrain']
+                     'mp4upload', 'earnvid', 'streamup', 'savefiles', 'pixeldrain']
 
 
 async def process_player(player):
@@ -93,8 +93,6 @@ async def process_player(player):
         url, quality, headers = await get_video_from_mp4upload_player(player['player'])
     elif player_hosting == 'earnvid':
         url, quality, headers = await get_video_from_earnvid_player(player['player'])
-    elif player_hosting == 'filemoon':
-        url, quality, headers = await get_video_from_filemoon_player(player['player'])
     elif player_hosting == 'streamup':
         url, quality, headers = await get_video_from_streamup_player(player['player'])
     elif player_hosting == 'savefiles':

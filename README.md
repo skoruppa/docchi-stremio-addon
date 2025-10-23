@@ -28,7 +28,6 @@ As the stream data needs to be extracted from web players, not all available pla
 - **RPMHub**
 - **UPNS**
 - **MP4Upload**
-- **Filemoon**
 - **EarnVid**
 - **StreamUP**
 
