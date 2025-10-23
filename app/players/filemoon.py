@@ -4,6 +4,11 @@ from urllib.parse import urlparse, urlencode, urljoin
 from app.routes.utils import get_random_agent
 from app.players.utils import unpack_js
 from app.players.utils import fetch_resolution_from_m3u8
+from config import Config
+
+PROXIFY_STREAMS = Config.PROXIFY_STREAMS
+STREAM_PROXY_URL = Config.STREAM_PROXY_URL
+STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 
 
 def fix_filemoon_m3u8_link(link: str) -> str:
@@ -39,12 +44,21 @@ def fix_filemoon_m3u8_link(link: str) -> str:
 
 async def get_video_from_filemoon_player(player_url: str):
     try:
+
+        user_agent = get_random_agent()
+
         parsed_url = urlparse(player_url)
         base_url_with_scheme = f"{parsed_url.scheme}://{parsed_url.netloc}"
         headers = {
-            "User-Agent": get_random_agent(),
+            "User-Agent": user_agent,
             "Referer": base_url_with_scheme
         }
+
+
+        current_url = player_url
+
+        if PROXIFY_STREAMS:
+            player_url = f'{STREAM_PROXY_URL}/proxy/stream?d={player_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
 
         async with aiohttp.ClientSession() as session:
             async with session.get(player_url, headers=headers, timeout=15) as response:
@@ -55,6 +69,11 @@ async def get_video_from_filemoon_player(player_url: str):
             if iframe_match:
                 iframe_src = iframe_match.group(1)
                 iframe_url = urljoin(player_url, iframe_src)
+
+                headers["Referer"] = current_url
+
+                if PROXIFY_STREAMS:
+                    iframe_url = f'{STREAM_PROXY_URL}/proxy/stream?d={iframe_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
 
                 async with session.get(iframe_url, headers=headers, timeout=15) as iframe_response:
                     iframe_response.raise_for_status()
