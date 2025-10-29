@@ -24,11 +24,21 @@ def log_error(err):
     """
     Logs errors from MyAnimeList's API
     """
-    response = err.response.json()
-    error_label = response.get('error', 'No error label in response').capitalize()
-    message = response.get('message', 'No message field in response')
-    hint = response.get('hint', 'No hint field in response')
-    logging.error(f"{error_label} [{err.response.status_code}] -> {message}\n HINT: {hint}\n")
+    if hasattr(err, 'response') and err.response is not None:
+        try:
+            response = err.response.json()
+            error_label = response.get('error', 'No error label in response').capitalize()
+            message = response.get('message', 'No message field in response')
+            hint = response.get('hint', 'No hint field in response')
+            status_code = err.response.status_code
+            logging.error(f"{error_label} [{status_code}] -> {message}\n HINT: {hint}\n")
+        except json.JSONDecodeError:
+            status_code = err.response.status_code
+            logging.error(f"API Error [{status_code}] -> Response is not in JSON format:\n{err.response.text}\n")
+        except Exception as e:
+            logging.error(f"An unexpected error occurred while processing the API response: {e}\n")
+    else:
+        logging.error(f"An unexpected error occurred: {err}\n")
 
 
 def generate_etag(data: dict) -> str:
