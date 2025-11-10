@@ -7,17 +7,14 @@ from app.players.utils import fetch_resolution_from_m3u8
 
 def extract_ua_section(js_string):
     try:
-        # Znajdź początek obiektu ua
         ua_start = js_string.find('"ua":')
         if ua_start == -1:
-            raise ValueError("Nie znaleziono sekcji 'ua'")
+            raise ValueError("Section 'ua' not found")
 
-        # Rozpocznij od pierwszego {
         brace_start = js_string.find('{', ua_start)
         if brace_start == -1:
-            raise ValueError("Nie znaleziono otwierającego nawiasu klamrowego")
+            raise ValueError("Opening brace not found")
 
-        # Znajdź odpowiadający zamykający nawias klamrowy
         brace_count = 0
         current_pos = brace_start
 
@@ -28,33 +25,64 @@ def extract_ua_section(js_string):
             elif char == '}':
                 brace_count -= 1
                 if brace_count == 0:
-                    # Znaleźliśmy koniec obiektu ua
                     ua_object = js_string[brace_start:current_pos + 1]
                     break
             current_pos += 1
         else:
-            raise ValueError("Nie znaleziono zamykającego nawiasu klamrowego")
+            raise ValueError("Closing brace not found")
 
-        # Stwórz kompletny JSON z sekcją ua
         ua_json = '{"ua":' + ua_object + '}'
 
-        # Sprawdź czy JSON jest poprawny
         parsed = json.loads(ua_json)
 
         return parsed
 
     except Exception as e:
-        print(f"Błąd podczas przetwarzania: {e}")
-        return None, None
+        print(f"Error during processing: {e}")
+        return None
 
 
 async def get_video_from_rumble_player(url):
     headers = {
         "User-Agent": get_random_agent()
     }
+
+    final_url = url
+
+    if "/embed/" not in url:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status != 200:
+                    print(f"Error fetching page {url}: Status {response.status}")
+                    return None, None, None
+                page_text = await response.text()
+
+                script_pattern = re.compile(r'<script type=application/ld\+json>(.*?)</script>', re.DOTALL)
+                script_match = script_pattern.search(page_text)
+
+                if script_match:
+                    try:
+                        json_ld_content = script_match.group(1)
+                        data_array = json.loads(json_ld_content)
+                        for item in data_array:
+                            if item.get('@type') == 'VideoObject' and 'embedUrl' in item:
+                                final_url = item['embedUrl']
+                                print(f"Found embedUrl: {final_url}")
+                                break
+                        else:
+                            print("No 'embedUrl' found in 'VideoObject' in JSON-LD.")
+                            return None, None, None
+                    except json.JSONDecodeError as e:
+                        print(f"JSON-LD decoding error: {e}")
+                        return None, None, None
+                else:
+                    print("JSON-LD script not found on the page.")
+                    return None, None, None
+
     async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=headers) as response:
+        async with session.get(final_url, headers=headers) as response:
             if response.status != 200:
+                print(f"Error fetching final_url {final_url}: Status {response.status}")
                 return None, None, None
 
             text = await response.text()
@@ -63,10 +91,16 @@ async def get_video_from_rumble_player(url):
         match = json_pattern.search(text)
 
         if not match:
+            print(f"No matching JSON pattern 'ua' found for URL: {final_url}")
             return None, None, None
 
         json_str = '{' + match.group(0) + '}'
         data = extract_ua_section(json_str)
+
+        if data is None:
+            print(f"Failed to process 'ua' section for URL: {final_url}")
+            return None, None, None
+
         stream_headers = {
             'request': {
                 "Origin": "https://rumble.com/",
@@ -89,6 +123,7 @@ async def get_video_from_rumble_player(url):
             video_data = video_sources['tar']
 
         if not video_data:
+            print(f"No video data found in sources for URL: {final_url}")
             return None, None, None
 
         if 'auto' in video_data:
@@ -100,9 +135,20 @@ async def get_video_from_rumble_player(url):
 
         highest_quality_url += highest_quality_url_string
         if highest_resolution == 'auto':
-            highest_resolution = await fetch_resolution_from_m3u8(session, highest_quality_url, stream_headers['request'])
+            highest_resolution = await fetch_resolution_from_m3u8(session, highest_quality_url,
+                                                                  stream_headers['request'])
         else:
             highest_resolution = f"{highest_resolution}p"
 
-
         return highest_quality_url, highest_resolution, stream_headers
+
+if __name__ == '__main__':
+    from app.players.test import run_tests
+
+    urls_to_test = [
+        "https://rumble.com/v716bwo-frixttwakrnin05.html"
+    ]
+
+    run_tests(get_video_from_rumble_player, urls_to_test)
+
+
