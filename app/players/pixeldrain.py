@@ -3,10 +3,16 @@ import aiohttp
 from urllib.parse import urlparse
 
 from app.routes.utils import get_random_agent
+from config import Config
 
+
+PROXIFY_STREAMS = Config.PROXIFY_STREAMS
+STREAM_PROXY_URL = Config.STREAM_PROXY_URL
+STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 
 async def get_video_from_pixeldrain_player(player_url: str):
-    headers = {"User-Agent": get_random_agent()}
+    user_agent = get_random_agent()
+    headers = {"User-Agent": user_agent}
 
     try:
         parsed_url = urlparse(player_url)
@@ -25,7 +31,9 @@ async def get_video_from_pixeldrain_player(player_url: str):
         # If it's a list link, we need to fetch the list and find the video
         if mtype == 'l':
             api_url = f"https://pixeldrain.com/api/list/{mid}"
-            async with aiohttp.ClientSession() as session:
+            if PROXIFY_STREAMS:
+                api_url = f'{STREAM_PROXY_URL}/proxy/stream?d={api_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
+            async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as session:
                 async with session.get(api_url, headers=headers) as response:
                     response.raise_for_status()
                     data = await response.json()
