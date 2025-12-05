@@ -7,12 +7,16 @@ from app.routes.utils import get_random_agent
 from aiocache import cached
 from aiocache.serializers import PickleSerializer
 from app.players.rumble import get_video_from_rumble_player
-
+from config import Config
 
 DECRYPT_API_KEY = "303a897d-sd12-41a8-84d1-5e4f5e208878"
-
+PROXIFY_STREAMS = Config.PROXIFY_STREAMS
+STREAM_PROXY_URL = Config.STREAM_PROXY_URL
+STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 
 async def check_url_status(session, url):
+    if PROXIFY_STREAMS:
+        url = f'{STREAM_PROXY_URL}/proxy/stream?d={url}&api_password={STREAM_PROXY_PASSWORD}'
     try:
         async with session.head(url, allow_redirects=True, timeout=15) as resp:
             if resp.status not in (405, 501):
