@@ -4,6 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
+typing-extensions = ">=4.0.0"
 py-mini-racer = "*"
 "backports.entry-points-selectable" = "*"
 lxml = "*"
