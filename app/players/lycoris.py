@@ -21,13 +21,13 @@ async def check_url_status(session, url):
         async with session.head(url, allow_redirects=True, timeout=15) as resp:
             if resp.status not in (405, 501):
                 return resp.status
-    except:
+    except Exception as e:
         pass
 
     try:
         async with session.get(url, headers={"Range": "bytes=0-0"}, allow_redirects=True, timeout=15) as resp:
             return resp.status
-    except:
+    except Exception as e:
         return None
 
 
@@ -36,7 +36,7 @@ async def get_video_from_lycoris_player(url: str):
     user_agent = get_random_agent()
     headers = {"User-Agent": user_agent}
     try:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as session:
             async with session.get(url, headers=headers, timeout=15) as response:
                 response.raise_for_status()
                 html = await response.text()
@@ -89,7 +89,7 @@ async def get_video_from_lycoris_player(url: str):
             if highest_quality:
                 url_candidate, quality = highest_quality['url'], highest_quality['quality']
                 status = await check_url_status(session, url_candidate)
-                if status == 200:
+                if status in (200, 206):
                     return url_candidate, quality, None
 
             # Fallback to Rumble if primary sources fail
