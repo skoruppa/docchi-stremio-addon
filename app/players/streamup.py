@@ -100,7 +100,8 @@ async def get_video_from_streamup_player(player_url: str):
             }
             stream_headers = {'request': stream_headers_dict}
 
-            quality = await fetch_resolution_from_m3u8(session, stream_url, stream_headers_dict) or "unknown"
+            # quality = await fetch_resolution_from_m3u8(session, stream_url, stream_headers_dict) or "unknown"
+            quality = "unknown"
 
             return stream_url, quality, stream_headers
 
@@ -112,7 +113,7 @@ async def get_video_from_streamup_player(player_url: str):
 if __name__ == '__main__':
     from app.players.test import run_tests
     urls_to_test = [
-        "https://strmup.to/rhNq4BtUoJvsi"
+        "https://strmup.to/6eebe34280c9f"
     ]
 
     run_tests(get_video_from_streamup_player, urls_to_test)
