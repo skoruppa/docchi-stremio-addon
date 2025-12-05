@@ -33,7 +33,7 @@ async def get_video_from_lycoris_player(url: str):
     headers = {"User-Agent": user_agent}
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as response:
+            async with session.get(url, headers=headers, timeout=15) as response:
                 response.raise_for_status()
                 html = await response.text()
 
@@ -104,7 +104,7 @@ if __name__ == '__main__':
     from app.players.test import run_tests
 
     urls_to_test = [
-        "https://www.lycoris.cafe/embed?id=178025&episode=12",
+        "https://www.lycoris.cafe/embed?id=181447&episode=10",
     ]
 
     run_tests(get_video_from_lycoris_player, urls_to_test)
