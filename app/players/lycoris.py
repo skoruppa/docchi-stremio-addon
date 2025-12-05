@@ -14,14 +14,14 @@ DECRYPT_API_KEY = "303a897d-sd12-41a8-84d1-5e4f5e208878"
 
 async def check_url_status(session, url):
     try:
-        async with session.head(url, allow_redirects=True) as resp:
+        async with session.head(url, allow_redirects=True, timeout=15) as resp:
             if resp.status not in (405, 501):
                 return resp.status
     except:
         pass
 
     try:
-        async with session.get(url, headers={"Range": "bytes=0-0"}, allow_redirects=True) as resp:
+        async with session.get(url, headers={"Range": "bytes=0-0"}, allow_redirects=True, timeout=15) as resp:
             return resp.status
     except:
         return None
@@ -70,7 +70,7 @@ async def get_video_from_lycoris_player(url: str):
             }
             payload = {"encoded": base64_encoded_data}
 
-            async with session.post(decrypt_url, headers=decrypt_headers, json=payload) as decrypt_response:
+            async with session.post(decrypt_url, headers=decrypt_headers, json=payload, timeout=15) as decrypt_response:
                 decrypt_response.raise_for_status()
                 video_sources = await decrypt_response.json()
 
