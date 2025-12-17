@@ -82,28 +82,22 @@ class DocchiAPI:
     @staticmethod
     def get_current_season():
         """
-        Get current anime season
-        :return: tuple of season and season_year
+        Get current anime season (by actual airing period)
+        :return: tuple of (season, season_year)
         """
 
         now = datetime.now()
-        current_year = now.year
+        year = now.year
+        month = now.month
 
-        # 1 kwietnia zaczyna się wiosna
-        if now < datetime(current_year, 4, 1):
-            # [1 stycznia ~ 31 marca)
-            return "winter", current_year
-        if now < datetime(current_year, 7, 1):
-            # [1 kwietnia ~ 30 czerwca)
-            return "spring", current_year
-        if now < datetime(current_year, 10, 1):
-            # [1 lipca ~ 30 września)
-            return "summer", current_year
-        if now < datetime(current_year, 12, 1):
-            # [1 października ~ 30 listopada)
-            return "fall", current_year
-        # [1 grudnia ~ 31 grudnia]
-        return "winter", current_year
+        if month <= 3:
+            return "winter", year
+        elif month <= 6:
+            return "spring", year
+        elif month <= 9:
+            return "summer", year
+        else:
+            return "fall", year
 
     @staticmethod
     def get_available_episodes(slug: str):
