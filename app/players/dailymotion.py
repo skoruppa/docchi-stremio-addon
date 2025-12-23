@@ -6,47 +6,46 @@ from flask import request
 DAILYMOTION_URL = "https://www.dailymotion.com"
 
 
-async def get_video_from_dailymotion_player(url: str) -> tuple:
+async def get_video_from_dailymotion_player(session: aiohttp.ClientSession, url: str) -> tuple:
     if '/embed/' not in url:
         url = url.replace('/video/', '/embed/video/')
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            response.raise_for_status()
-            html_string = await response.text()
-        try:
-            internal_data_start = html_string.find("\"dmInternalData\":") + len("\"dmInternalData\":")
-            internal_data_end = html_string.find("</script>", internal_data_start)
-            internal_data = html_string[internal_data_start:internal_data_end]
+    
+    async with session.get(url) as response:
+        response.raise_for_status()
+        html_string = await response.text()
+    try:
+        internal_data_start = html_string.find("\"dmInternalData\":") + len("\"dmInternalData\":")
+        internal_data_end = html_string.find("</script>", internal_data_start)
+        internal_data = html_string[internal_data_start:internal_data_end]
 
-            ts = internal_data.split("\"ts\":", 1)[1].split(",", 1)[0].strip()
-            v1st = internal_data.split("\"v1st\":\"", 1)[1].split("\",", 1)[0].strip()
+        ts = internal_data.split("\"ts\":", 1)[1].split(",", 1)[0].strip()
+        v1st = internal_data.split("\"v1st\":\"", 1)[1].split("\",", 1)[0].strip()
 
-            parsed_url = urlparse(url)
-            query_params = parse_qs(parsed_url.query)
-            video_query = query_params.get("video", [None])[0] or parsed_url.path.split("/")[-1]
+        parsed_url = urlparse(url)
+        query_params = parse_qs(parsed_url.query)
+        video_query = query_params.get("video", [None])[0] or parsed_url.path.split("/")[-1]
 
-            json_url = (
-                f"{DAILYMOTION_URL}/player/metadata/video/{video_query}"
-                f"?locale=en-US&dmV1st={v1st}&dmTs={ts}&is_native_app=0"
-            )
+        json_url = (
+            f"{DAILYMOTION_URL}/player/metadata/video/{video_query}"
+            f"?locale=en-US&dmV1st={v1st}&dmTs={ts}&is_native_app=0"
+        )
 
-            async with session.get(json_url) as metadata_response:
-                metadata_response.raise_for_status()
-                parsed = await metadata_response.json()
+        async with session.get(json_url) as metadata_response:
+            metadata_response.raise_for_status()
+            parsed = await metadata_response.json()
 
-            if "qualities" in parsed and "error" not in parsed:
-                return await videos_from_daily_response(parsed)
-            else:
-                return None, None, None
-        except:
+        if "qualities" in parsed and "error" not in parsed:
+            return await videos_from_daily_response(session, parsed)
+        else:
             return None, None, None
+    except:
+        return None, None, None
 
 
-async def fetch_m3u8_url(master_url: str, headers: dict) -> tuple:
-    async with aiohttp.ClientSession() as session:
-        async with session.get(master_url, headers=headers) as response:
-            response.raise_for_status()
-            m3u8_content = await response.text()
+async def fetch_m3u8_url(session: aiohttp.ClientSession, master_url: str, headers: dict) -> tuple:
+    async with session.get(master_url, headers=headers) as response:
+        response.raise_for_status()
+        m3u8_content = await response.text()
 
     streams = []
     lines = m3u8_content.splitlines()
@@ -69,7 +68,7 @@ async def fetch_m3u8_url(master_url: str, headers: dict) -> tuple:
         return None, None
 
 
-async def videos_from_daily_response(parsed: dict) -> tuple:
+async def videos_from_daily_response(session: aiohttp.ClientSession, parsed: dict) -> tuple:
     master_url = next(
         (quality.get("url") for quality in parsed.get("qualities", {}).get("auto", []) if "url" in quality),
         None
@@ -78,7 +77,7 @@ async def videos_from_daily_response(parsed: dict) -> tuple:
         return None, None, None
 
     master_headers = headers_builder()
-    best_url, best_quality = await fetch_m3u8_url(master_url, master_headers)
+    best_url, best_quality = await fetch_m3u8_url(session, master_url, master_headers)
 
     stream_headers = {
         "request": master_headers,

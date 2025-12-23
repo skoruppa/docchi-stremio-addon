@@ -45,39 +45,38 @@ async def fetch_resolution_from_m3u8(session, m3u8_url, headers):
     return None
 
 
-async def get_video_from_lulustream_player(filelink):
+async def get_video_from_lulustream_player(session: aiohttp.ClientSession, filelink):
     headers = {
         "User-Agent": get_random_agent(),
         "Referer": "https://luluvdo.com",
         "Origin": "https://luluvdo.com"
     }
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(filelink, headers=headers, timeout=30) as response:
-            response.raise_for_status()
-            html_content = await response.text()
+    async with session.get(filelink, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as response:
+        response.raise_for_status()
+        html_content = await response.text()
 
-        m3u8_match = ""
-        player_data = ""
-        try:
-            if re.search(r"eval\(function\(p,a,c,k,e", html_content):
-                player_data = unpack_js(html_content)
-                m3u8_match = re.search(r"sources:\[\{file:\"([^\"]+)\"", player_data)
-                stream_url = fix_m3u8_link(m3u8_match.group(1))
-            else:
-                m3u8_match = re.search(r'sources: \[\{file:"(https?://[^"]+)"\}\]', html_content)
-                stream_url = m3u8_match.group(1)
-            if not m3u8_match or not stream_url:
-                print(html_content)
-                return None, None, None
-        except AttributeError:
+    m3u8_match = ""
+    player_data = ""
+    try:
+        if re.search(r"eval\(function\(p,a,c,k,e", html_content):
+            player_data = unpack_js(html_content)
+            m3u8_match = re.search(r"sources:\[\{file:\"([^\"]+)\"", player_data)
+            stream_url = fix_m3u8_link(m3u8_match.group(1))
+        else:
+            m3u8_match = re.search(r'sources: \[\{file:"(https?://[^"]+)"\}\]', html_content)
+            stream_url = m3u8_match.group(1)
+        if not m3u8_match or not stream_url:
+            print(html_content)
             return None, None, None
+    except AttributeError:
+        return None, None, None
 
-        try:
-            quality = await fetch_resolution_from_m3u8(session, stream_url, headers)
-            quality = f'{quality}p'
-        except:
-            quality = 'unknown'
-        stream_headers = {'request': headers}
+    try:
+        quality = await fetch_resolution_from_m3u8(session, stream_url, headers)
+        quality = f'{quality}p'
+    except:
+        quality = 'unknown'
+    stream_headers = {'request': headers}
 
-        return stream_url, quality, stream_headers
+    return stream_url, quality, stream_headers

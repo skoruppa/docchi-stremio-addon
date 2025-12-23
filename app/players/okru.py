@@ -1,4 +1,5 @@
 import re
+import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
 from app.routes.utils import get_random_agent
@@ -38,7 +39,7 @@ def process_video_json(video_json):
     return highest_quality_video['url'], f"{highest_quality_video['quality']}p"
 
 
-async def get_video_from_okru_player(url):
+async def get_video_from_okru_player(session: aiohttp.ClientSession, url):
     try:
         user_agent = request.headers.get('User-Agent', None)
     except:
@@ -60,52 +61,54 @@ async def get_video_from_okru_player(url):
     media_id = media_id_match.group(1)
 
     try:
-        async with aiohttp.ClientSession(headers=headers, connector=aiohttp.TCPConnector(verify_ssl=False)) as session:
+        api_url = "https://www.ok.ru/dk?cmd=videoPlayerMetadata"
+        payload = {'mid': media_id}
+        if PROXIFY_STREAMS:
+            api_url = f'{STREAM_PROXY_URL}/proxy/stream?d={api_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
 
-            api_url = "https://www.ok.ru/dk?cmd=videoPlayerMetadata"
-            payload = {'mid': media_id}
-            if PROXIFY_STREAMS:
-                api_url = f'{STREAM_PROXY_URL}/proxy/stream?d={api_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
+        embed_url = f"https://ok.ru/videoembed/{media_id}"
+        if PROXIFY_STREAMS:
+            embed_url = f'{STREAM_PROXY_URL}/proxy/stream?d={embed_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
 
+        # Try both API and embed in parallel
+        api_task = session.post(api_url, data=payload, headers=headers)
+        embed_task = session.get(embed_url, headers=headers)
+        
+        results = await asyncio.gather(api_task, embed_task, return_exceptions=True)
+        
+        # Try API response first
+        if not isinstance(results[0], Exception):
             try:
-                async with session.post(api_url, data=payload, headers=headers) as response:
-                    if response.status == 200:
-                        metadata = await response.json()
-                        stream, quality = process_video_json(metadata['videos'])
+                if results[0].status == 200:
+                    metadata = await results[0].json()
+                    stream, quality = process_video_json(metadata['videos'])
+                    if stream:
                         return stream, quality, video_headers
             except:
                 pass
-
-            embed_url = f"https://ok.ru/videoembed/{media_id}"
-            if PROXIFY_STREAMS:
-                embed_url = f'{STREAM_PROXY_URL}/proxy/stream?d={embed_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
-
-            async with session.get(embed_url) as response:
-                text = await response.text()
-
-            document = BeautifulSoup(text, "html.parser")
-            player_string_div = document.select_one("div[data-options]")
-            if not player_string_div:
-                print("OK.ru Error: Nie znaleziono atrybutu 'data-options' w HTML.")
-                return None, None, None
-
-            player_data_str = player_string_div.get("data-options", "")
-            player_data_cleaned = player_data_str.replace('&quot;', '"').replace('&amp;', '&')
-
-            player_json = json.loads(player_data_cleaned)
-            video_json_str = player_json.get('flashvars', {}).get('metadata')
-
-            if not video_json_str:
-                return None, None, None
-
-            video_json = json.loads(video_json_str).get('videos')
-            if not video_json:
-                return None, None, None
-
-            stream, quality = process_video_json(video_json)
-            return stream, quality, video_headers
+        
+        # Fallback to embed response
+        if not isinstance(results[1], Exception):
+            try:
+                text = await results[1].text()
+                document = BeautifulSoup(text, "html.parser")
+                player_string_div = document.select_one("div[data-options]")
+                if player_string_div:
+                    player_data_str = player_string_div.get("data-options", "")
+                    player_data_cleaned = player_data_str.replace('&quot;', '"').replace('&amp;', '&')
+                    player_json = json.loads(player_data_cleaned)
+                    video_json_str = player_json.get('flashvars', {}).get('metadata')
+                    if video_json_str:
+                        video_json = json.loads(video_json_str).get('videos')
+                        if video_json:
+                            stream, quality = process_video_json(video_json)
+                            return stream, quality, video_headers
+            except:
+                pass
     except:
-        return None, None, None
+        pass
+    
+    return None, None, None
 
 
 if __name__ == '__main__':

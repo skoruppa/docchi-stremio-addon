@@ -44,48 +44,47 @@ def fix_mp4_link(link: str) -> str:
     return fixed_link
 
 
-async def get_video_from_vidtube_player(filelink):
+async def get_video_from_vidtube_player(session: aiohttp.ClientSession, filelink):
     headers = {
         "User-Agent": get_random_agent(),
         "Referer": "https://vidtube.one/",
     }
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(filelink, headers=headers, timeout=30) as response:
-                response.raise_for_status()
-                html_content = await response.text()
+        async with session.get(filelink, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as response:
+            response.raise_for_status()
+            html_content = await response.text()
 
-            try:
-                if re.search(r"eval\(function\(p,a,c,k,e", html_content):
-                    player_data = unpack_js(html_content)
-                    mp4_match = re.search(r"sources:\[\{file:\"([^\"]+)\"", player_data)
-                    stream_url = fix_mp4_link(mp4_match.group(1))
-                    label_match = re.search(r'label\s*:\s*"([^"]+)"', player_data, re.IGNORECASE)
-                else:
-                    mp4_match = re.search(r'sources: \[\{file:"(https?://[^"]+)"\}\]', html_content)
-                    stream_url = mp4_match.group(1)
-                    label_match = re.search(r'label\s*:\s*"([^"]+)"', html_content, re.IGNORECASE)
-                if not mp4_match or not stream_url:
-                    print(html_content)
-                    return None, None, None
-            except AttributeError:
+        try:
+            if re.search(r"eval\(function\(p,a,c,k,e", html_content):
+                player_data = unpack_js(html_content)
+                mp4_match = re.search(r"sources:\[\{file:\"([^\"]+)\"", player_data)
+                stream_url = fix_mp4_link(mp4_match.group(1))
+                label_match = re.search(r'label\s*:\s*"([^"]+)"', player_data, re.IGNORECASE)
+            else:
+                mp4_match = re.search(r'sources: \[\{file:"(https?://[^"]+)"\}\]', html_content)
+                stream_url = mp4_match.group(1)
+                label_match = re.search(r'label\s*:\s*"([^"]+)"', html_content, re.IGNORECASE)
+            if not mp4_match or not stream_url:
+                print(html_content)
                 return None, None, None
+        except AttributeError:
+            return None, None, None
 
 
-            quality = 'unknown'
-            if label_match:
-                label_string = label_match.group(1)
+        quality = 'unknown'
+        if label_match:
+            label_string = label_match.group(1)
 
-                resolution_match_xy = re.search(r'(\d+)x(\d{3,4})', label_string)
-                if resolution_match_xy:
-                    quality = f"{resolution_match_xy.group(2)}p"
-                else:
-                    resolution_match_p = re.search(r'\b(\d{3,4})[pP]\b', label_string)
-                    if resolution_match_p:
-                        quality = f"{resolution_match_p.group(1)}p"
-            stream_headers = {'request': headers}
+            resolution_match_xy = re.search(r'(\d+)x(\d{3,4})', label_string)
+            if resolution_match_xy:
+                quality = f"{resolution_match_xy.group(2)}p"
+            else:
+                resolution_match_p = re.search(r'\b(\d{3,4})[pP]\b', label_string)
+                if resolution_match_p:
+                    quality = f"{resolution_match_p.group(1)}p"
+        stream_headers = {'request': headers}
 
-            return stream_url, quality, stream_headers
+        return stream_url, quality, stream_headers
     except (aiohttp.ClientError, TimeoutError, AttributeError, ValueError, IndexError, Exception):
         return None, None, None

@@ -28,7 +28,7 @@ def _decrypt_to_raw_text(encrypted_hex_str: str, key_hex: str) -> str:
     return decrypted_bytes.decode('utf-8', errors='ignore')
 
 
-async def get_video_from_upn_player(player_url: str):
+async def get_video_from_upn_player(session: aiohttp.ClientSession, player_url: str):
     try:
         parsed_url = urlparse(player_url)
         base_url_with_scheme = f"{parsed_url.scheme}://{parsed_url.netloc}"
@@ -46,29 +46,28 @@ async def get_video_from_upn_player(player_url: str):
         video_id = video_id_match.group(1)
         api_url = f"{base_url_with_scheme}/api/v1/video?id={video_id}&w=1920&h=1200&r="
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(api_url, headers=headers, timeout=15) as response:
-                response.raise_for_status()
-                encrypted_response_hex = await response.text()
+        async with session.get(api_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            response.raise_for_status()
+            encrypted_response_hex = await response.text()
 
-            decrypted_text = _decrypt_to_raw_text(encrypted_response_hex, DECRYPTION_KEY_HEX)
+        decrypted_text = _decrypt_to_raw_text(encrypted_response_hex, DECRYPTION_KEY_HEX)
 
-            stream_url = None
-            source_match = re.search(r'"source"\s*:\s*"([^"]+)"', decrypted_text)
-            if source_match:
-                stream_url = source_match.group(1).replace('\\/', '/')
+        stream_url = None
+        source_match = re.search(r'"source"\s*:\s*"([^"]+)"', decrypted_text)
+        if source_match:
+            stream_url = source_match.group(1).replace('\\/', '/')
 
-            if not stream_url:
-                print("UPN Player Error: no 'source' found")
-                return None, None, None
+        if not stream_url:
+            print("UPN Player Error: no 'source' found")
+            return None, None, None
 
-            quality = await fetch_resolution_from_m3u8(session, stream_url, headers)
-            if not quality:
-                quality = "unknown"
+        quality = await fetch_resolution_from_m3u8(session, stream_url, headers)
+        if not quality:
+            quality = "unknown"
 
-            stream_headers = {'request': headers}
+        stream_headers = {'request': headers}
 
-            return stream_url, quality, stream_headers
+        return stream_url, quality, stream_headers
 
     except Exception as e:
         print(f"UPN Player Error: Unexpected error: {e}")

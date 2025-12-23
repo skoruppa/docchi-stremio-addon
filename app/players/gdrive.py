@@ -16,7 +16,7 @@ def build_video_url(base_url, document):
     return f"{url}?{query_string}"
 
 
-async def get_video_from_gdrive_player(drive_url: str):
+async def get_video_from_gdrive_player(session: aiohttp.ClientSession, drive_url: str):
     match = re.search(r"/d/([a-zA-Z0-9_-]+)", drive_url)
     if not match:
         return None
@@ -29,9 +29,8 @@ async def get_video_from_gdrive_player(drive_url: str):
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     }
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(video_url, headers=headers) as response:
-            text = await response.text()
+    async with session.get(video_url, headers=headers) as response:
+        text = await response.text()
 
     if 'Error 404 (Not Found)' in text:
         return None, None, None

@@ -52,42 +52,40 @@ async def fetch_video_data(session: aiohttp.ClientSession, url: str, video_id: s
     soup = BeautifulSoup(html, "html.parser")
     player_div = soup.find("div", id=lambda x: x and x.startswith("mediaplayer"))
     if not player_div or "player_data" not in player_div.attrs:
-        print("Nie znaleziono danych odtwarzacza.")
         return None
 
     player_data = json.loads(player_div["player_data"])
     return player_data
 
 
-async def get_video_from_cda_player(url: str) -> tuple:
+async def get_video_from_cda_player(session: aiohttp.ClientSession, url: str) -> tuple:
     url, video_id = normalize_cda_url(url)
     if not url:
         return None, None, None
 
-    async with aiohttp.ClientSession() as session:
-        headers = None
+    headers = None
+    video_data = await fetch_video_data(session, url, video_id)
+    if not video_data:
+        return None, None, None
+
+    qualities = video_data['video']['qualities']
+    current_quality = video_data['video']['quality']
+
+    highest_quality, quality_id = get_highest_quality(qualities)
+    if quality_id != current_quality:
+        url = f'{url}?wersja={highest_quality}'
         video_data = await fetch_video_data(session, url, video_id)
         if not video_data:
             return None, None, None
 
-        qualities = video_data['video']['qualities']
-        current_quality = video_data['video']['quality']
+    file = video_data['video']['file']
+    if file:
+        url = decrypt_url(file)
+        headers = {"request": {"Referer": f"https://ebd.cda.pl/620x368/{video_id}" }}
+    else:
+        url = video_data['video']['manifest_apple']
 
-        highest_quality, quality_id = get_highest_quality(qualities)
-        if quality_id != current_quality:
-            url = f'{url}?wersja={highest_quality}'
-            video_data = await fetch_video_data(session, url, video_id)
-            if not video_data:
-                return None, None, None
+    if url:
+        return url, highest_quality, headers
 
-        file = video_data['video']['file']
-        if file:
-            url = decrypt_url(file)
-            headers = {"request": {"Referer": f"https://ebd.cda.pl/620x368/{video_id}" }}
-        else:
-            url = video_data['video']['manifest_apple']
-
-        if url:
-            return url, highest_quality, headers
-
-        raise ValueError("Failed to fetch video URL.")
+    return None, None, None

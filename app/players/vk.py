@@ -239,7 +239,7 @@ def extract_video_alternative_method(html_content):
     return None, None
 
 
-async def get_video_from_vk_player(url):
+async def get_video_from_vk_player(session: aiohttp.ClientSession, url):
     try:
         user_agent = request.headers.get('User-Agent', None)
     except:
@@ -276,49 +276,48 @@ async def get_video_from_vk_player(url):
         print("Failed getting video ID from the URL")
         return None, None, None
 
-    async with aiohttp.ClientSession() as session:
-        video_url, quality = await get_video_via_api(session, video_id, user_agent)
+    video_url, quality = await get_video_via_api(session, video_id, user_agent)
+
+    if video_url:
+        video_url = video_url.replace("^", "")
+        quality_str = f'{quality}p' if quality != 'HLS' else 'HLS'
+        return video_url, quality_str, video_headers
+
+    if "video_ext" in url:
+        embed_url = url
+    else:
+        parts = video_id.split('_')
+        if len(parts) == 2:
+            embed_url = f"https://vk.com/video_ext.php?oid={parts[0]}&id={parts[1]}"
+        else:
+            embed_url = url
+
+    if "?" not in embed_url:
+        embed_url += "?"
+    if "autoplay=0" not in embed_url:
+        embed_url += "&autoplay=0"
+
+    try:
+        html_content = await handle_waf_challenge(session, embed_url, video_id, request_headers)
+
+        if not html_content:
+            async with session.get(embed_url, headers=request_headers, timeout=aiohttp.ClientTimeout(total=15)) as response:
+                if response.status != 200:
+                    return None, None, None
+                html_content = await response.text()
+
+        video_url, quality = extract_highest_quality_video(html_content)
 
         if video_url:
             video_url = video_url.replace("^", "")
             quality_str = f'{quality}p' if quality != 'HLS' else 'HLS'
             return video_url, quality_str, video_headers
-
-        if "video_ext" in url:
-            embed_url = url
         else:
-            parts = video_id.split('_')
-            if len(parts) == 2:
-                embed_url = f"https://vk.com/video_ext.php?oid={parts[0]}&id={parts[1]}"
-            else:
-                embed_url = url
-
-        if "?" not in embed_url:
-            embed_url += "?"
-        if "autoplay=0" not in embed_url:
-            embed_url += "&autoplay=0"
-
-        try:
-            html_content = await handle_waf_challenge(session, embed_url, video_id, request_headers)
-
-            if not html_content:
-                async with session.get(embed_url, headers=request_headers, timeout=30) as response:
-                    if response.status != 200:
-                        return None, None, None
-                    html_content = await response.text()
-
-            video_url, quality = extract_highest_quality_video(html_content)
-
-            if video_url:
-                video_url = video_url.replace("^", "")
-                quality_str = f'{quality}p' if quality != 'HLS' else 'HLS'
-                return video_url, quality_str, video_headers
-            else:
-                return None, None, None
-
-        except Exception as e:
-            print(f"Error extracting VK video: {str(e)}")
             return None, None, None
+
+    except Exception as e:
+        print(f"Error extracting VK video: {str(e)}")
+        return None, None, None
 
 
 if __name__ == '__main__':

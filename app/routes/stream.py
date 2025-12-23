@@ -1,5 +1,6 @@
 import asyncio
 import urllib.parse
+import aiohttp
 from flask import Blueprint, abort
 from .manifest import MANIFEST
 
@@ -40,7 +41,7 @@ supported_streams = ['cda', 'lycoris.cafe', 'ok', 'okru', 'sibnet', 'dailymotion
                      'mp4upload', 'earnvid', 'streamup', 'savefiles', 'pixeldrain']
 
 
-async def process_player(player):
+async def process_player(session, player):
     player_hosting = player['player_hosting'].lower()
     stream = {
         'url': None,
@@ -55,50 +56,50 @@ async def process_player(player):
     inverted = False
 
     if player_hosting == 'cda':
-        url, quality, headers = await get_video_from_cda_player(player['player'])
+        url, quality, headers = await get_video_from_cda_player(session, player['player'])
     elif player_hosting == 'lycoris.cafe':
-        url, quality, headers = await get_video_from_lycoris_player(player['player'])
+        url, quality, headers = await get_video_from_lycoris_player(session, player['player'])
     elif player_hosting in ('ok', 'okru'):
-        url, quality, headers = await get_video_from_okru_player(player['player'])
+        url, quality, headers = await get_video_from_okru_player(session, player['player'])
     elif player_hosting == 'sibnet':
-        url, quality, headers = await get_video_from_sibnet_player(player['player'])
+        url, quality, headers = await get_video_from_sibnet_player(session, player['player'])
     elif player_hosting == 'dailymotion':
-        url, quality, headers = await get_video_from_dailymotion_player(player['player'])
+        url, quality, headers = await get_video_from_dailymotion_player(session, player['player'])
     elif player_hosting == 'uqload':
-        url, quality, headers = await get_video_from_uqload_player(player['player'])
+        url, quality, headers = await get_video_from_uqload_player(session, player['player'])
     elif player_hosting == 'vk':
-        url, quality, headers = await get_video_from_vk_player(player['player'])
+        url, quality, headers = await get_video_from_vk_player(session, player['player'])
         if player['isInverted']:
             inverted = True
     elif player_hosting == 'gdrive' or player_hosting == 'google drive':
-        url, quality, headers = await get_video_from_gdrive_player(player['player'])
+        url, quality, headers = await get_video_from_gdrive_player(session, player['player'])
     elif player_hosting == 'lulustream':
-        url, quality, headers = await get_video_from_lulustream_player(player['player'])
+        url, quality, headers = await get_video_from_lulustream_player(session, player['player'])
     elif player_hosting == 'streamtape':
-        url, quality, headers = await get_video_from_streamtape_player(player['player'])
+        url, quality, headers = await get_video_from_streamtape_player(session, player['player'])
     elif player_hosting == 'rumble':
-        url, quality, headers = await get_video_from_rumble_player(player['player'])
+        url, quality, headers = await get_video_from_rumble_player(session, player['player'])
     elif player_hosting == 'vidtube':
-        url, quality, headers = await get_video_from_vidtube_player(player['player'])
+        url, quality, headers = await get_video_from_vidtube_player(session, player['player'])
     elif player_hosting == 'default':
         if 'savefiles' in player['player']:
-            url, quality, headers = await get_video_from_savefiles_player(player['player'])
+            url, quality, headers = await get_video_from_savefiles_player(session, player['player'])
         elif 'bigwarp' in player['player']:
-            url, quality, headers = await get_video_from_savefiles_player(player['player'])
+            url, quality, headers = await get_video_from_savefiles_player(session, player['player'])
         elif 'streamhls' in player['player']:
-            url, quality, headers = await get_video_from_savefiles_player(player['player'])
+            url, quality, headers = await get_video_from_savefiles_player(session, player['player'])
     elif player_hosting in ('upn', 'upns', 'rpm', 'rpmhub', 'rpmvid'):
-        url, quality, headers = await get_video_from_upn_player(player['player'])
+        url, quality, headers = await get_video_from_upn_player(session, player['player'])
     elif player_hosting == 'mp4upload':
-        url, quality, headers = await get_video_from_mp4upload_player(player['player'])
+        url, quality, headers = await get_video_from_mp4upload_player(session, player['player'])
     elif player_hosting == 'earnvid':
-        url, quality, headers = await get_video_from_earnvid_player(player['player'])
+        url, quality, headers = await get_video_from_earnvid_player(session, player['player'])
     elif player_hosting == 'streamup':
-        url, quality, headers = await get_video_from_streamup_player(player['player'])
+        url, quality, headers = await get_video_from_streamup_player(session, player['player'])
     elif player_hosting == 'savefiles':
-        url, quality, headers = await get_video_from_savefiles_player(player['player'])
+        url, quality, headers = await get_video_from_savefiles_player(session, player['player'])
     elif player_hosting == 'pixeldrain':
-        url, quality, headers = await get_video_from_pixeldrain_player(player['player'])
+        url, quality, headers = await get_video_from_pixeldrain_player(session, player['player'])
         
     stream.update({'url': url, 'quality': quality, 'headers': headers, 'inverted': inverted})
     return stream
@@ -106,32 +107,38 @@ async def process_player(player):
 
 async def process_players(players):
     streams = {'streams': []}
-    tasks = [process_player(player) for player in players if player['player_hosting'].lower() in supported_streams]
+    
+    timeout = aiohttp.ClientTimeout(total=10, connect=5)
+    connector = aiohttp.TCPConnector(limit=30, limit_per_host=10, ttl_dns_cache=300)
+    
+    async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+        tasks = [process_player(session, player) for player in players if player['player_hosting'].lower() in supported_streams]
 
-    for task in asyncio.as_completed(tasks):
-        stream = await task
-        if stream:
-            if stream['url']:
-                if not stream['translator_title']:
-                    stream['translator_title'] = "unknown"
-                stream_data = {
-                    'title': f"[{stream['player_hosting']}][{stream['quality']}][{stream['translator_title']}]",
-                    'name': f"[{stream['player_hosting']}][{stream['quality']}][{stream['translator_title']}]",
-                    'url': stream['url'],
-                    'priority': sort_priority(stream)
-                }
-                if stream['inverted']:
-                    stream_data['title'] = f"{stream_data['title']}[inverted]"
-                    stream_data['priority'] = 8
-                if stream['player_hosting'] == 'uqload':
-                    if PROXIFY_STREAMS:
-                        stream_data['behaviorHints'] = {'notWebReady': True}
-                if stream.get('headers'):
-                    stream_data['behaviorHints'] = {
-                        'proxyHeaders': stream['headers'],
-                        'notWebReady': True
+        for task in asyncio.as_completed(tasks):
+            stream = await task
+            if stream:
+                if stream['url']:
+                    if not stream['translator_title']:
+                        stream['translator_title'] = "unknown"
+                    stream_data = {
+                        'title': f"[{stream['player_hosting']}][{stream['quality']}][{stream['translator_title']}]",
+                        'name': f"[{stream['player_hosting']}][{stream['quality']}][{stream['translator_title']}]",
+                        'url': stream['url'],
+                        'priority': sort_priority(stream)
                     }
-                streams['streams'].append(stream_data)
+                    if stream['inverted']:
+                        stream_data['title'] = f"{stream_data['title']}[inverted]"
+                        stream_data['priority'] = 8
+                    if stream['player_hosting'] == 'uqload':
+                        if PROXIFY_STREAMS:
+                            stream_data['behaviorHints'] = {'notWebReady': True}
+                    if stream.get('headers'):
+                        stream_data['behaviorHints'] = {
+                            'proxyHeaders': stream['headers'],
+                            'notWebReady': True
+                        }
+                    streams['streams'].append(stream_data)
+    
     streams['streams'] = sorted(streams['streams'], key=lambda d: d['priority'])
     return streams
 
