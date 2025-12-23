@@ -55,51 +55,55 @@ async def process_player(session, player):
     quality = None
     inverted = False
 
-    if player_hosting == 'cda':
-        url, quality, headers = await get_video_from_cda_player(session, player['player'])
-    elif player_hosting == 'lycoris.cafe':
-        url, quality, headers = await get_video_from_lycoris_player(session, player['player'])
-    elif player_hosting in ('ok', 'okru'):
-        url, quality, headers = await get_video_from_okru_player(session, player['player'])
-    elif player_hosting == 'sibnet':
-        url, quality, headers = await get_video_from_sibnet_player(session, player['player'])
-    elif player_hosting == 'dailymotion':
-        url, quality, headers = await get_video_from_dailymotion_player(session, player['player'])
-    elif player_hosting == 'uqload':
-        url, quality, headers = await get_video_from_uqload_player(session, player['player'])
-    elif player_hosting == 'vk':
-        url, quality, headers = await get_video_from_vk_player(session, player['player'])
-        if player['isInverted']:
-            inverted = True
-    elif player_hosting == 'gdrive' or player_hosting == 'google drive':
-        url, quality, headers = await get_video_from_gdrive_player(session, player['player'])
-    elif player_hosting == 'lulustream':
-        url, quality, headers = await get_video_from_lulustream_player(session, player['player'])
-    elif player_hosting == 'streamtape':
-        url, quality, headers = await get_video_from_streamtape_player(session, player['player'])
-    elif player_hosting == 'rumble':
-        url, quality, headers = await get_video_from_rumble_player(session, player['player'])
-    elif player_hosting == 'vidtube':
-        url, quality, headers = await get_video_from_vidtube_player(session, player['player'])
-    elif player_hosting == 'default':
-        if 'savefiles' in player['player']:
+    try:
+        if player_hosting == 'cda':
+            url, quality, headers = await get_video_from_cda_player(session, player['player'])
+        elif player_hosting == 'lycoris.cafe':
+            url, quality, headers = await get_video_from_lycoris_player(session, player['player'])
+        elif player_hosting in ('ok', 'okru'):
+            url, quality, headers = await get_video_from_okru_player(session, player['player'])
+        elif player_hosting == 'sibnet':
+            url, quality, headers = await get_video_from_sibnet_player(session, player['player'])
+        elif player_hosting == 'dailymotion':
+            url, quality, headers = await get_video_from_dailymotion_player(session, player['player'])
+        elif player_hosting == 'uqload':
+            url, quality, headers = await get_video_from_uqload_player(session, player['player'])
+        elif player_hosting == 'vk':
+            url, quality, headers = await get_video_from_vk_player(session, player['player'])
+            if player['isInverted']:
+                inverted = True
+        elif player_hosting == 'gdrive' or player_hosting == 'google drive':
+            url, quality, headers = await get_video_from_gdrive_player(session, player['player'])
+        elif player_hosting == 'lulustream':
+            url, quality, headers = await get_video_from_lulustream_player(session, player['player'])
+        elif player_hosting == 'streamtape':
+            url, quality, headers = await get_video_from_streamtape_player(session, player['player'])
+        elif player_hosting == 'rumble':
+            url, quality, headers = await get_video_from_rumble_player(session, player['player'])
+        elif player_hosting == 'vidtube':
+            url, quality, headers = await get_video_from_vidtube_player(session, player['player'])
+        elif player_hosting == 'default':
+            if 'savefiles' in player['player']:
+                url, quality, headers = await get_video_from_savefiles_player(session, player['player'])
+            elif 'bigwarp' in player['player']:
+                url, quality, headers = await get_video_from_savefiles_player(session, player['player'])
+            elif 'streamhls' in player['player']:
+                url, quality, headers = await get_video_from_savefiles_player(session, player['player'])
+        elif player_hosting in ('upn', 'upns', 'rpm', 'rpmhub', 'rpmvid'):
+            url, quality, headers = await get_video_from_upn_player(session, player['player'])
+        elif player_hosting == 'mp4upload':
+            url, quality, headers = await get_video_from_mp4upload_player(session, player['player'])
+        elif player_hosting == 'earnvid':
+            url, quality, headers = await get_video_from_earnvid_player(session, player['player'])
+        elif player_hosting == 'streamup':
+            url, quality, headers = await get_video_from_streamup_player(session, player['player'])
+        elif player_hosting == 'savefiles':
             url, quality, headers = await get_video_from_savefiles_player(session, player['player'])
-        elif 'bigwarp' in player['player']:
-            url, quality, headers = await get_video_from_savefiles_player(session, player['player'])
-        elif 'streamhls' in player['player']:
-            url, quality, headers = await get_video_from_savefiles_player(session, player['player'])
-    elif player_hosting in ('upn', 'upns', 'rpm', 'rpmhub', 'rpmvid'):
-        url, quality, headers = await get_video_from_upn_player(session, player['player'])
-    elif player_hosting == 'mp4upload':
-        url, quality, headers = await get_video_from_mp4upload_player(session, player['player'])
-    elif player_hosting == 'earnvid':
-        url, quality, headers = await get_video_from_earnvid_player(session, player['player'])
-    elif player_hosting == 'streamup':
-        url, quality, headers = await get_video_from_streamup_player(session, player['player'])
-    elif player_hosting == 'savefiles':
-        url, quality, headers = await get_video_from_savefiles_player(session, player['player'])
-    elif player_hosting == 'pixeldrain':
-        url, quality, headers = await get_video_from_pixeldrain_player(session, player['player'])
+        elif player_hosting == 'pixeldrain':
+            url, quality, headers = await get_video_from_pixeldrain_player(session, player['player'])
+    except Exception as e:
+        # Silently ignore player errors - just return None values
+        pass
         
     stream.update({'url': url, 'quality': quality, 'headers': headers, 'inverted': inverted})
     return stream
