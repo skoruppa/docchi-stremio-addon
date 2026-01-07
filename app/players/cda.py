@@ -33,7 +33,7 @@ def normalize_cda_url(url):
 
     if match:
         video_id = match.group(1) or match.group(2)
-        return f"https://ebd.cda.pl/620x368/{video_id}", video_id
+        return f"https://www.cda.pl/video/{video_id}", video_id
     else:
         return None, None
 
