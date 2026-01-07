@@ -178,7 +178,7 @@ def docchi_to_meta(anime_item: dict, catalog_type: str, catalog_id: str, transpo
     genres, links = handle_genres_and_links(filtered_genres, transport_url, catalog_type, catalog_id)
 
     if media_type := anime_item.get('series_type', '').lower():
-        if media_type in ['ona', 'ova', 'special', 'tv', 'unknown']:
+        if media_type in ['ona', 'ova', 'special', 'tv', 'unknown', 'tv special']:
             media_type = 'series'
     if not media_type:
         media_type = 'series'
