@@ -7,8 +7,13 @@ import base64
 from urllib.parse import urlparse, parse_qs, urlencode
 from py_mini_racer import MiniRacer
 
-from app.routes.utils import get_random_agent
-from app.players.utils import fetch_resolution_from_m3u8
+from app.utils.common_utils import get_random_agent
+from app.utils.common_utils import fetch_resolution_from_m3u8
+
+# Domains handled by this player
+# NOTE: Disabled - stream is probably bound to IP, does not work remotely
+DOMAINS = ['listeamed.net', 'vidguard.to', 'vgfplay.com']
+ENABLED = False
 
 sys.setrecursionlimit(2000)
 
@@ -51,7 +56,7 @@ def _decode_player_and_get_stream(script_content: str) -> str | None:
         return None
 
 
-async def get_video_from_vidguard_player(player_url: str):
+async def get_video_from_vidguard_player(session: aiohttp.ClientSession, player_url: str):
     loop = asyncio.get_running_loop()
     try:
         parsed_url = urlparse(player_url)
@@ -63,72 +68,71 @@ async def get_video_from_vidguard_player(player_url: str):
             "Origin": origin,
         }
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(player_url, headers=headers, timeout=15) as response:
-                response.raise_for_status()
-                html_content = await response.text()
+        async with session.get(player_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            response.raise_for_status()
+            html_content = await response.text()
 
-            script_content = None
-            script_blocks = re.findall(r"<script[^>]*>(.*?)</script>", html_content, re.DOTALL)
+        script_content = None
+        script_blocks = re.findall(r"<script[^>]*>(.*?)</script>", html_content, re.DOTALL)
 
-            for block in script_blocks:
-                if 'ﾟωﾟ' in block:
-                    script_content = block.strip()
-                    break
+        for block in script_blocks:
+            if 'ﾟωﾟ' in block:
+                script_content = block.strip()
+                break
 
-            if not script_content:
-                print("VidGuard Player Error: Could not find the obfuscated script containing 'ﾟωﾟ'.")
-                return None, None, None
+        if not script_content:
+            print("VidGuard Player Error: Could not find the obfuscated script containing 'ﾟωﾟ'.")
+            return None, None, None
 
-            raw_stream_url = await loop.run_in_executor(None, _decode_player_and_get_stream, script_content)
+        raw_stream_url = await loop.run_in_executor(None, _decode_player_and_get_stream, script_content)
 
-            if not raw_stream_url:
-                print("VidGuard Player Error: Failed to decode stream URL from script.")
-                return None, None, None
+        if not raw_stream_url:
+            print("VidGuard Player Error: Failed to decode stream URL from script.")
+            return None, None, None
 
-            parsed_stream_url = urlparse(raw_stream_url)
-            query_params = parse_qs(parsed_stream_url.query)
+        parsed_stream_url = urlparse(raw_stream_url)
+        query_params = parse_qs(parsed_stream_url.query)
 
-            if 'sig' in query_params:
-                original_sig = query_params['sig'][0]
+        if 'sig' in query_params:
+            original_sig = query_params['sig'][0]
 
-                step1 = _decode_e(original_sig, 2)
+            step1 = _decode_e(original_sig, 2)
 
 
-                padding_needed = len(step1) % 4
-                if padding_needed:
-                    step1 += '=' * (4 - padding_needed)
+            padding_needed = len(step1) % 4
+            if padding_needed:
+                step1 += '=' * (4 - padding_needed)
 
-                try:
-                    step2 = base64.b64decode(step1).decode('utf-8')
-                except Exception as e:
-                    print(f"VidGuard Base64 Decode Error: {e}")
-                    return None, None, None
-
-                if len(step2) < 10:
-                    print(f"VidGuard Error: Decoded string is too short: {step2}")
-                    return None, None, None
-
-                trimmed = step2[5:-5]
-                new_sig = _decode_f(trimmed)
-
-                query_params['sig'] = [new_sig]
-                new_query = urlencode(query_params, doseq=True)
-                final_stream_url = parsed_stream_url._replace(query=new_query).geturl()
-            else:
-                final_stream_url = raw_stream_url
-
-            stream_headers = {'request': headers}
-
-            quality = "unknown"
             try:
-                fetched_quality = await fetch_resolution_from_m3u8(session, final_stream_url, headers)
-                if fetched_quality:
-                    quality = fetched_quality
+                step2 = base64.b64decode(step1).decode('utf-8')
             except Exception as e:
-                print(f"VidGuard Info: Could not fetch resolution. Reason: {e}")
+                print(f"VidGuard Base64 Decode Error: {e}")
+                return None, None, None
 
-            return final_stream_url, quality, stream_headers
+            if len(step2) < 10:
+                print(f"VidGuard Error: Decoded string is too short: {step2}")
+                return None, None, None
+
+            trimmed = step2[5:-5]
+            new_sig = _decode_f(trimmed)
+
+            query_params['sig'] = [new_sig]
+            new_query = urlencode(query_params, doseq=True)
+            final_stream_url = parsed_stream_url._replace(query=new_query).geturl()
+        else:
+            final_stream_url = raw_stream_url
+
+        stream_headers = {'request': headers}
+
+        quality = "unknown"
+        try:
+            fetched_quality = await fetch_resolution_from_m3u8(session, final_stream_url, headers)
+            if fetched_quality:
+                quality = fetched_quality
+        except Exception as e:
+            print(f"VidGuard Info: Could not fetch resolution. Reason: {e}")
+
+        return final_stream_url, quality, stream_headers
 
     except Exception as e:
         print(f"VidGuard Player Error: Unexpected error: {e}")

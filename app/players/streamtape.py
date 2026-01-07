@@ -1,8 +1,11 @@
 import aiohttp
 import re
 from bs4 import BeautifulSoup
-from app.routes.utils import get_random_agent
+from app.utils.common_utils import get_random_agent
 from config import Config
+
+# Domains handled by this player
+DOMAINS = ['streamtape.com', 'streamtape.to']
 
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 STREAM_PROXY_URL = Config.STREAM_PROXY_URL

@@ -2,8 +2,11 @@ import re
 import aiohttp
 from urllib.parse import urlparse
 from Crypto.Cipher import AES
-from app.routes.utils import get_random_agent
-from app.players.utils import fetch_resolution_from_m3u8
+from app.utils.common_utils import get_random_agent
+from app.utils.common_utils import fetch_resolution_from_m3u8
+
+# Domains handled by this player
+DOMAINS = ['upns.pro', 'rpmhub.site', 'rpmvip.com']
 
 
 DECRYPTION_KEY_HEX = "6b69656d7469656e6d75613931316361"

@@ -7,9 +7,8 @@ from werkzeug.exceptions import abort
 
 from . import docchi_client, MAL_ID_PREFIX
 from app.db.db import save_slug_from_mal_id, save_mal_id_from_slug, get_mal_id_from_slug
-from app.routes.utils import cache
+from app.utils.stream_utils import cache, respond_with, log_error
 from .manifest import MANIFEST, genres as manifest_genres
-from .utils import respond_with, log_error
 
 catalog_bp = Blueprint('catalog', __name__)
 

@@ -5,8 +5,11 @@ import json
 from urllib.parse import urlparse
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
-from app.routes.utils import get_random_agent
-from app.players.utils import fetch_resolution_from_m3u8
+from app.utils.common_utils import get_random_agent
+from app.utils.common_utils import fetch_resolution_from_m3u8
+
+# Domains handled by this player
+DOMAINS = ['strmup.to']
 
 
 def decode_printable_95(encoded_hex_string: str, shift: int) -> str:

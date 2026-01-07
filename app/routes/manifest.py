@@ -1,7 +1,7 @@
 from flask import Blueprint, abort
 
 from . import MAL_ID_PREFIX
-from .utils import respond_with
+from app.utils.stream_utils import respond_with
 
 manifest_blueprint = Blueprint('manifest', __name__)
 

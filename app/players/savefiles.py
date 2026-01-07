@@ -2,8 +2,15 @@ import re
 import aiohttp
 from urllib.parse import urlparse
 
-from app.routes.utils import get_random_agent
-from app.players.utils import fetch_resolution_from_m3u8
+from app.utils.common_utils import get_random_agent
+from app.utils.common_utils import fetch_resolution_from_m3u8
+
+# Domains handled by this player
+DOMAINS = [
+    'savefiles.com',
+    'bigwarp.io', 'bgwp.cc', 'bigwarp.art', 'bigwarp.cc', 'bigwarp.pro',
+    'streamhls.to'
+]
 
 
 async def get_video_from_savefiles_player(session: aiohttp.ClientSession, filelink: str):

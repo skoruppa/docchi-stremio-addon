@@ -1,9 +1,11 @@
 import re
 import aiohttp
 from urllib.parse import urlparse
-from app.routes.utils import get_random_agent
-from app.players.utils import unpack_js
-from app.players.utils import fetch_resolution_from_m3u8
+from app.utils.common_utils import get_random_agent
+from app.utils.common_utils import unpack_js, fetch_resolution_from_m3u8
+
+# Domains handled by this player
+DOMAINS = ['earnvid.com']
 
 
 async def get_video_from_earnvid_player(session: aiohttp.ClientSession, player_url: str):

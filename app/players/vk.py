@@ -2,8 +2,11 @@ import re
 import json
 import hashlib
 import aiohttp
-from app.routes.utils import get_random_agent
+from app.utils.common_utils import get_random_agent
 from flask import request
+
+# Domains handled by this player
+DOMAINS = ['vk.com']
 
 VK_URL = "https://vk.com"
 VK_API_URL = "https://vk.com/al_video.php?act=show"

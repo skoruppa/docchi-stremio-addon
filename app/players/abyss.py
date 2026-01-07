@@ -3,8 +3,14 @@ import json
 import ast
 import aiohttp
 from urllib.parse import quote
-from app.routes.utils import get_random_agent
+from app.utils.common_utils import get_random_agent
 from app.players.test import run_tests
+
+# Domains handled by this player
+DOMAINS = ['abysscdn.com']
+
+# NOTE: Disabled - can't support their binary playlist format
+ENABLED = False
 
 def _extract_base64_from_obfuscated_js(obfuscated_code: str) -> str:
     try:
@@ -139,42 +145,41 @@ def _construct_abyss_stream_url(config_data: dict) -> (str | None, str | None):
     return None, None
 
 
-async def get_video_from_abyss_player(player_url: str):
+async def get_video_from_abyss_player(session: aiohttp.ClientSession, player_url: str):
     try:
         headers = {"User-Agent": get_random_agent(), "Referer": player_url}
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(player_url, headers=headers, timeout=15) as response:
-                response.raise_for_status()
-                html_content = await response.text()
+        async with session.get(player_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            response.raise_for_status()
+            html_content = await response.text()
 
-            all_scripts = re.findall(r"<script>(.*?)</script>", html_content, re.DOTALL)
+        all_scripts = re.findall(r"<script>(.*?)</script>", html_content, re.DOTALL)
 
-            obfuscated_code = None
-            for script_content in all_scripts:
-                if "var _0x" in script_content and "atob" in script_content:
-                    obfuscated_code = script_content.strip()
-                    break
+        obfuscated_code = None
+        for script_content in all_scripts:
+            if "var _0x" in script_content and "atob" in script_content:
+                obfuscated_code = script_content.strip()
+                break
 
-            if not obfuscated_code:
-                print("Abyss Player Error: No atob in script")
-                return None, None, None
+        if not obfuscated_code:
+            print("Abyss Player Error: No atob in script")
+            return None, None, None
 
-            base64_string = _extract_base64_from_obfuscated_js(obfuscated_code)
-            binary_data = _decode_custom_base64_to_bytes(base64_string)
-            json_string = binary_data.decode('utf-8', errors='ignore')
+        base64_string = _extract_base64_from_obfuscated_js(obfuscated_code)
+        binary_data = _decode_custom_base64_to_bytes(base64_string)
+        json_string = binary_data.decode('utf-8', errors='ignore')
 
-            decoder = json.JSONDecoder()
-            config_data, _ = decoder.raw_decode(json_string)
+        decoder = json.JSONDecoder()
+        config_data, _ = decoder.raw_decode(json_string)
 
-            stream_url, quality = _construct_abyss_stream_url(config_data)
+        stream_url, quality = _construct_abyss_stream_url(config_data)
 
-            if not stream_url:
-                print("Abyss Player Error: Crating link failed")
-                return None, None, None
+        if not stream_url:
+            print("Abyss Player Error: Crating link failed")
+            return None, None, None
 
-            stream_headers = {'request': headers}
-            return stream_url, quality, stream_headers
+        stream_headers = {'request': headers}
+        return stream_url, quality, stream_headers
 
     except Exception as e:
         print(f"Abyss Player Error: Unexpected Error: {e}")

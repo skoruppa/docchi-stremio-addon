@@ -6,43 +6,24 @@ from .manifest import MANIFEST
 
 
 from app.routes import MAL_ID_PREFIX, docchi_client, kitsu_client
-from app.routes.utils import respond_with
+from app.utils.stream_utils import respond_with
 from app.db.db import get_slug_from_mal_id, save_slug_from_mal_id
-from app.players.cda import get_video_from_cda_player
-from app.players.lycoris import get_video_from_lycoris_player
-from app.players.okru import get_video_from_okru_player
-from app.players.sibnet import get_video_from_sibnet_player
-from app.players.dailymotion import get_video_from_dailymotion_player
-from app.players.vk import get_video_from_vk_player
-from app.players.uqload import get_video_from_uqload_player
-# from app.players.dood import get_video_from_dood_player  # can't bypass cloudflare protection on a remote server
-from app.players.gdrive import get_video_from_gdrive_player
-from app.players.streamtape import get_video_from_streamtape_player
-from app.players.lulustream import get_video_from_lulustream_player
-from app.players.savefiles import get_video_from_savefiles_player
-from app.players.rumble import get_video_from_rumble_player
-from app.players.vidtube import get_video_from_vidtube_player
-from app.players.upn import get_video_from_upn_player
-from app.players.mp4upload import get_video_from_mp4upload_player
-from app.players.earnvid import get_video_from_earnvid_player
-# from app.players.filemoon import get_video_from_filemoon_player # stream bound to ip
-from app.players.streamup import get_video_from_streamup_player
-# from app.players.abyss import get_video_from_abyss_player  #was fun, but can't support their binary playlist
-# from app.players.vidguard import get_video_from_vidguard_player # was also fun, but the stream is probably bound to ip - does not work remotely
-from app.players.pixeldrain import get_video_from_pixeldrain_player
+from app.utils.player_utils import detect_player_from_url, get_player_handler
 
 
 from config import Config
 
 stream_bp = Blueprint('stream', __name__)
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
-supported_streams = ['cda', 'lycoris.cafe', 'ok', 'okru', 'sibnet', 'dailymotion', 'vk', 'gdrive', 'google drive', 'uqload',
-                     'lulustream', 'streamtape', 'rumble', 'default', 'vidtube', 'upn', 'upns', 'rpm', 'rpmhub', 'rpmvid',
-                     'mp4upload', 'earnvid', 'streamup', 'savefiles', 'pixeldrain']
 
 
 async def process_player(session, player):
     player_hosting = player['player_hosting'].lower()
+    detected_player = detect_player_from_url(player['player'])
+    
+    if detected_player != 'default' and detected_player != player_hosting:
+        player_hosting = detected_player
+    
     stream = {
         'url': None,
         'quality': None,
@@ -56,51 +37,16 @@ async def process_player(session, player):
     inverted = False
 
     try:
-        if player_hosting == 'cda':
-            url, quality, headers = await get_video_from_cda_player(session, player['player'])
-        elif player_hosting == 'lycoris.cafe':
-            url, quality, headers = await get_video_from_lycoris_player(session, player['player'])
-        elif player_hosting in ('ok', 'okru'):
-            url, quality, headers = await get_video_from_okru_player(session, player['player'])
-        elif player_hosting == 'sibnet':
-            url, quality, headers = await get_video_from_sibnet_player(session, player['player'])
-        elif player_hosting == 'dailymotion':
-            url, quality, headers = await get_video_from_dailymotion_player(session, player['player'])
-        elif player_hosting == 'uqload':
-            url, quality, headers = await get_video_from_uqload_player(session, player['player'])
-        elif player_hosting == 'vk':
-            url, quality, headers = await get_video_from_vk_player(session, player['player'])
-            if player['isInverted']:
+        # Get handler function for the player
+        handler = get_player_handler(player_hosting)
+        
+        if handler:
+            # Call the handler
+            url, quality, headers = await handler(session, player['player'])
+            
+            # Special handling for VK inverted
+            if player_hosting == 'vk' and player.get('isInverted'):
                 inverted = True
-        elif player_hosting == 'gdrive' or player_hosting == 'google drive':
-            url, quality, headers = await get_video_from_gdrive_player(session, player['player'])
-        elif player_hosting == 'lulustream':
-            url, quality, headers = await get_video_from_lulustream_player(session, player['player'])
-        elif player_hosting == 'streamtape':
-            url, quality, headers = await get_video_from_streamtape_player(session, player['player'])
-        elif player_hosting == 'rumble':
-            url, quality, headers = await get_video_from_rumble_player(session, player['player'])
-        elif player_hosting == 'vidtube':
-            url, quality, headers = await get_video_from_vidtube_player(session, player['player'])
-        elif player_hosting == 'default':
-            if 'savefiles' in player['player']:
-                url, quality, headers = await get_video_from_savefiles_player(session, player['player'])
-            elif 'bigwarp' in player['player']:
-                url, quality, headers = await get_video_from_savefiles_player(session, player['player'])
-            elif 'streamhls' in player['player']:
-                url, quality, headers = await get_video_from_savefiles_player(session, player['player'])
-        elif player_hosting in ('upn', 'upns', 'rpm', 'rpmhub', 'rpmvid'):
-            url, quality, headers = await get_video_from_upn_player(session, player['player'])
-        elif player_hosting == 'mp4upload':
-            url, quality, headers = await get_video_from_mp4upload_player(session, player['player'])
-        elif player_hosting == 'earnvid':
-            url, quality, headers = await get_video_from_earnvid_player(session, player['player'])
-        elif player_hosting == 'streamup':
-            url, quality, headers = await get_video_from_streamup_player(session, player['player'])
-        elif player_hosting == 'savefiles':
-            url, quality, headers = await get_video_from_savefiles_player(session, player['player'])
-        elif player_hosting == 'pixeldrain':
-            url, quality, headers = await get_video_from_pixeldrain_player(session, player['player'])
     except Exception as e:
         # Silently ignore player errors - just return None values
         pass
@@ -113,10 +59,10 @@ async def process_players(players):
     streams = {'streams': []}
     
     timeout = aiohttp.ClientTimeout(total=10, connect=5)
-    connector = aiohttp.TCPConnector(limit=30, limit_per_host=10, ttl_dns_cache=300)
+    connector = aiohttp.TCPConnector(limit=30, limit_per_host=10, ttl_dns_cache=300, verify_ssl=False)
     
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
-        tasks = [process_player(session, player) for player in players if player['player_hosting'].lower() in supported_streams]
+        tasks = [process_player(session, player) for player in players]
 
         for task in asyncio.as_completed(tasks):
             stream = await task

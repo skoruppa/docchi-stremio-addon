@@ -1,9 +1,12 @@
 import re
-from bs4 import BeautifulSoup
 import aiohttp
+from bs4 import BeautifulSoup
 from urllib.parse import urlparse
-from app.routes.utils import get_random_agent
+from app.utils.common_utils import get_random_agent
 from config import Config
+
+# Domains handled by this player
+DOMAINS = ['uqload.com', 'uqload.co', 'uqload.to']
 
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 STREAM_PROXY_URL = Config.STREAM_PROXY_URL

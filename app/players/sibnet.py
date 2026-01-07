@@ -1,8 +1,11 @@
 import aiohttp
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
-from app.routes.utils import get_random_agent
+from app.utils.common_utils import get_random_agent
 from config import Config
+
+# Domains handled by this player
+DOMAINS = ['sibnet.ru', 'video.sibnet.ru']
 
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 STREAM_PROXY_URL = Config.STREAM_PROXY_URL

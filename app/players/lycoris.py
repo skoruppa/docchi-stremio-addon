@@ -3,11 +3,14 @@ import aiohttp
 import base64
 import json
 from bs4 import BeautifulSoup
-from app.routes.utils import get_random_agent
+from app.utils.common_utils import get_random_agent
 from aiocache import cached
 from aiocache.serializers import PickleSerializer
 from app.players.rumble import get_video_from_rumble_player
 from config import Config
+
+# Domains handled by this player
+DOMAINS = ['lycoris.cafe']
 
 DECRYPT_API_KEY = "303a897d-sd12-41a8-84d1-5e4f5e208878"
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS

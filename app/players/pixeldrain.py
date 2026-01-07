@@ -2,8 +2,11 @@ import re
 import aiohttp
 from urllib.parse import urlparse
 
-from app.routes.utils import get_random_agent
+from app.utils.common_utils import get_random_agent
 from config import Config
+
+# Domains handled by this player
+DOMAINS = ['pixeldrain.com']
 
 
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS

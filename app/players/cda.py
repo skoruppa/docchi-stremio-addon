@@ -5,6 +5,9 @@ import json
 import urllib.parse
 from bs4 import BeautifulSoup
 
+# Domains handled by this player
+DOMAINS = ['m.cda.pl', 'cda.pl', 'www.cda.pl', 'ebd.cda.pl']
+
 
 def decrypt_url(url: str) -> str:
     for p in ("_XDDD", "_CDA", "_ADC", "_CXD", "_QWE", "_Q5", "_IKSDE"):
@@ -25,7 +28,7 @@ def decrypt_url(url: str) -> str:
 
 
 def normalize_cda_url(url):
-    pattern = r"https?://(?:www\.)?cda\.pl/(?:video/)?([\w]+)(?:\?.*)?|https?://ebd\.cda\.pl/\d+x\d+/([\w]+)"
+    pattern = r"https?://(?:www\.|m\.)?cda\.pl/(?:video/)?([\w]+)(?:\?.*)?|https?://ebd\.cda\.pl/\d+x\d+/([\w]+)"
     match = re.match(pattern, url)
 
     if match:
@@ -69,16 +72,18 @@ async def get_video_from_cda_player(session: aiohttp.ClientSession, url: str) ->
         return None, None, None
 
     qualities = video_data['video']['qualities']
-    current_quality = video_data['video']['quality']
-
-    highest_quality, quality_id = get_highest_quality(qualities)
-    if quality_id != current_quality:
-        url = f'{url}?wersja={highest_quality}'
-        video_data = await fetch_video_data(session, url, video_id)
-        if not video_data:
-            return None, None, None
-
     file = video_data['video']['file']
+    current_quality = video_data['video']['quality']
+    highest_quality, quality_id = get_highest_quality(qualities)
+
+    if file:
+        if quality_id != current_quality:
+            url = f'{url}?wersja={highest_quality}'
+            video_data = await fetch_video_data(session, url, video_id)
+            if not video_data:
+                return None, None, None
+
+        file = video_data['video']['file']
     if file:
         url = decrypt_url(file)
         headers = {"request": {"Referer": f"https://ebd.cda.pl/620x368/{video_id}" }}
@@ -89,3 +94,12 @@ async def get_video_from_cda_player(session: aiohttp.ClientSession, url: str) ->
         return url, highest_quality, headers
 
     return None, None, None
+
+if __name__ == '__main__':
+    from app.players.test import run_tests
+
+    urls_to_test = [
+        "https://ebd.cda.pl/1055x594/27664708b6"
+    ]
+
+    run_tests(get_video_from_cda_player, urls_to_test)

@@ -1,8 +1,11 @@
 import re
 from bs4 import BeautifulSoup
 import aiohttp
-from app.routes.utils import get_random_agent
+from app.utils.common_utils import get_random_agent
 from urllib.parse import urlencode
+
+# Domains handled by this player
+DOMAINS = ['drive.google.com', 'drive.usercontent.google.com']
 
 
 def build_video_url(base_url, document):

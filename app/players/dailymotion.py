@@ -1,7 +1,10 @@
 import aiohttp
 from urllib.parse import urlparse, parse_qs
-from app.routes.utils import get_random_agent
+from app.utils.common_utils import get_random_agent
 from flask import request
+
+# Domains handled by this player
+DOMAINS = ['dailymotion.com', 'dai.ly']
 
 DAILYMOTION_URL = "https://www.dailymotion.com"
 

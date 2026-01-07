@@ -2,10 +2,13 @@ import re
 import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
-from app.routes.utils import get_random_agent
+from app.utils.common_utils import get_random_agent
 import json
 from flask import request
 from config import Config
+
+# Domains handled by this player
+DOMAINS = ['ok.ru']
 
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 STREAM_PROXY_URL = Config.STREAM_PROXY_URL

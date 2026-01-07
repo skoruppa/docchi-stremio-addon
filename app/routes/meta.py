@@ -8,7 +8,7 @@ from jikanpy.exceptions import APIException
 from . import MAL_ID_PREFIX, kitsu_client
 from config import Config
 from .manifest import MANIFEST
-from .utils import respond_with, log_error
+from app.utils.stream_utils import respond_with, log_error
 
 meta_bp = Blueprint('meta', __name__)
 

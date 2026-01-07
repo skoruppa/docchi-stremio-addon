@@ -1,8 +1,11 @@
 import re
 import aiohttp
 
-from app.routes.utils import get_random_agent
-from app.players.utils import unpack_js
+from app.utils.common_utils import get_random_agent
+from app.utils.common_utils import unpack_js
+
+# Domains handled by this player
+DOMAINS = ['vidtube.one']
 
 
 def fix_mp4_link(link: str) -> str:
