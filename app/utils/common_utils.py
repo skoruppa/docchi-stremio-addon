@@ -73,8 +73,8 @@ async def fetch_resolution_from_m3u8(session: aiohttp.ClientSession, m3u8_url: s
     async with session.get(m3u8_url, headers=headers, timeout=10) as response:
         response.raise_for_status()
         m3u8_content = await response.text()
-    resolutions = re.findall(r'RESOLUTION=\\d+x(\\d+)', m3u8_content)
+    resolutions = re.findall(r'RESOLUTION=\s*(\d+)x(\d+)', m3u8_content)
     if resolutions:
-        max_resolution = max(int(r) for r in resolutions)
+        max_resolution = max(int(height) for width, height in resolutions)
         return f"{max_resolution}p"
     return None
