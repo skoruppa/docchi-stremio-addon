@@ -23,6 +23,9 @@ DOMAINS = [
 PROTOCOL = Config.PROTOCOL
 REDIRECT_URL = Config.REDIRECT_URL
 PROXY_SECRET_KEY = Config.PROXY_SECRET_KEY
+PROXIFY_STREAMS = Config.PROXIFY_STREAMS
+STREAM_PROXY_URL = Config.STREAM_PROXY_URL
+STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 
 
 def ft(e: str) -> bytes:
@@ -66,6 +69,10 @@ async def get_video_from_f16px_player(session: aiohttp.ClientSession, url: str):
             "Referer": urljoin(url, '/')
         }
         
+        # Use proxy for API request if enabled (Vercel IP blocked)
+        if PROXIFY_STREAMS:
+            api_url = f'{STREAM_PROXY_URL}/proxy/stream?d={api_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={headers["User-Agent"]}'
+        
         async with session.get(api_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
             response.raise_for_status()
             data = await response.json()
@@ -94,10 +101,11 @@ async def get_video_from_f16px_player(session: aiohttp.ClientSession, url: str):
                     except Exception:
                         pass
                     
-                    # Encode URL and referer
+                    # Encode URL and referer, add use_proxy flag for f16px
                     encoded_url = encode_proxy_url(stream_url, PROXY_SECRET_KEY)
                     encoded_referer = encode_proxy_url(headers.get('Referer', ''), PROXY_SECRET_KEY)
-                    stream_url = f"{PROTOCOL}://{REDIRECT_URL}/proxy/m3u8?url={encoded_url}&referer={encoded_referer}"
+                    use_proxy = '1' if PROXIFY_STREAMS else '0'
+                    stream_url = f"{PROTOCOL}://{REDIRECT_URL}/proxy/m3u8?url={encoded_url}&referer={encoded_referer}&use_proxy={use_proxy}"
                 
                 stream_headers = {'request': headers}
                 return stream_url, quality, stream_headers
@@ -135,10 +143,11 @@ async def get_video_from_f16px_player(session: aiohttp.ClientSession, url: str):
                             except Exception:
                                 pass
                             
-                            # Encode URL and referer
+                            # Encode URL and referer, add use_proxy flag for f16px
                             encoded_url = encode_proxy_url(stream_url, PROXY_SECRET_KEY)
                             encoded_referer = encode_proxy_url(headers.get('Referer', ''), PROXY_SECRET_KEY)
-                            stream_url = f"{PROTOCOL}://{REDIRECT_URL}/proxy/m3u8?url={encoded_url}&referer={encoded_referer}"
+                            use_proxy = '1' if PROXIFY_STREAMS else '0'
+                            stream_url = f"{PROTOCOL}://{REDIRECT_URL}/proxy/m3u8?url={encoded_url}&referer={encoded_referer}&use_proxy={use_proxy}"
                         
                         stream_headers = {'request': headers}
                         return stream_url, quality, stream_headers

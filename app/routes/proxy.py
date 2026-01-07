@@ -47,6 +47,7 @@ def proxy_m3u8():
     Query params:
     - url: The encoded m3u8 URL to fetch
     - referer: (optional) Encoded referer header
+    - use_proxy: (optional) '1' to use MediaFlow proxy for fetching
     """
     encoded_url = request.args.get('url')
     if not encoded_url:
@@ -62,6 +63,7 @@ def proxy_m3u8():
     referer = decode_proxy_url(encoded_referer, Config.PROXY_SECRET_KEY) if encoded_referer else ''
     
     user_agent = request.args.get('user_agent', get_random_agent())
+    use_proxy = request.args.get('use_proxy', '0') == '1'
     
     headers = {
         'User-Agent': user_agent,
@@ -69,7 +71,13 @@ def proxy_m3u8():
     }
     
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        # Use MediaFlow proxy if requested and enabled
+        if use_proxy and Config.PROXIFY_STREAMS:
+            proxy_url = f'{Config.STREAM_PROXY_URL}/proxy/stream?d={url}&api_password={Config.STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
+            response = requests.get(proxy_url, headers=headers, timeout=10)
+        else:
+            response = requests.get(url, headers=headers, timeout=10)
+        
         response.raise_for_status()
         content = response.text
         
