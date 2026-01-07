@@ -74,7 +74,7 @@ def proxy_m3u8():
         # Use MediaFlow proxy if requested and enabled
         if use_proxy and Config.PROXIFY_STREAMS:
             proxy_url = f'{Config.STREAM_PROXY_URL}/proxy/stream?d={url}&api_password={Config.STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
-            response = requests.get(proxy_url, headers=headers, timeout=10)
+            response = requests.get(proxy_url, headers=headers, timeout=10, verify=False)
         else:
             response = requests.get(url, headers=headers, timeout=10)
         

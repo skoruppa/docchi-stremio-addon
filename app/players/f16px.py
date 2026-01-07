@@ -73,7 +73,7 @@ async def get_video_from_f16px_player(session: aiohttp.ClientSession, url: str):
         if PROXIFY_STREAMS:
             api_url = f'{STREAM_PROXY_URL}/proxy/stream?d={api_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={headers["User-Agent"]}'
         
-        async with session.get(api_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+        async with session.get(api_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10), ssl=False) as response:
             response.raise_for_status()
             data = await response.json()
         
