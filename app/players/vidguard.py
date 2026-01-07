@@ -4,16 +4,19 @@ import asyncio
 import aiohttp
 import sys
 import base64
-from urllib.parse import urlparse, parse_qs, urlencode
+from urllib.parse import urlparse, parse_qs, urlencode, quote
 from py_mini_racer import MiniRacer
 
-from app.utils.common_utils import get_random_agent
-from app.utils.common_utils import fetch_resolution_from_m3u8
+from app.utils.common_utils import get_random_agent, fetch_resolution_from_m3u8
+from app.routes.proxy import encode_proxy_url
+from config import Config
 
 # Domains handled by this player
-# NOTE: Disabled - stream is probably bound to IP, does not work remotely
 DOMAINS = ['listeamed.net', 'vidguard.to', 'vgfplay.com']
-ENABLED = False
+
+PROTOCOL = Config.PROTOCOL
+REDIRECT_URL = Config.REDIRECT_URL
+PROXY_SECRET_KEY = Config.PROXY_SECRET_KEY
 
 sys.setrecursionlimit(2000)
 
@@ -126,11 +129,14 @@ async def get_video_from_vidguard_player(session: aiohttp.ClientSession, player_
 
         quality = "unknown"
         try:
-            fetched_quality = await fetch_resolution_from_m3u8(session, final_stream_url, headers)
-            if fetched_quality:
-                quality = fetched_quality
+            quality = await fetch_resolution_from_m3u8(session, final_stream_url, headers) or "unknown"
         except Exception as e:
             print(f"VidGuard Info: Could not fetch resolution. Reason: {e}")
+
+        # Encode URL and referer
+        encoded_url = encode_proxy_url(final_stream_url, PROXY_SECRET_KEY)
+        encoded_referer = encode_proxy_url(headers.get('Referer', ''), PROXY_SECRET_KEY)
+        final_stream_url = f"{PROTOCOL}://{REDIRECT_URL}/proxy/m3u8?url={encoded_url}&referer={encoded_referer}"
 
         return final_stream_url, quality, stream_headers
 

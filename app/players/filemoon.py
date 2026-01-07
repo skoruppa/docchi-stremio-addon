@@ -1,16 +1,16 @@
 import re
 import aiohttp
-from urllib.parse import urlparse, urlencode, urljoin
-from app.utils.common_utils import get_random_agent
-from app.utils.common_utils import unpack_js, fetch_resolution_from_m3u8
+from urllib.parse import urlparse, urlencode, urljoin, quote
+from app.utils.common_utils import get_random_agent, unpack_js, fetch_resolution_from_m3u8
+from app.routes.proxy import encode_proxy_url
 from config import Config
 
 # Domains handled by this player
 DOMAINS = ['filemoon.sx']
 
-PROXIFY_STREAMS = Config.PROXIFY_STREAMS
-STREAM_PROXY_URL = Config.STREAM_PROXY_URL
-STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
+PROTOCOL = Config.PROTOCOL
+REDIRECT_URL = Config.REDIRECT_URL
+PROXY_SECRET_KEY = Config.PROXY_SECRET_KEY
 
 
 def fix_filemoon_m3u8_link(link: str) -> str:
@@ -59,9 +59,6 @@ async def get_video_from_filemoon_player(session: aiohttp.ClientSession, player_
 
         current_url = player_url
 
-        if PROXIFY_STREAMS:
-            player_url = f'{STREAM_PROXY_URL}/proxy/stream?d={player_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
-
         async with session.get(player_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
             response.raise_for_status()
             html_content = await response.text()
@@ -72,9 +69,6 @@ async def get_video_from_filemoon_player(session: aiohttp.ClientSession, player_
             iframe_url = urljoin(player_url, iframe_src)
 
             headers["Referer"] = current_url
-
-            if PROXIFY_STREAMS:
-                iframe_url = f'{STREAM_PROXY_URL}/proxy/stream?d={iframe_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
 
             async with session.get(iframe_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as iframe_response:
                 iframe_response.raise_for_status()
@@ -95,31 +89,15 @@ async def get_video_from_filemoon_player(session: aiohttp.ClientSession, player_
         stream_url = fix_filemoon_m3u8_link(raw_stream_url)
 
         try:
-            quality_check = stream_url
-            if PROXIFY_STREAMS:
-                quality_check = f'{STREAM_PROXY_URL}/proxy/stream?d={quality_check}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
-            quality = await fetch_resolution_from_m3u8(session, quality_check, headers) or "unknown"
+            quality = await fetch_resolution_from_m3u8(session, stream_url, headers) or "unknown"
         except Exception:
             quality = "unknown"
 
-        if PROXIFY_STREAMS:
-            post_data = {
-                "mediaflow_proxy_url": STREAM_PROXY_URL,
-                "endpoint": "/proxy/hls/manifest.m3u8",
-                "destination_url": stream_url,
-                "expiration": 7200,
-                "request_headers": headers,
-                "api_password": STREAM_PROXY_PASSWORD,
-            }
-            try:
-                async with session.post(f'{STREAM_PROXY_URL}/generate_encrypted_or_encoded_url',
-                                        json=post_data) as response:
-                    response.raise_for_status()
-                    result = await response.json()
-                stream_url = result.get("encoded_url", {})
-            except aiohttp.client_exceptions.ClientConnectorError:
-                return None, None, None
-
+        # Encode URL and referer
+        encoded_url = encode_proxy_url(stream_url, PROXY_SECRET_KEY)
+        encoded_referer = encode_proxy_url(headers.get('Referer', ''), PROXY_SECRET_KEY)
+        stream_url = f"{PROTOCOL}://{REDIRECT_URL}/proxy/m3u8?url={encoded_url}&referer={encoded_referer}"
+        
         stream_headers = {'request': headers}
 
         return stream_url, quality, stream_headers

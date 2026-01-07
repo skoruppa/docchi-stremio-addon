@@ -20,9 +20,12 @@ class Config:
 
     DEBUG = os.getenv('FLASK_DEBUG', False)
     DATABASE = "/tmp/database.json"
+    
+    # Secret key for encoding/decoding proxy URLs
+    PROXY_SECRET_KEY = os.getenv('PROXY_SECRET_KEY', 'default-secret-key-change-in-production')
 
     # Env dependent configs
-    if DEBUG in ["1", True, "False"]:  # Local development
+    if DEBUG in ["1", True, "True"]:  # Local development
         PROTOCOL = "http"
         REDIRECT_URL = f"{FLASK_HOST}:{FLASK_PORT}"
     else:  # Production environment

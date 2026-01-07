@@ -4,7 +4,10 @@ import base64
 import aiohttp
 from urllib.parse import urljoin, urlparse
 from Crypto.Cipher import AES
-from app.utils.common_utils import get_random_agent
+from app.utils.common_utils import get_random_agent, fetch_resolution_from_m3u8
+from app.routes.proxy import encode_proxy_url
+from config import Config
+from urllib.parse import quote
 
 # Domains handled by this player
 DOMAINS = [
@@ -16,6 +19,10 @@ DOMAINS = [
     'bysekoze.com',
     'bysesukior.com'
 ]
+
+PROTOCOL = Config.PROTOCOL
+REDIRECT_URL = Config.REDIRECT_URL
+PROXY_SECRET_KEY = Config.PROXY_SECRET_KEY
 
 
 def ft(e: str) -> bytes:
@@ -80,6 +87,18 @@ async def get_video_from_f16px_player(session: aiohttp.ClientSession, url: str):
                 # Extract quality (e.g., "1080p" from label)
                 quality = re.sub(r'\D', '', quality_label) + 'p' if quality_label else 'unknown'
                 
+                # For m3u8 playlists, use our proxy endpoint and get quality
+                if '.m3u8' in stream_url:
+                    try:
+                        quality = await fetch_resolution_from_m3u8(session, stream_url, headers) or quality
+                    except Exception:
+                        pass
+                    
+                    # Encode URL and referer
+                    encoded_url = encode_proxy_url(stream_url, PROXY_SECRET_KEY)
+                    encoded_referer = encode_proxy_url(headers.get('Referer', ''), PROXY_SECRET_KEY)
+                    stream_url = f"{PROTOCOL}://{REDIRECT_URL}/proxy/m3u8?url={encoded_url}&referer={encoded_referer}"
+                
                 stream_headers = {'request': headers}
                 return stream_url, quality, stream_headers
         
@@ -108,6 +127,18 @@ async def get_video_from_f16px_player(session: aiohttp.ClientSession, url: str):
                         quality_label, stream_url = sources_list[0]
                         
                         quality = re.sub(r'\D', '', quality_label) + 'p' if quality_label else 'unknown'
+                        
+                        # For m3u8 playlists, use our proxy endpoint and get quality
+                        if '.m3u8' in stream_url:
+                            try:
+                                quality = await fetch_resolution_from_m3u8(session, stream_url, headers) or quality
+                            except Exception:
+                                pass
+                            
+                            # Encode URL and referer
+                            encoded_url = encode_proxy_url(stream_url, PROXY_SECRET_KEY)
+                            encoded_referer = encode_proxy_url(headers.get('Referer', ''), PROXY_SECRET_KEY)
+                            stream_url = f"{PROTOCOL}://{REDIRECT_URL}/proxy/m3u8?url={encoded_url}&referer={encoded_referer}"
                         
                         stream_headers = {'request': headers}
                         return stream_url, quality, stream_headers
