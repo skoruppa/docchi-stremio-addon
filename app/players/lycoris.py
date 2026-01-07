@@ -44,17 +44,46 @@ async def get_video_from_lycoris_player(session: aiohttp.ClientSession, url: str
             html = await response.text()
 
         soup = BeautifulSoup(html, 'html.parser')
-        script = soup.find('script', {'type': 'application/json'})
+        scripts = soup.find_all('script', {'type': 'application/json'})
 
-        if not (script and script.string and "episodeInfo" in script.string):
-            return None, None, None
+        episode_id = None
+        rumble_url = None
 
-        script_content = script.string.strip()
-        data = json.loads(script_content)
-        body = json.loads(data["body"])
-
-        episode_info = body.get('episodeInfo', {})
-        episode_id = episode_info.get('id')
+        for script in scripts:
+            if not script.string:
+                continue
+            
+            try:
+                data = json.loads(script.string.strip())
+                body_str = data.get("body")
+                if not body_str:
+                    continue
+                    
+                body = json.loads(body_str)
+                
+                # Check for episodeInfo format
+                if "episodeInfo" in body:
+                    episode_info = body['episodeInfo']
+                    episode_id = episode_info.get('id')
+                    rumble_url = episode_info.get('rumbleLink')
+                    break
+                
+                # Check for anime.episodes format
+                anime = body.get('anime', {})
+                episodes = anime.get('episodes', [])
+                if episodes:
+                    # Extract episode number from URL
+                    import re
+                    match = re.search(r'/watch/(\d+)$', url)
+                    if match:
+                        episode_num = int(match.group(1))
+                        episode = next((ep for ep in episodes if ep.get('number') == episode_num), None)
+                        if episode:
+                            episode_id = episode.get('id')
+                            rumble_url = episode.get('rumbleLink')
+                            break
+            except:
+                continue
 
         if not episode_id:
             logging.error("Lycoris Player Error: Episode ID not found.")
@@ -95,7 +124,6 @@ async def get_video_from_lycoris_player(session: aiohttp.ClientSession, url: str
                 return url_candidate, quality, None
 
         # Fallback to Rumble if primary sources fail
-        rumble_url = episode_info.get('rumbleLink')
         if rumble_url:
             return await get_video_from_rumble_player(session, rumble_url)
 
