@@ -4,10 +4,8 @@ import base64
 import aiohttp
 from urllib.parse import urljoin, urlparse
 from Crypto.Cipher import AES
-from app.utils.common_utils import get_random_agent, fetch_resolution_from_m3u8
-from app.routes.proxy import encode_proxy_url
+from app.utils.common_utils import get_random_agent
 from config import Config
-from urllib.parse import quote
 
 # Domains handled by this player
 DOMAINS = [
@@ -20,12 +18,8 @@ DOMAINS = [
     'bysesukior.com'
 ]
 
-PROTOCOL = Config.PROTOCOL
-REDIRECT_URL = Config.REDIRECT_URL
-PROXY_SECRET_KEY = Config.PROXY_SECRET_KEY
-PROXIFY_STREAMS = Config.PROXIFY_STREAMS
-STREAM_PROXY_URL = Config.STREAM_PROXY_URL
-STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
+# NOTE: Disabled - does not work remotely, don't know why
+ENABLED = False
 
 
 def ft(e: str) -> bytes:
@@ -40,6 +34,19 @@ def xn(e: list) -> bytes:
     """Join multiple base64 decoded parts"""
     t = [ft(part) for part in e]
     return b''.join(t)
+
+
+def process_stream_url(stream_url: str, quality_label: str, headers: dict, url: str) -> tuple:
+    """Process stream URL and return final URL, quality, and headers."""
+    # Handle relative URLs
+    if stream_url.startswith('/'):
+        stream_url = urljoin(url, stream_url)
+    
+    # Extract quality
+    quality = re.sub(r'\D', '', quality_label) + 'p' if quality_label else 'unknown'
+    
+    stream_headers = {'request': headers}
+    return stream_url, quality, stream_headers
 
 
 async def get_video_from_f16px_player(session: aiohttp.ClientSession, url: str):
@@ -69,46 +76,18 @@ async def get_video_from_f16px_player(session: aiohttp.ClientSession, url: str):
             "Referer": urljoin(url, '/')
         }
         
-        # Use proxy for API request if enabled (Vercel IP blocked)
-        if PROXIFY_STREAMS:
-            api_url = f'{STREAM_PROXY_URL}/proxy/stream?d={api_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={headers["User-Agent"]}'
-        
-        async with session.get(api_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10), ssl=False) as response:
+        async with session.get(api_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
             response.raise_for_status()
             data = await response.json()
         
         # Try plain sources first
         sources = data.get('sources')
         if sources:
-            # Sort by quality and pick highest
             sources_list = [(x.get('label', '0'), x.get('url')) for x in sources if x.get('url')]
             if sources_list:
-                # Sort by quality number (extract digits from label)
                 sources_list.sort(key=lambda x: int(re.sub(r'\D', '', x[0]) or '0'), reverse=True)
                 quality_label, stream_url = sources_list[0]
-                
-                # Handle relative URLs
-                if stream_url.startswith('/'):
-                    stream_url = urljoin(url, stream_url)
-                
-                # Extract quality (e.g., "1080p" from label)
-                quality = re.sub(r'\D', '', quality_label) + 'p' if quality_label else 'unknown'
-                
-                # For m3u8 playlists, use our proxy endpoint and get quality
-                if '.m3u8' in stream_url:
-                    try:
-                        quality = await fetch_resolution_from_m3u8(session, stream_url, headers) or quality
-                    except Exception:
-                        pass
-                    
-                    # Encode URL and referer, add use_proxy flag for f16px
-                    encoded_url = encode_proxy_url(stream_url, PROXY_SECRET_KEY)
-                    encoded_referer = encode_proxy_url(headers.get('Referer', ''), PROXY_SECRET_KEY)
-                    use_proxy = '1' if PROXIFY_STREAMS else '0'
-                    stream_url = f"{PROTOCOL}://{REDIRECT_URL}/proxy/m3u8?url={encoded_url}&referer={encoded_referer}&use_proxy={use_proxy}"
-                
-                stream_headers = {'request': headers}
-                return stream_url, quality, stream_headers
+                return process_stream_url(stream_url, quality_label, headers, url)
         
         # Try encrypted playback data
         pd = data.get('playback')
@@ -133,24 +112,7 @@ async def get_video_from_f16px_player(session: aiohttp.ClientSession, url: str):
                     if sources_list:
                         sources_list.sort(key=lambda x: int(re.sub(r'\D', '', x[0]) or '0'), reverse=True)
                         quality_label, stream_url = sources_list[0]
-                        
-                        quality = re.sub(r'\D', '', quality_label) + 'p' if quality_label else 'unknown'
-                        
-                        # For m3u8 playlists, use our proxy endpoint and get quality
-                        if '.m3u8' in stream_url:
-                            try:
-                                quality = await fetch_resolution_from_m3u8(session, stream_url, headers) or quality
-                            except Exception:
-                                pass
-                            
-                            # Encode URL and referer, add use_proxy flag for f16px
-                            encoded_url = encode_proxy_url(stream_url, PROXY_SECRET_KEY)
-                            encoded_referer = encode_proxy_url(headers.get('Referer', ''), PROXY_SECRET_KEY)
-                            use_proxy = '1' if PROXIFY_STREAMS else '0'
-                            stream_url = f"{PROTOCOL}://{REDIRECT_URL}/proxy/m3u8?url={encoded_url}&referer={encoded_referer}&use_proxy={use_proxy}"
-                        
-                        stream_headers = {'request': headers}
-                        return stream_url, quality, stream_headers
+                        return process_stream_url(stream_url, quality_label, headers, url)
             except Exception as e:
                 print(f"F16Px Decryption Error: {e}")
         
