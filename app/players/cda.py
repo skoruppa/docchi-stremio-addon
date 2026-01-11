@@ -52,6 +52,16 @@ async def fetch_video_data(session: aiohttp.ClientSession, url: str, video_id: s
     except (ClientConnectorError, ClientResponseError):
         return None
 
+    if 'age_confirm' in html:
+        data = aiohttp.FormData()
+        data.add_field('age_confirm', '')
+        try:
+            async with session.post(url, data=data) as response:
+                response.raise_for_status()
+                html = await response.text()
+        except (ClientConnectorError, ClientResponseError):
+            return None
+
     soup = BeautifulSoup(html, "html.parser")
     player_div = soup.find("div", id=lambda x: x and x.startswith("mediaplayer"))
     if not player_div or "player_data" not in player_div.attrs:
