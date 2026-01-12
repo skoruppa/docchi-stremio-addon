@@ -54,7 +54,7 @@ async def process_player(session, player):
     return stream
 
 
-async def process_players(players):
+async def process_players(players, content_id=None):
     streams = {'streams': []}
     
     timeout = aiohttp.ClientTimeout(total=10, connect=5)
@@ -69,23 +69,44 @@ async def process_players(players):
                 if stream['url']:
                     if not stream['translator_title']:
                         stream['translator_title'] = "unknown"
+                    
+                    # Format compatible with AIOStreams parser
+                    quality_tag = stream['quality'] or 'unknown'
+                    translator_normalized = stream['translator_title'].replace(' ', '_')
+                    
+                    # Build filename: player_hosting_contentid.quality-GROUP
+                    filename_base = stream['player_hosting']
+                    if content_id:
+                        # Replace second : with / (mal:12345:5 -> mal:12345/5)
+                        content_id_formatted = content_id.replace(':', '/', 1).replace(':', '/', 1) if content_id.count(':') >= 2 else content_id
+                        filename_base += f"_{content_id_formatted}"
+                    filename = f"{filename_base}.{quality_tag}-{translator_normalized}"
+                    
+                    description_lines = [
+                        f"🇵🇱 🎬 {stream['translator_title']}",
+                        f"🔗 {stream['player_hosting']}"
+                    ]
+                    
                     stream_data = {
-                        'title': f"[{stream['player_hosting']}][{stream['quality']}][{stream['translator_title']}]",
-                        'name': f"[{stream['player_hosting']}][{stream['quality']}][{stream['translator_title']}]",
+                        'name': f"{stream['player_hosting']} • {quality_tag}",
+                        'description': '\n'.join(description_lines),
                         'url': stream['url'],
-                        'priority': sort_priority(stream)
+                        'priority': sort_priority(stream),
+                        'behaviorHints': {
+                            'filename': filename
+                        }
                     }
                     if stream['inverted']:
-                        stream_data['title'] = f"{stream_data['title']}[inverted]"
                         stream_data['priority'] = 8
+                        stream_data['description'] += "\n⚠️ Inverted"
                     if stream['player_hosting'] == 'uqload':
                         if PROXIFY_STREAMS:
-                            stream_data['behaviorHints'] = {'notWebReady': True}
+                            stream_data['behaviorHints']['notWebReady'] = True
                     if stream.get('headers'):
-                        stream_data['behaviorHints'] = {
+                        stream_data['behaviorHints'].update({
                             'proxyHeaders': stream['headers'],
                             'notWebReady': True
-                        }
+                        })
                     streams['streams'].append(stream_data)
     
     streams['streams'] = sorted(streams['streams'], key=lambda d: d['priority'])
@@ -144,6 +165,6 @@ async def addon_stream(content_type: str, content_id: str):
 
     players = docchi_client.get_episode_players(slug, episode)
     if players:
-        streams = await process_players(players)
+        streams = await process_players(players, content_id)
         return respond_with(streams)
     return {'streams': []}
