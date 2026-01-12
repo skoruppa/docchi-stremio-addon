@@ -37,17 +37,14 @@ async def process_player(session, player):
     inverted = False
 
     try:
-        # Get handler function for the player
         handler = get_player_handler(player_hosting)
         
         if handler:
             url, quality, headers = await handler(session, player['player'])
             
-            # Special handling for VK inverted
             if player_hosting == 'vk' and player.get('isInverted'):
                 inverted = True
     except Exception as e:
-        # Silently ignore player errors - just return None values
         pass
         
     stream.update({'url': url, 'quality': quality, 'headers': headers, 'inverted': inverted})
@@ -82,6 +79,10 @@ async def process_players(players, content_id=None):
                         f"🇵🇱 {stream['translator_title']} ",
                         f"🔗 {stream['player_hosting']} • {quality_tag}"
                     ]
+                    
+                    # Add warning emoji for AI translations
+                    if stream['translator_title'].lower() == 'ai':
+                        description_lines[0] = f"🇵🇱 ⚠️ {stream['translator_title']}"
                     
                     stream_data = {
                         'name': f"{stream['player_hosting']} • {quality_tag}",
