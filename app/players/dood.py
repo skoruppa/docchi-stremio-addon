@@ -14,7 +14,7 @@ DOMAINS = [
     'd-s.io', 'dsvplay.com', 'myvidplay.com'
 ]
 
-ENABLED = True
+ENABLED = False
 
 
 async def get_video_from_dood_player(session, player_url):

@@ -9,6 +9,7 @@ from app.routes import MAL_ID_PREFIX, docchi_client, kitsu_client
 from app.utils.stream_utils import respond_with
 from app.db.db import get_slug_from_mal_id, save_slug_from_mal_id
 from app.utils.player_utils import detect_player_from_url, get_player_handler
+from app.routes.meta import addon_meta
 
 
 from config import Config
@@ -51,8 +52,52 @@ async def process_player(session, player):
     return stream
 
 
-async def process_players(players, content_id=None):
+def build_filename(anime_name, episode_num, content_id, translator_norm):
+    """Build filename for stream."""
+    if anime_name:
+        name_norm = anime_name.replace(' ', '_')
+        if episode_num:
+            return f"{name_norm}.e{episode_num.zfill(2)}-{translator_norm}"
+        return f"{name_norm}-{translator_norm}"
+    
+    # Fallback to content_id
+    parts = content_id.split(':')
+    content_base = f"{parts[0]}:{parts[1]}"
+    if episode_num:
+        return f"{content_base}.e{episode_num.zfill(2)}-{translator_norm}"
+    return f"{content_base}-{translator_norm}"
+
+
+async def process_players(players, content_id=None, content_type='series'):
     streams = {'streams': []}
+    
+    # Get anime name from meta
+    anime_name = None
+    episode_num = None
+    if content_id:
+        parts = content_id.split(':')
+        meta_id = f"{parts[0]}:{parts[1]}"
+        
+        # Try to get from cache first, then fetch if needed
+        try:
+            # addon_meta is cached with lru_cache, so this will use cache if available
+            meta_response = addon_meta(content_type, meta_id)
+            if meta_response:
+                # Response is tuple (response_data, cache_time, stale_time)
+                response_data = meta_response[0] if isinstance(meta_response, tuple) else meta_response
+                if hasattr(response_data, 'json'):
+                    meta_json = response_data.json
+                else:
+                    meta_json = response_data
+                
+                if isinstance(meta_json, dict) and 'meta' in meta_json:
+                    anime_name = meta_json['meta'].get('name', '')
+        except Exception:
+            pass
+        
+        # Extract episode number
+        if len(parts) > 2:
+            episode_num = parts[2]
     
     timeout = aiohttp.ClientTimeout(total=10, connect=5)
     connector = aiohttp.TCPConnector(limit=30, limit_per_host=10, ttl_dns_cache=300, verify_ssl=False)
@@ -64,46 +109,41 @@ async def process_players(players, content_id=None):
             stream = await task
             if stream:
                 if stream['url']:
-                    if not stream['translator_title']:
-                        stream['translator_title'] = "unknown"
+                    translator = stream['translator_title'] or 'unknown'
+                    quality = stream['quality'] or 'unknown'
+                    player = stream['player_hosting']
+                    is_ai = translator.lower() == 'ai'
                     
-                    quality_tag = stream['quality'] or 'unknown'
-                    translator_normalized = stream['translator_title'].replace(' ', '_')
+                    # Build filename
+                    translator_norm = translator.replace(' ', '_')
+                    filename = build_filename(anime_name, episode_num, content_id, translator_norm)
                     
-                    filename_base = stream['player_hosting']
-                    if content_id:
-                        filename_base += f"_{content_id}"
-                    filename = f"{filename_base}.{quality_tag}-{translator_normalized}"
+                    # Build description
+                    translator_flag = f"🇵🇱 {'⚠️ ' if is_ai else ''}{translator}"
+                    description = f"{translator_flag}\n🔗 {player}"
+                    if stream['inverted']:
+                        description += "\n⚠️ Inverted"
                     
-                    description_lines = [
-                        f"🇵🇱 {stream['translator_title']} ",
-                        f"🔗 {stream['player_hosting']} • {quality_tag}"
-                    ]
-                    
-                    # Add warning emoji for AI translations
-                    if stream['translator_title'].lower() == 'ai':
-                        description_lines[0] = f"🇵🇱 ⚠️ {stream['translator_title']}"
-                    
+                    # Build stream data
                     stream_data = {
-                        'name': f"{stream['player_hosting']} • {quality_tag}",
-                        'description': '\n'.join(description_lines),
+                        'name': quality,
+                        'description': description,
                         'url': stream['url'],
                         'priority': sort_priority(stream),
-                        'behaviorHints': {
-                            'filename': filename
-                        }
+                        'behaviorHints': {'filename': filename}
                     }
+                    
+                    # Add behavior hints
                     if stream['inverted']:
                         stream_data['priority'] = 8
-                        stream_data['description'] += "\n⚠️ Inverted"
-                    if stream['player_hosting'] == 'uqload':
-                        if PROXIFY_STREAMS:
-                            stream_data['behaviorHints']['notWebReady'] = True
+                    if player == 'uqload' and PROXIFY_STREAMS:
+                        stream_data['behaviorHints']['notWebReady'] = True
                     if stream.get('headers'):
                         stream_data['behaviorHints'].update({
                             'proxyHeaders': stream['headers'],
                             'notWebReady': True
                         })
+                    
                     streams['streams'].append(stream_data)
     
     streams['streams'] = sorted(streams['streams'], key=lambda d: d['priority'])
@@ -162,6 +202,6 @@ async def addon_stream(content_type: str, content_id: str):
 
     players = docchi_client.get_episode_players(slug, episode)
     if players:
-        streams = await process_players(players, content_id)
+        streams = await process_players(players, content_id, content_type)
         return respond_with(streams)
     return {'streams': []}
