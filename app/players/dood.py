@@ -1,13 +1,10 @@
 import re
-import logging
-import aiohttp
 import time
 import string
 import random
+from urllib.parse import urlparse
 from app.utils.common_utils import get_random_agent
-from config import Config
 
-# Domains handled by this player
 DOMAINS = [
     'dood.watch', 'doodstream.com', 'dood.to', 'dood.so', 'dood.cx', 'dood.la', 'dood.ws',
     'dood.sh', 'doodstream.co', 'dood.pm', 'dood.wf', 'dood.re', 'dood.yt', 'dooood.com',
@@ -17,67 +14,45 @@ DOMAINS = [
     'd-s.io', 'dsvplay.com', 'myvidplay.com'
 ]
 
-ENABLED = False
+ENABLED = True
 
 
-async def get_video_from_dood_player(session: aiohttp.ClientSession, url):
-    user_agent = get_random_agent()
-    quality = "unknown"
-
-    dood_host = re.search(r"https?://([^/]+)", url).group(1)
-    if dood_host not in ['doodstream.com', 'myvidplay.com']:
-        dood_host = 'myvidplay.com'
+async def get_video_from_dood_player(session, player_url):
+    """Extract video URL from DoodStream player."""
+    parsed = urlparse(player_url)
+    video_id = parsed.path.rstrip('/').split('/')[-1]
     
-    headers = {
-        'User-Agent': user_agent,
-        'Referer': f'https://{dood_host}/'
-    }
-
+    # Normalize to /e/ endpoint
+    url = f"http://dood.to/e/{video_id}"
+    headers = {'User-Agent': get_random_agent(), 'Referer': url}
+    
     try:
-        async with session.get(url, headers=headers) as response:
-            web_url = str(response.url)
-            if web_url != url:
-                dood_host = re.search(r"https?://([^/]+)", web_url).group(1)
-            
-            headers['Referer'] = web_url
-            html = await response.text()
-
-        # Check for iframe
-        iframe_match = re.search(r'<iframe\s*src="([^"]+)', html)
-        if iframe_match:
-            iframe_url = iframe_match.group(1)
-            if not iframe_url.startswith('http'):
-                iframe_url = f"https://{dood_host}{iframe_url}"
-            
-            async with session.get(iframe_url, headers=headers) as iframe_response:
-                html = await iframe_response.text()
-        else:
-            # Try /e/ endpoint
-            e_url = url.replace('/d/', '/e/')
-            async with session.get(e_url, headers=headers) as e_response:
-                html = await e_response.text()
-
-        # Extract token and pass_md5 URL
-        match = re.search(r"dsplayer\.hotkeys[^']+\'([^']+).+?function\s*makePlay.+?return[^?]+([^\"]+)", html, re.DOTALL)
-        if not match:
+        async with session.get(url, headers=headers) as resp:
+            html = await resp.text()
+        
+        if 'Video not found' in html:
             return None, None, None
-
-        pass_md5_path = match.group(1)
-        token = match.group(2)
         
-        pass_md5_url = f"https://{dood_host}{pass_md5_path}"
-        async with session.get(pass_md5_url, headers=headers) as token_response:
-            base_url = await token_response.text()
-            base_url = base_url.strip()
-
-        # Generate random string and build final URL
-        random_string = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
-        expiry = int(time.time() * 1000)
-        final_url = f"{base_url}{random_string}{token}{expiry}"
+        # Extract pass_md5 path and token
+        pass_md5_match = re.search(r'/pass_md5/[\w-]+/([\w-]+)', html)
+        if not pass_md5_match:
+            return None, None, None
         
-        stream_headers = {"request": {"Referer": web_url, "User-Agent": user_agent}}
-        return final_url, quality, stream_headers
-
-    except Exception as e:
-        logging.error(f"Dood Player Error: {e}")
+        token = pass_md5_match.group(1)
+        pass_md5_url = f"http://dood.to{pass_md5_match.group(0)}"
+        
+        async with session.get(pass_md5_url, headers={'Referer': url}) as resp:
+            base_url = (await resp.text()).strip()
+        
+        # Build final URL
+        if 'cloudflarestorage' in base_url:
+            final_url = base_url
+        else:
+            random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+            expiry = int(time.time() * 1000)
+            final_url = f"{base_url}{random_str}?token={token}&expiry={expiry}"
+        
+        return final_url, None, {'Referer': 'http://dood.to'}
+    
+    except Exception:
         return None, None, None
