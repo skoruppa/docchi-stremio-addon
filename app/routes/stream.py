@@ -70,21 +70,17 @@ async def process_players(players, content_id=None):
                     if not stream['translator_title']:
                         stream['translator_title'] = "unknown"
                     
-                    # Format compatible with AIOStreams parser
                     quality_tag = stream['quality'] or 'unknown'
                     translator_normalized = stream['translator_title'].replace(' ', '_')
                     
-                    # Build filename: player_hosting_contentid.quality-GROUP
                     filename_base = stream['player_hosting']
                     if content_id:
-                        # Replace second : with / (mal:12345:5 -> mal:12345/5)
-                        content_id_formatted = content_id.replace(':', '/', 1).replace(':', '/', 1) if content_id.count(':') >= 2 else content_id
-                        filename_base += f"_{content_id_formatted}"
+                        filename_base += f"_{content_id}"
                     filename = f"{filename_base}.{quality_tag}-{translator_normalized}"
                     
                     description_lines = [
-                        f"🇵🇱 🎬 {stream['translator_title']}",
-                        f"🔗 {stream['player_hosting']}"
+                        f"🇵🇱 {stream['translator_title']} ",
+                        f"🔗 {stream['player_hosting']} • {quality_tag}"
                     ]
                     
                     stream_data = {
