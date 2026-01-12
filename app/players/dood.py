@@ -5,6 +5,7 @@ import time
 import string
 import random
 from app.utils.common_utils import get_random_agent
+from config import Config
 
 # Domains handled by this player
 DOMAINS = [
@@ -19,7 +20,7 @@ DOMAINS = [
 ENABLED = True
 
 
-async def get_video_from_dood_player(session: aiohttp.ClientSession, url):
+async def get_video_from_dood_player(session: aiohttp.ClientSession, url, client_ip=None):
     user_agent = get_random_agent()
     quality = "unknown"
 
@@ -27,9 +28,26 @@ async def get_video_from_dood_player(session: aiohttp.ClientSession, url):
     if dood_host not in ['doodstream.com', 'myvidplay.com']:
         dood_host = 'myvidplay.com'
     
+    # Use provided client IP or fallback to random residential-like IP
+    if not client_ip:
+        client_ip = f"{random.randint(1, 223)}.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(1, 254)}"
+    
     headers = {
         'User-Agent': user_agent,
-        'Referer': f'https://{dood_host}/'
+        'Referer': f'https://{dood_host}/',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'X-Forwarded-For': client_ip,
+        'X-Real-IP': client_ip,
+        'X-Forwarded-Proto': 'https',
+        'X-Forwarded-Host': dood_host,
     }
 
     try:
@@ -37,7 +55,9 @@ async def get_video_from_dood_player(session: aiohttp.ClientSession, url):
             web_url = str(response.url)
             if web_url != url:
                 dood_host = re.search(r"https?://([^/]+)", web_url).group(1)
-                headers['Referer'] = web_url
+            
+            headers['Referer'] = web_url
+            headers['X-Forwarded-Host'] = dood_host
             html = await response.text()
 
         # Check for iframe
@@ -46,6 +66,7 @@ async def get_video_from_dood_player(session: aiohttp.ClientSession, url):
             iframe_url = iframe_match.group(1)
             if not iframe_url.startswith('http'):
                 iframe_url = f"https://{dood_host}{iframe_url}"
+            
             async with session.get(iframe_url, headers=headers) as iframe_response:
                 html = await iframe_response.text()
         else:
@@ -72,7 +93,7 @@ async def get_video_from_dood_player(session: aiohttp.ClientSession, url):
         expiry = int(time.time() * 1000)
         final_url = f"{base_url}{random_string}{token}{expiry}"
         
-        stream_headers = {"request": {"Referer": web_url, "User-Agent": user_agent,}}
+        stream_headers = {"request": {"Referer": web_url, "User-Agent": user_agent}}
         return final_url, quality, stream_headers
 
     except Exception as e:

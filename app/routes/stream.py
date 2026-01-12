@@ -17,7 +17,7 @@ stream_bp = Blueprint('stream', __name__)
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 
 
-async def process_player(session, player):
+async def process_player(session, player, client_ip=None):
     player_hosting = player['player_hosting'].lower()
     detected_player = detect_player_from_url(player['player'])
     
@@ -41,8 +41,11 @@ async def process_player(session, player):
         handler = get_player_handler(player_hosting)
         
         if handler:
-            # Call the handler
-            url, quality, headers = await handler(session, player['player'])
+            # Call the handler with client_ip if it's dood player
+            if player_hosting in ['dood.watch', 'doodstream.com', 'dood.to', 'dood.so', 'dood']:
+                url, quality, headers = await handler(session, player['player'], client_ip)
+            else:
+                url, quality, headers = await handler(session, player['player'])
             
             # Special handling for VK inverted
             if player_hosting == 'vk' and player.get('isInverted'):
@@ -55,14 +58,14 @@ async def process_player(session, player):
     return stream
 
 
-async def process_players(players):
+async def process_players(players, client_ip=None):
     streams = {'streams': []}
     
     timeout = aiohttp.ClientTimeout(total=10, connect=5)
     connector = aiohttp.TCPConnector(limit=30, limit_per_host=10, ttl_dns_cache=300, verify_ssl=False)
     
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
-        tasks = [process_player(session, player) for player in players]
+        tasks = [process_player(session, player, client_ip) for player in players]
 
         for task in asyncio.as_completed(tasks):
             stream = await task
@@ -115,6 +118,13 @@ async def addon_stream(content_type: str, content_id: str):
     :param content_id: The id of the content
     :return: JSON response
     """
+    from flask import request
+    
+    # Get client IP - Cloudflare passes real IP in CF-Connecting-IP
+    client_ip = request.headers.get('CF-Connecting-IP') or request.headers.get('X-Forwarded-For', request.remote_addr)
+    if client_ip and ',' in client_ip:
+        client_ip = client_ip.split(',')[0].strip()
+    
     content_id = urllib.parse.unquote(content_id)
     parts = content_id.split(":")
 
@@ -145,6 +155,6 @@ async def addon_stream(content_type: str, content_id: str):
 
     players = docchi_client.get_episode_players(slug, episode)
     if players:
-        streams = await process_players(players)
+        streams = await process_players(players, client_ip)
         return respond_with(streams)
     return {'streams': []}
