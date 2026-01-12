@@ -17,10 +17,10 @@ DOMAINS = [
     'd-s.io', 'dsvplay.com', 'myvidplay.com'
 ]
 
-ENABLED = True
+ENABLED = False
 
 
-async def get_video_from_dood_player(session: aiohttp.ClientSession, url, client_ip=None):
+async def get_video_from_dood_player(session: aiohttp.ClientSession, url):
     user_agent = get_random_agent()
     quality = "unknown"
 
@@ -28,26 +28,9 @@ async def get_video_from_dood_player(session: aiohttp.ClientSession, url, client
     if dood_host not in ['doodstream.com', 'myvidplay.com']:
         dood_host = 'myvidplay.com'
     
-    # Use provided client IP or fallback to random residential-like IP
-    if not client_ip:
-        client_ip = f"{random.randint(1, 223)}.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(1, 254)}"
-    
     headers = {
         'User-Agent': user_agent,
-        'Referer': f'https://{dood_host}/',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'DNT': '1',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'X-Forwarded-For': client_ip,
-        'X-Real-IP': client_ip,
-        'X-Forwarded-Proto': 'https',
-        'X-Forwarded-Host': dood_host,
+        'Referer': f'https://{dood_host}/'
     }
 
     try:
@@ -57,7 +40,6 @@ async def get_video_from_dood_player(session: aiohttp.ClientSession, url, client
                 dood_host = re.search(r"https?://([^/]+)", web_url).group(1)
             
             headers['Referer'] = web_url
-            headers['X-Forwarded-Host'] = dood_host
             html = await response.text()
 
         # Check for iframe
