@@ -52,20 +52,20 @@ async def process_player(session, player):
     return stream
 
 
-def build_filename(anime_name, episode_num, content_id, translator_norm):
+def build_filename(anime_name, episode_num, content_id, quality, translator_norm):
     """Build filename for stream."""
     if anime_name:
-        name_norm = anime_name.replace(' ', '_')
+        name_norm = anime_name.replace(' ', '_').replace(':', '').replace('/', '')
         if episode_num:
-            return f"{name_norm}.e{episode_num.zfill(2)}-{translator_norm}"
-        return f"{name_norm}-{translator_norm}"
+            return f"{name_norm}.e{episode_num.zfill(2)}.{quality}-{translator_norm}"
+        return f"{name_norm}.{quality}-{translator_norm}"
     
     # Fallback to content_id
     parts = content_id.split(':')
     content_base = f"{parts[0]}:{parts[1]}"
     if episode_num:
-        return f"{content_base}.e{episode_num.zfill(2)}-{translator_norm}"
-    return f"{content_base}-{translator_norm}"
+        return f"{content_base}.e{episode_num.zfill(2)}.{quality}-{translator_norm}"
+    return f"{content_base}.{quality}-{translator_norm}"
 
 
 async def process_players(players, content_id=None, content_type='series'):
@@ -116,7 +116,7 @@ async def process_players(players, content_id=None, content_type='series'):
                     
                     # Build filename
                     translator_norm = translator.replace(' ', '_')
-                    filename = build_filename(anime_name, episode_num, content_id, translator_norm)
+                    filename = build_filename(anime_name, episode_num, content_id, quality, translator_norm)
                     
                     # Build description
                     translator_flag = f"🇵🇱 {'⚠️ ' if is_ai else ''}{translator}"
