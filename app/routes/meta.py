@@ -1,6 +1,7 @@
 from functools import lru_cache
 from urllib.parse import unquote
 import requests
+import time
 from flask import Blueprint, abort
 from jikanpy import Jikan
 from jikanpy.exceptions import APIException
@@ -20,6 +21,28 @@ HEADERS = {
 }
 
 jikan_client = Jikan()
+
+# Rate limiting for Jikan (3 req/sec, 60 req/min)
+_jikan_last_request = 0
+_jikan_request_interval = 0.35  # 350ms between requests (slightly under 3/sec)
+
+
+@lru_cache(maxsize=100)
+def _cached_jikan_anime(mal_id: int, extension: str = None):
+    """Cached wrapper for Jikan API calls with rate limiting."""
+    global _jikan_last_request
+    
+    # Rate limiting
+    now = time.time()
+    time_since_last = now - _jikan_last_request
+    if time_since_last < _jikan_request_interval:
+        time.sleep(_jikan_request_interval - time_since_last)
+    
+    _jikan_last_request = time.time()
+    
+    if extension:
+        return jikan_client.anime(mal_id, extension=extension)
+    return jikan_client.anime(mal_id)
 
 
 @meta_bp.route('/meta/<meta_type>/<meta_id>.json')
@@ -64,8 +87,8 @@ def addon_meta(meta_type: str, meta_id: str):
         log_error(f"Kitsu error: {e}. Falling back to Jikan.")
         if mal_id:
             try:
-                jikan_main_resp = jikan_client.anime(int(mal_id))
-                jikan_episodes_resp = jikan_client.anime(int(mal_id), extension='episodes')
+                jikan_main_resp = _cached_jikan_anime(int(mal_id))
+                jikan_episodes_resp = _cached_jikan_anime(int(mal_id), extension='episodes')
 
                 meta = jikan_to_meta(jikan_main_resp, jikan_episodes_resp, meta_id, mal_id)
             except APIException as jikan_e:
