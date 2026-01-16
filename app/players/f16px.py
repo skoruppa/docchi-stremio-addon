@@ -19,7 +19,7 @@ DOMAINS = [
 ]
 
 # NOTE: Disabled - does not work remotely, don't know why
-ENABLED = False
+ENABLED = True
 
 
 def ft(e: str) -> bytes:
