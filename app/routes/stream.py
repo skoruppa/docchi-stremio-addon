@@ -125,17 +125,17 @@ async def process_players(players, content_id=None, content_type='series'):
                         description += "\n⚠️ Inverted"
                     
                     # Build stream data
+                    priority = sort_priority(stream)
+                    
                     stream_data = {
                         'name': quality,
                         'description': description,
                         'url': stream['url'],
-                        'priority': sort_priority(stream),
-                        'behaviorHints': {'filename': filename}
+                        'behaviorHints': {'filename': filename},
+                        '_priority': priority  
                     }
                     
                     # Add behavior hints
-                    if stream['inverted']:
-                        stream_data['priority'] = 8
                     if player == 'uqload' and PROXIFY_STREAMS:
                         stream_data['behaviorHints']['notWebReady'] = True
                     if stream.get('headers'):
@@ -146,12 +146,15 @@ async def process_players(players, content_id=None, content_type='series'):
                     
                     streams['streams'].append(stream_data)
     
-    streams['streams'] = sorted(streams['streams'], key=lambda d: d['priority'])
+    # Sort by priority and remove internal field
+    streams['streams'] = sorted(streams['streams'], key=lambda d: d['_priority'])
+    for stream in streams['streams']:
+        stream.pop('_priority', None)
     return streams
 
 
 def sort_priority(stream):
-    if stream['player_hosting'] == 'lycoris.cafe':
+    if 'lycoris' in stream['player_hosting']:
         return 0
     elif stream['player_hosting'] == 'cda':
         return 1
