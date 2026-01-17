@@ -208,6 +208,15 @@ async def addon_stream(content_type: str, content_id: str):
 
     players = docchi_client.get_episode_players(slug, episode)
     if players:
-        streams = await process_players(players, content_id, content_type, is_vip)
+        # Remove duplicates based on 'player' field
+        seen = set()
+        unique_players = []
+        for player in players:
+            player_url = player.get('player')
+            if player_url and player_url not in seen:
+                seen.add(player_url)
+                unique_players.append(player)
+        
+        streams = await process_players(unique_players, content_id, content_type, is_vip)
         return respond_with(streams)
     return {'streams': []}

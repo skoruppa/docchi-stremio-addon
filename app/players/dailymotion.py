@@ -1,108 +1,69 @@
+import re
 import aiohttp
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse
 from app.utils.common_utils import get_random_agent
-from flask import request
 
 # Domains handled by this player
 DOMAINS = ['dailymotion.com', 'dai.ly']
 
-DAILYMOTION_URL = "https://www.dailymotion.com"
-
 
 async def get_video_from_dailymotion_player(session: aiohttp.ClientSession, url: str, is_vip: bool = False) -> tuple:
-    if '/embed/' not in url:
-        url = url.replace('/video/', '/embed/video/')
-    
-    async with session.get(url) as response:
-        response.raise_for_status()
-        html_string = await response.text()
     try:
-        internal_data_start = html_string.find("\"dmInternalData\":") + len("\"dmInternalData\":")
-        internal_data_end = html_string.find("</script>", internal_data_start)
-        internal_data = html_string[internal_data_start:internal_data_end]
-
-        ts = internal_data.split("\"ts\":", 1)[1].split(",", 1)[0].strip()
-        v1st = internal_data.split("\"v1st\":\"", 1)[1].split("\",", 1)[0].strip()
-
-        parsed_url = urlparse(url)
-        query_params = parse_qs(parsed_url.query)
-        video_query = query_params.get("video", [None])[0] or parsed_url.path.split("/")[-1]
-
-        json_url = (
-            f"{DAILYMOTION_URL}/player/metadata/video/{video_query}"
-            f"?locale=en-US&dmV1st={v1st}&dmTs={ts}&is_native_app=0"
-        )
-
-        async with session.get(json_url) as metadata_response:
-            metadata_response.raise_for_status()
-            parsed = await metadata_response.json()
-
-        if "qualities" in parsed and "error" not in parsed:
-            return await videos_from_daily_response(session, parsed)
-        else:
+        # Extract media_id from URL
+        pattern = r'(?://|\.)(dailymotion\.com|dai\.ly)(?:/(?:video|embed|sequence|swf|player)' \
+                  r'(?:/video|/full)?)?/(?:[a-z0-9]+\.html\?video=)?(?!playlist)([0-9a-zA-Z]+)'
+        match = re.search(pattern, url)
+        if not match:
             return None, None, None
-    except:
-        return None, None, None
-
-
-async def fetch_m3u8_url(session: aiohttp.ClientSession, master_url: str, headers: dict) -> tuple:
-    async with session.get(master_url, headers=headers) as response:
-        response.raise_for_status()
-        m3u8_content = await response.text()
-
-    streams = []
-    lines = m3u8_content.splitlines()
-
-    for i, line in enumerate(lines):
-        if line.startswith("#EXT-X-STREAM-INF"):
-            quality = None
-            for part in line.split(","):
-                if "NAME" in part:
-                    quality = part.split("=")[1].strip("\"")
-
-            if quality:
-                stream_url = lines[i + 1]
-                streams.append((quality, stream_url))
-
-    if streams:
-        best_stream = max(streams, key=lambda x: int(x[0]))
-        return best_stream[1], best_stream[0]
-    else:
-        return None, None
-
-
-async def videos_from_daily_response(session: aiohttp.ClientSession, parsed: dict) -> tuple:
-    master_url = next(
-        (quality.get("url") for quality in parsed.get("qualities", {}).get("auto", []) if "url" in quality),
-        None
-    )
-    if not master_url:
-        return None, None, None
-
-    master_headers = headers_builder()
-    best_url, best_quality = await fetch_m3u8_url(session, master_url, master_headers)
-
-    stream_headers = {
-        "request": master_headers,
-        "response": {
-            "Access-Control-Allow-Origin": "*",
-                    }
+        
+        media_id = match.group(2)
+        
+        # Build metadata URL
+        metadata_url = f'https://www.dailymotion.com/player/metadata/video/{media_id}'
+        
+        headers = {
+            'User-Agent': get_random_agent(),
+            'Origin': 'https://www.dailymotion.com',
+            'Referer': 'https://www.dailymotion.com/'
         }
-
-    return best_url, f"{best_quality}p", stream_headers
-
-
-def headers_builder() -> dict:
-    referer = request.headers.get('Referer', None)
-    user_agent = request.headers.get('User-Agent', None)
-
-    if not referer or "web.stremio.com" not in str(referer):
-        user_agent = get_random_agent()
-    headers = {
-        "User-Agent": user_agent,
-        "Accept": "*/*",
-        "Referer": f"{DAILYMOTION_URL}/",
-        "Origin": DAILYMOTION_URL
-    }
-
-    return headers
+        
+        async with session.get(metadata_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            response.raise_for_status()
+            js_result = await response.json()
+        
+        if js_result.get('error'):
+            return None, None, None
+        
+        quals = js_result.get('qualities')
+        if not quals:
+            return None, None, None
+        
+        # Get auto quality master playlist
+        auto_qual = quals.get('auto', [])
+        if not auto_qual:
+            return None, None, None
+        
+        master_url = auto_qual[0].get('url')
+        if not master_url:
+            return None, None, None
+        
+        # Fetch master playlist
+        async with session.get(master_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            response.raise_for_status()
+            m3u8_content = await response.text()
+        
+        # Parse m3u8 for best quality
+        sources = re.findall(r'NAME="(?P<label>[^"]+)".*(?:,PROGRESSIVE-URI="|\n)(?P<url>[^#]+)', m3u8_content)
+        if not sources:
+            return None, None, None
+        
+        # Sort by quality and pick highest
+        sources_sorted = sorted(sources, key=lambda x: int(re.sub(r'\D', '', x[0]) or '0'), reverse=True)
+        best_quality, stream_url = sources_sorted[0]
+        
+        stream_headers = {'request': headers}
+        return stream_url, best_quality, stream_headers
+    
+    except Exception as e:
+        print(f"Dailymotion Player Error: {e}")
+        return None, None, None
