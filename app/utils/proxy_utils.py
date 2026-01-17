@@ -35,7 +35,7 @@ async def generate_proxy_url(
         'mediaflow_proxy_url': STREAM_PROXY_URL,
         'endpoint': endpoint,
         'destination_url': destination_url,
-        'expiration': 60,
+        'expiration': 3600,
         'api_password': STREAM_PROXY_PASSWORD
     }
     
