@@ -7,7 +7,7 @@ from app.utils.common_utils import get_random_agent
 DOMAINS = ['vidnest.io']
 
 
-async def get_video_from_vidnest_player(session: aiohttp.ClientSession, url: str):
+async def get_video_from_vidnest_player(session: aiohttp.ClientSession, url: str, is_vip: bool = False):
     """
     Extract video URL from Vidnest player.
     Video URL is directly in jwplayer setup with label containing quality info.

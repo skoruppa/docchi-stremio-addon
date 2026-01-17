@@ -18,7 +18,7 @@ stream_bp = Blueprint('stream', __name__)
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 
 
-async def process_player(session, player):
+async def process_player(session, player, is_vip=False):
     player_hosting = player['player_hosting'].lower()
     detected_player = detect_player_from_url(player['player'])
     
@@ -41,7 +41,7 @@ async def process_player(session, player):
         handler = get_player_handler(player_hosting)
         
         if handler:
-            url, quality, headers = await handler(session, player['player'])
+            url, quality, headers = await handler(session, player['player'], is_vip=is_vip)
             
             if player_hosting == 'vk' and player.get('isInverted'):
                 inverted = True
@@ -68,7 +68,7 @@ def build_filename(anime_name, episode_num, content_id, quality, translator_norm
     return f"{content_base}.{quality}-{translator_norm}"
 
 
-async def process_players(players, content_id=None, content_type='series'):
+async def process_players(players, content_id=None, content_type='series', is_vip=False):
     streams = {'streams': []}
     
     # Get anime name from meta
@@ -103,7 +103,7 @@ async def process_players(players, content_id=None, content_type='series'):
     connector = aiohttp.TCPConnector(limit=30, limit_per_host=10, ttl_dns_cache=300, verify_ssl=False)
     
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
-        tasks = [process_player(session, player) for player in players]
+        tasks = [process_player(session, player, is_vip) for player in players]
 
         for task in asyncio.as_completed(tasks):
             stream = await task
@@ -175,6 +175,9 @@ async def addon_stream(content_type: str, content_id: str):
     :param content_id: The id of the content
     :return: JSON response
     """
+    from flask import request
+    is_vip = Config.VIP_PATH in request.path
+    
     content_id = urllib.parse.unquote(content_id)
     parts = content_id.split(":")
 
@@ -205,6 +208,6 @@ async def addon_stream(content_type: str, content_id: str):
 
     players = docchi_client.get_episode_players(slug, episode)
     if players:
-        streams = await process_players(players, content_id, content_type)
+        streams = await process_players(players, content_id, content_type, is_vip)
         return respond_with(streams)
     return {'streams': []}

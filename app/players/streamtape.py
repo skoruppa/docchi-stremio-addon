@@ -2,17 +2,26 @@ import aiohttp
 import re
 from bs4 import BeautifulSoup
 from app.utils.common_utils import get_random_agent
+from app.utils.proxy_utils import generate_proxy_url
 from config import Config
 
 # Domains handled by this player
 DOMAINS = ['streamtape.com', 'streamtape.to']
+
+# NOTE: Enabled only for VIP, as whole stream needs to go through proxy
+ENABLED = True
 
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 STREAM_PROXY_URL = Config.STREAM_PROXY_URL
 STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 
 
-async def get_video_from_streamtape_player(session: aiohttp.ClientSession, url: str):
+async def get_video_from_streamtape_player(session: aiohttp.ClientSession, url: str, is_vip: bool = False):
+    """Extract video URL from Streamtape player. VIP only (or local selfhost without proxy)."""
+    # Streamtape requires VIP
+    if not is_vip:
+        return None, None, None
+    
     quality = "unknown"
     base_url = "https://streamtape.com/e/"
 
@@ -20,7 +29,7 @@ async def get_video_from_streamtape_player(session: aiohttp.ClientSession, url: 
         parts = url.split("/")
         video_id = parts[4] if len(parts) > 4 else None
         if not video_id:
-            return None, quality
+            return None, None, None
         new_url = base_url + video_id
     else:
         new_url = url
@@ -30,10 +39,18 @@ async def get_video_from_streamtape_player(session: aiohttp.ClientSession, url: 
         "Referer": new_url,
     }
 
-    async with session.get(new_url, headers=headers, ssl=False) as response:
-        if response.status != 200:
-            return None, None, None
-        content = await response.text()
+    try:
+        # Use proxy for API requests if configured
+        if PROXIFY_STREAMS:
+            user_agent = headers['User-Agent']
+            proxied_url = f'{STREAM_PROXY_URL}/proxy/stream?d={new_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
+            async with session.get(proxied_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                response.raise_for_status()
+                content = await response.text()
+        else:
+            async with session.get(new_url, headers=headers, ssl=False, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                response.raise_for_status()
+                content = await response.text()
 
         soup = BeautifulSoup(content, 'html.parser')
         target_line = "document.getElementById('robotlink')"
@@ -48,27 +65,18 @@ async def get_video_from_streamtape_player(session: aiohttp.ClientSession, url: 
         second_part = re.findall(r'\(\'xcd(.*?)\'\)', script_content)
         stream_data = first_part.group(1)[:-1] + second_part[1]
 
-        video_headers = None
-
         stream_url = f'https:/{stream_data}&stream=1'
+        
+        # Proxify stream if configured
         if PROXIFY_STREAMS:
-            post_data = {
-                "mediaflow_proxy_url": STREAM_PROXY_URL,
-                "endpoint": "/proxy/stream",
-                "destination_url": stream_url,
-                "expiration": 7200,
-                "request_headers": headers,
-                "api_password": STREAM_PROXY_PASSWORD,
-            }
-            try:
-                async with session.post(f'{STREAM_PROXY_URL}/generate_encrypted_or_encoded_url',
-                                        json=post_data) as response:
-                    response.raise_for_status()
-                    result = await response.json()
-                stream_url = result.get("encoded_url", {})
-            except aiohttp.client_exceptions.ClientConnectorError:
-                return None, None, None
-        else:
-            video_headers = {'request': headers}
-
-        return stream_url, quality, video_headers
+            stream_url = await generate_proxy_url(
+                session, 
+                stream_url,
+                request_headers=headers
+            )
+        
+        stream_headers = {'request': headers}
+        return stream_url, quality, stream_headers
+    
+    except Exception:
+        return None, None, None

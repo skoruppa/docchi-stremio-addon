@@ -45,7 +45,7 @@ def extract_ua_section(js_string):
         return None
 
 
-async def get_video_from_rumble_player(session: aiohttp.ClientSession, url):
+async def get_video_from_rumble_player(session: aiohttp.ClientSession, url, is_vip: bool = False):
     headers = {
         "User-Agent": get_random_agent()
     }

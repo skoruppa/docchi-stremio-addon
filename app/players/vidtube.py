@@ -47,7 +47,7 @@ def fix_mp4_link(link: str) -> str:
     return fixed_link
 
 
-async def get_video_from_vidtube_player(session: aiohttp.ClientSession, filelink):
+async def get_video_from_vidtube_player(session: aiohttp.ClientSession, filelink, is_vip: bool = False):
     headers = {
         "User-Agent": get_random_agent(),
         "Referer": "https://vidtube.one/",

@@ -242,7 +242,7 @@ def extract_video_alternative_method(html_content):
     return None, None
 
 
-async def get_video_from_vk_player(session: aiohttp.ClientSession, url):
+async def get_video_from_vk_player(session: aiohttp.ClientSession, url, is_vip: bool = False):
     try:
         user_agent = request.headers.get('User-Agent', None)
     except:

@@ -145,7 +145,7 @@ def _construct_abyss_stream_url(config_data: dict) -> (str | None, str | None):
     return None, None
 
 
-async def get_video_from_abyss_player(session: aiohttp.ClientSession, player_url: str):
+async def get_video_from_abyss_player(session: aiohttp.ClientSession, player_url: str, is_vip: bool = False):
     try:
         headers = {"User-Agent": get_random_agent(), "Referer": player_url}
 

@@ -13,7 +13,7 @@ STREAM_PROXY_URL = Config.STREAM_PROXY_URL
 STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 
 
-async def get_video_from_uqload_player(session: aiohttp.ClientSession, url: str):
+async def get_video_from_uqload_player(session: aiohttp.ClientSession, url: str, is_vip: bool = False):
     if "embed-" in url:
         url = url.replace("embed-", "")
     parsed_url = urlparse(url)

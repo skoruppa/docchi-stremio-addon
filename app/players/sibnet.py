@@ -12,7 +12,7 @@ STREAM_PROXY_URL = Config.STREAM_PROXY_URL
 STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 
 
-async def get_video_from_sibnet_player(session: aiohttp.ClientSession, url: str) -> tuple:
+async def get_video_from_sibnet_player(session: aiohttp.ClientSession, url: str, is_vip: bool = False) -> tuple:
     headers = {
         "User-Agent": get_random_agent(),
     }

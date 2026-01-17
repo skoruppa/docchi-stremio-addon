@@ -48,7 +48,7 @@ async def fetch_resolution_from_m3u8(session, m3u8_url, headers):
     return None
 
 
-async def get_video_from_lulustream_player(session: aiohttp.ClientSession, filelink):
+async def get_video_from_lulustream_player(session: aiohttp.ClientSession, filelink, is_vip: bool = False):
     headers = {
         "User-Agent": get_random_agent(),
         "Referer": "https://luluvdo.com",

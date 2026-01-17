@@ -13,7 +13,7 @@ PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 STREAM_PROXY_URL = Config.STREAM_PROXY_URL
 STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 
-async def get_video_from_pixeldrain_player(session: aiohttp.ClientSession, player_url: str):
+async def get_video_from_pixeldrain_player(session: aiohttp.ClientSession, player_url: str, is_vip: bool = False):
     user_agent = get_random_agent()
     headers = {"User-Agent": user_agent}
 

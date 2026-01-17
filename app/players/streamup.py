@@ -32,7 +32,7 @@ def decode_printable_95(encoded_hex_string: str, shift: int) -> str:
         return ""
 
 
-async def get_video_from_streamup_player(session: aiohttp.ClientSession, player_url: str):
+async def get_video_from_streamup_player(session: aiohttp.ClientSession, player_url: str, is_vip: bool = False):
     try:
         user_agent = get_random_agent()
         page_headers = {"User-Agent": user_agent}
@@ -107,7 +107,9 @@ async def get_video_from_streamup_player(session: aiohttp.ClientSession, player_
         return stream_url, quality, stream_headers
 
     except Exception as e:
+        import traceback
         print(f"StreamUP Player Error: Unexpected Error: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
         return None, None, None
 
 

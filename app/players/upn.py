@@ -31,7 +31,7 @@ def _decrypt_to_raw_text(encrypted_hex_str: str, key_hex: str) -> str:
     return decrypted_bytes.decode('utf-8', errors='ignore')
 
 
-async def get_video_from_upn_player(session: aiohttp.ClientSession, player_url: str):
+async def get_video_from_upn_player(session: aiohttp.ClientSession, player_url: str, is_vip: bool = False):
     try:
         parsed_url = urlparse(player_url)
         base_url_with_scheme = f"{parsed_url.scheme}://{parsed_url.netloc}"

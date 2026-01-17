@@ -19,7 +19,7 @@ def build_video_url(base_url, document):
     return f"{url}?{query_string}"
 
 
-async def get_video_from_gdrive_player(session: aiohttp.ClientSession, drive_url: str):
+async def get_video_from_gdrive_player(session: aiohttp.ClientSession, drive_url: str, is_vip: bool = False):
     match = re.search(r"/d/([a-zA-Z0-9_-]+)", drive_url)
     if not match:
         return None

@@ -13,7 +13,7 @@ DOMAINS = [
 ]
 
 
-async def get_video_from_savefiles_player(session: aiohttp.ClientSession, filelink: str):
+async def get_video_from_savefiles_player(session: aiohttp.ClientSession, filelink: str, is_vip: bool = False):
     random_agent = get_random_agent()
 
     try:

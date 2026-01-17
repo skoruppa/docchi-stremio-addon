@@ -15,7 +15,7 @@ DOMAINS = ['waaw.ac', 'netu.ac', 'hqq.ac', 'waaw.tv', 'netu.tv', 'hqq.tv',
            'waaw.to', 'netu.to', 'hqq.to', 'doplay.store', 'younetu.com']
 
 
-async def get_video_from_hqq_player(session, player_url):
+async def get_video_from_hqq_player(session, player_url, is_vip: bool = False):
     """
     Extract video URL from HQQ player with automatic captcha solving.
     """

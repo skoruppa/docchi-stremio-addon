@@ -13,9 +13,10 @@ class Config:
     FLASK_PORT = os.getenv('FLASK_RUN_PORT', "5000")
     CACHE_TYPE = 'SimpleCache'
     CACHE_DEFAULT_TIMEOUT = 600
-    PROXIFY_STREAMS = os.getenv('PROXIFY_STREAMS', False)  # proxify needed streams
+    PROXIFY_STREAMS = os.getenv('PROXIFY_STREAMS', True)  # proxify needed streams
     STREAM_PROXY_URL = os.getenv('STREAM_PROXY_URL', "")  # MediaFlow Proxy
     STREAM_PROXY_PASSWORD = os.getenv('STREAM_PROXY_PASSWORD', "")  # MediaFlowProxy API_PASSWORD
+    VIP_PATH = os.getenv('VIP_PATH', 'vip')  # Secret path for VIP users with proxy access
     KITSU_STREMIO_API_URL = os.getenv('KITSU_STREMIO_API_URL', "https://anime-kitsu.strem.fun/meta")
 
     DEBUG = os.getenv('FLASK_DEBUG', False)

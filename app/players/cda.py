@@ -71,7 +71,7 @@ async def fetch_video_data(session: aiohttp.ClientSession, url: str, video_id: s
     return player_data
 
 
-async def get_video_from_cda_player(session: aiohttp.ClientSession, url: str) -> tuple:
+async def get_video_from_cda_player(session: aiohttp.ClientSession, url: str, is_vip: bool = False) -> tuple:
     url, video_id = normalize_cda_url(url)
     if not url:
         return None, None, None

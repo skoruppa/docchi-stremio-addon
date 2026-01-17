@@ -35,9 +35,11 @@ async def check_url_status(session, url):
 
 
 @cached(ttl=50, serializer=PickleSerializer())
-async def get_video_from_lycoris_player(session: aiohttp.ClientSession, url: str):
+async def get_video_from_lycoris_player(session: aiohttp.ClientSession, url: str, is_vip: bool = False):
     user_agent = get_random_agent()
     headers = {"User-Agent": user_agent}
+    rumble_url = None
+    
     try:
         async with session.get(url, headers=headers, ssl=False) as response:
             response.raise_for_status()
@@ -131,6 +133,12 @@ async def get_video_from_lycoris_player(session: aiohttp.ClientSession, url: str
 
     except Exception as e:
         logging.error(f"Lycoris Player Error: An unexpected error occurred: {e}")
+        # Try Rumble fallback if available
+        if rumble_url:
+            try:
+                return await get_video_from_rumble_player(session, rumble_url)
+            except Exception:
+                pass
         return None, None, None
 
 

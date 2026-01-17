@@ -8,7 +8,7 @@ from app.utils.common_utils import unpack_js, fetch_resolution_from_m3u8
 DOMAINS = ['earnvid.com']
 
 
-async def get_video_from_earnvid_player(session: aiohttp.ClientSession, player_url: str):
+async def get_video_from_earnvid_player(session: aiohttp.ClientSession, player_url: str, is_vip: bool = False):
     try:
         headers = {
             "User-Agent": get_random_agent(),

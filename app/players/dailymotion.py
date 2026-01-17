@@ -9,7 +9,7 @@ DOMAINS = ['dailymotion.com', 'dai.ly']
 DAILYMOTION_URL = "https://www.dailymotion.com"
 
 
-async def get_video_from_dailymotion_player(session: aiohttp.ClientSession, url: str) -> tuple:
+async def get_video_from_dailymotion_player(session: aiohttp.ClientSession, url: str, is_vip: bool = False) -> tuple:
     if '/embed/' not in url:
         url = url.replace('/video/', '/embed/video/')
     

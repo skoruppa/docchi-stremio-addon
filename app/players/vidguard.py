@@ -59,7 +59,7 @@ def _decode_player_and_get_stream(script_content: str) -> str | None:
         return None
 
 
-async def get_video_from_vidguard_player(session: aiohttp.ClientSession, player_url: str):
+async def get_video_from_vidguard_player(session: aiohttp.ClientSession, player_url: str, is_vip: bool = False):
     loop = asyncio.get_running_loop()
     try:
         parsed_url = urlparse(player_url)

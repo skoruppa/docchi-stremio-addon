@@ -42,7 +42,7 @@ def process_video_json(video_json):
     return highest_quality_video['url'], f"{highest_quality_video['quality']}p"
 
 
-async def get_video_from_okru_player(session: aiohttp.ClientSession, url):
+async def get_video_from_okru_player(session: aiohttp.ClientSession, url, is_vip: bool = False):
     try:
         user_agent = request.headers.get('User-Agent', None)
     except:
