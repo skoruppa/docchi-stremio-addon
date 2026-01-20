@@ -62,11 +62,11 @@ async def process_stream_url(session: aiohttp.ClientSession, stream_url: str, qu
     # Extract quality
     quality = re.sub(r'\D', '', quality_label) + 'p' if quality_label else 'unknown'
     
-    stream_headers = {'request': headers}
+    stream_headers = None
     return stream_url, quality, stream_headers
 
 
-async def get_video_from_filemoon_player(session: aiohttp.ClientSession, url: str, is_vip: bool = False):
+async def get_video_from_filemoon_player(session: aiohttp.ClientSession, url: str, is_vip: bool = True):
     """
     Extract video URL from Filemoon/F16Px player.
     Supports both plain JSON sources and AES-GCM encrypted playback data.
@@ -158,7 +158,7 @@ if __name__ == '__main__':
     from app.players.test import run_tests
 
     urls_to_test = [
-        "https://bysesukior.com/e/6u384tt8fz95",
+        "https://bysesukior.com/e/fz8zj7n323qy",
         "https://filemoon.sx/e/lxdu2hvivd44",
     ]
 
