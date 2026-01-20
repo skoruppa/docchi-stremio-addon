@@ -115,7 +115,7 @@ async def process_players(players, content_id=None, content_type='series', is_vi
                     is_ai = translator.lower() == 'ai'
                     
                     # Build filename
-                    translator_norm = translator.replace(' ', '_')
+                    translator_norm = translator.replace(' ', '_').replace('.','_')
                     filename = build_filename(anime_name, episode_num, content_id, quality, translator_norm)
                     
                     # Build description
