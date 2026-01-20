@@ -83,7 +83,7 @@ async def get_video_from_dood_player(session, player_url, is_vip: bool = False):
                 request_headers={'Referer': 'http://dood.to'}
             )
         
-        stream_headers = {'request': {'Referer': 'http://dood.to'}}
+        stream_headers = None
         return final_url, 'unknown', stream_headers
     
     except Exception:

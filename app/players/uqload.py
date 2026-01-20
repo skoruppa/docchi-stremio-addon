@@ -8,12 +8,19 @@ from config import Config
 # Domains handled by this player
 DOMAINS = ['uqload.com', 'uqload.co', 'uqload.to']
 
+# NOTE: Enabled only for VIP, as whole stream needs to go through proxy
+ENABLED = True
+
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 STREAM_PROXY_URL = Config.STREAM_PROXY_URL
 STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 
 
 async def get_video_from_uqload_player(session: aiohttp.ClientSession, url: str, is_vip: bool = False):
+    """Extract video URL from Uqload player. VIP only (or local selfhost without proxy)."""
+    # Uqload requires VIP
+    if not is_vip:
+        return None, None, None
     if "embed-" in url:
         url = url.replace("embed-", "")
     parsed_url = urlparse(url)
