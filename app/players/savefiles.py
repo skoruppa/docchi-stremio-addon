@@ -83,7 +83,6 @@ if __name__ == '__main__':
     from app.players.test import run_tests
 
     urls_to_test = [
-        "https://savefiles.com/e/ko901kakbuho",
         "https://bigwarp.io/e/q8554e8tzewc.html"
     ]
 

@@ -1,5 +1,5 @@
 # Docchi Stremio Addon
-![Version](https://img.shields.io/badge/version-0.0.5-blue.svg)
+![Version](https://img.shields.io/badge/version-0.0.6-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Status](https://img.shields.io/badge/status-Active-brightgreen.svg)
 
@@ -10,8 +10,9 @@
 This Stremio addon allows users to access anime streams with polish subtitles available on the [Docchi.pl](http://docchi.pl/) site. 
 
 ## Supported Players
-As the stream data needs to be extracted from web players, not all available players at dochi.pl are supported
-- **Uqload**: on remote environments through the [MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy/issues). Locally deployed does need a proxy
+
+The addon supports the following video players:
+
 - **CDA**
 - **OK.ru**
 - **VK.com**
@@ -20,16 +21,21 @@ As the stream data needs to be extracted from web players, not all available pla
 - **Dailymotion**
 - **Google Drive**
 - **Rumble.com**
-- **Bigwarp.io**
 - **Lulustream**
-- **Streamhls.to**
-- **Streamtape.com**
 - **Vidtube.one**
-- **RPMHub**
 - **UPNS**
 - **MP4Upload**
 - **EarnVid**
 - **StreamUP**
+- **Vidguard**
+- **Vidnest**
+- **Pixeldrain**
+- **Savefiles**
+- **Uqload*** 
+- **Filemoon***
+- **Streamtape***
+
+**\* These players require full stream proxying through [MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy)** or local deployment 
 
 ## Usage 🧑‍💻
 

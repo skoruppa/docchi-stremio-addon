@@ -14,8 +14,8 @@ DOMAINS = [
     'd-s.io', 'dsvplay.com', 'myvidplay.com'
 ]
 
-ENABLED = True
-
+ENABLED = False
+# cloudflare blocks requests from vercel. Works locally even without cloudscraper
 
 async def get_video_from_dood_player(session, player_url, is_vip: bool = False):
     """Extract video URL from DoodStream player"""
