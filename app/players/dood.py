@@ -2,12 +2,8 @@ import re
 import time
 import string
 import random
-import aiohttp
 import cloudscraper
 from urllib.parse import urlparse
-from app.utils.common_utils import get_random_agent
-from app.utils.proxy_utils import generate_proxy_url
-from config import Config
 
 DOMAINS = [
     'dood.watch', 'doodstream.com', 'dood.to', 'dood.so', 'dood.cx', 'dood.la', 'dood.ws',
@@ -32,7 +28,22 @@ async def get_video_from_dood_player(session, player_url, is_vip: bool = False):
     
     try:
         # Use cloudscraper to bypass Cloudflare
-        scraper = cloudscraper.create_scraper()
+        scraper = cloudscraper.create_scraper(
+            enable_stealth=True,
+            stealth_options={
+                'min_delay': 2.0,
+                'max_delay': 3.0,
+                'human_like_delays': True,
+                'randomize_headers': True,
+                'browser_quirks': True
+            },
+
+            # Browser emulation
+            browser='chrome',
+
+            # Debug mode
+            debug=False
+        )
         html = scraper.get(url).text
         
         if 'Video not found' in html:
@@ -60,7 +71,7 @@ async def get_video_from_dood_player(session, player_url, is_vip: bool = False):
         stream_headers = {'request': {'Referer': 'http://dood.to'}}
         return final_url, 'unknown', stream_headers
     
-    except Exception:
+    except Exception as e:
         return None, None, None
 
 

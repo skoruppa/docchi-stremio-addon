@@ -11,4 +11,4 @@ Flask-Compress~=1.17
 python-dotenv~=1.0.1
 pycryptodome~=3.23.0
 jikanpy-v4~=1.0.2
-cloudscraper~=1.2.71
+cloudscraper-enhanced~=3.0.0
