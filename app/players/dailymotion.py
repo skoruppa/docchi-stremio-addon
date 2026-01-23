@@ -1,7 +1,7 @@
 import re
 import aiohttp
 from urllib.parse import urlparse, quote
-from app.utils.common_utils import get_random_agent, fetch_resolution_from_m3u8
+from app.utils.common_utils import get_random_agent
 
 # Domains handled by this player
 DOMAINS = ['dailymotion.com', 'dai.ly']
@@ -47,18 +47,27 @@ async def get_video_from_dailymotion_player(session: aiohttp.ClientSession, url:
         if not master_url:
             return None, None, None
         
-        # Normalize master URL - encode only path, preserve query string
-        parsed = urlparse(master_url)
+        # Fetch master playlist
+        async with session.get(master_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            response.raise_for_status()
+            m3u8_content = await response.text()
+        
+        # Parse m3u8 for best quality
+        sources = re.findall(r'NAME="(?P<label>[^"]+)".*(?:,PROGRESSIVE-URI="|\n)(?P<url>[^#]+)', m3u8_content)
+        if not sources:
+            return None, None, None
+        
+        # Sort by quality and pick highest
+        sources_sorted = sorted(sources, key=lambda x: int(re.sub(r'\D', '', x[0]) or '0'), reverse=True)
+        best_quality, stream_url = sources_sorted[0]
+        
+        # Normalize URL - encode special characters for Stremio compatibility
+        parsed = urlparse(stream_url)
         encoded_path = quote(parsed.path, safe='/.')
         stream_url = f"{parsed.scheme}://{parsed.netloc}{encoded_path}"
-        if parsed.query:
-            stream_url += f"?{parsed.query}"
         
-        # Fetch quality from master m3u8
-        try:
-            quality = await fetch_resolution_from_m3u8(session, stream_url, headers) or "unknown"
-        except Exception:
-            quality = "unknown"
+        # Format quality (add 'p' if not present)
+        quality = best_quality if 'p' in best_quality.lower() else f'{best_quality}p'
         
         stream_headers = {'request': headers}
         return stream_url, quality, stream_headers

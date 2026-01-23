@@ -3,7 +3,7 @@ import requests
 from urllib.parse import urlencode, quote
 from requests import HTTPError
 
-BASE_URL = "https://kitsu.io/api/edge"
+BASE_URL = "https://kitsu.app/api/edge"
 TIMEOUT = 30
 
 
