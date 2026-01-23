@@ -1,7 +1,7 @@
 import re
 import aiohttp
-from urllib.parse import urlparse
-from app.utils.common_utils import get_random_agent
+from urllib.parse import urlparse, quote
+from app.utils.common_utils import get_random_agent, fetch_resolution_from_m3u8
 
 # Domains handled by this player
 DOMAINS = ['dailymotion.com', 'dai.ly']
@@ -47,23 +47,31 @@ async def get_video_from_dailymotion_player(session: aiohttp.ClientSession, url:
         if not master_url:
             return None, None, None
         
-        # Fetch master playlist
-        async with session.get(master_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
-            response.raise_for_status()
-            m3u8_content = await response.text()
+        # Normalize master URL - encode only path, preserve query string
+        parsed = urlparse(master_url)
+        encoded_path = quote(parsed.path, safe='/.')
+        stream_url = f"{parsed.scheme}://{parsed.netloc}{encoded_path}"
+        if parsed.query:
+            stream_url += f"?{parsed.query}"
         
-        # Parse m3u8 for best quality
-        sources = re.findall(r'NAME="(?P<label>[^"]+)".*(?:,PROGRESSIVE-URI="|\n)(?P<url>[^#]+)', m3u8_content)
-        if not sources:
-            return None, None, None
-        
-        # Sort by quality and pick highest
-        sources_sorted = sorted(sources, key=lambda x: int(re.sub(r'\D', '', x[0]) or '0'), reverse=True)
-        best_quality, stream_url = sources_sorted[0]
+        # Fetch quality from master m3u8
+        try:
+            quality = await fetch_resolution_from_m3u8(session, stream_url, headers) or "unknown"
+        except Exception:
+            quality = "unknown"
         
         stream_headers = {'request': headers}
-        return stream_url, best_quality, stream_headers
+        return stream_url, quality, stream_headers
     
     except Exception as e:
         print(f"Dailymotion Player Error: {e}")
         return None, None, None
+
+if __name__ == '__main__':
+    from app.players.test import run_tests
+
+    urls_to_test = [
+        "https://www.dailymotion.com/embed/video/x9ybkyu"
+    ]
+
+    run_tests(get_video_from_dailymotion_player, urls_to_test)
