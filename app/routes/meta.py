@@ -1,10 +1,9 @@
 from functools import lru_cache
 from urllib.parse import unquote
 import requests
-import time
 from flask import Blueprint, abort
-from jikanpy import Jikan
-from jikanpy.exceptions import APIException
+from pyMALv2.auth import Authorization
+from pyMALv2.services.anime_service.anime_service import AnimeService
 
 from . import MAL_ID_PREFIX, kitsu_client
 from config import Config
@@ -20,29 +19,11 @@ HEADERS = {
     'Accept': 'application/json',
 }
 
-jikan_client = Jikan()
-
-# Rate limiting for Jikan (3 req/sec, 60 req/min)
-_jikan_last_request = 0
-_jikan_request_interval = 0.35  # 350ms between requests (slightly under 3/sec)
-
-
-@lru_cache(maxsize=100)
-def _cached_jikan_anime(mal_id: int, extension: str = None):
-    """Cached wrapper for Jikan API calls with rate limiting."""
-    global _jikan_last_request
-    
-    # Rate limiting
-    now = time.time()
-    time_since_last = now - _jikan_last_request
-    if time_since_last < _jikan_request_interval:
-        time.sleep(_jikan_request_interval - time_since_last)
-    
-    _jikan_last_request = time.time()
-    
-    if extension:
-        return jikan_client.anime(mal_id, extension=extension)
-    return jikan_client.anime(mal_id)
+# Initialize pyMALv2
+MAL_CLIENT_ID = Config.MAL_CLIENT_ID
+auth = Authorization()
+auth.client_id = MAL_CLIENT_ID
+anime_service = AnimeService(auth)
 
 
 @meta_bp.route('/meta/<meta_type>/<meta_id>.json')
@@ -83,22 +64,24 @@ def addon_meta(meta_type: str, meta_id: str):
         resp.raise_for_status()
         meta = kitsu_to_meta(resp.json(), meta_id)
 
-    except requests.HTTPError as e:
-        log_error(f"Kitsu error: {e}. Falling back to Jikan.")
+    except (requests.HTTPError, requests.ConnectionError, requests.RequestException) as e:
+        log_error(f"Kitsu error: {e}. Falling back to MAL API.")
         if mal_id:
             try:
-                jikan_main_resp = _cached_jikan_anime(int(mal_id))
-                jikan_episodes_resp = _cached_jikan_anime(int(mal_id), extension='episodes')
-
-                meta = jikan_to_meta(jikan_main_resp, jikan_episodes_resp, meta_id, mal_id)
-            except APIException as jikan_e:
-                log_error(f"Jikan error: {jikan_e}")
-                return respond_with({'meta': {}, 'message': str(jikan_e)}), getattr(jikan_e, 'status_code', 500)
-            except Exception as general_e:
-                log_error(f"Unexpected Jikan error: {general_e}")
+                mal_anime = anime_service.get(
+                    int(mal_id),
+                    fields='id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,num_episodes,start_season,genres,media_type,studios,pictures,background,average_episode_duration'
+                )
+                
+                if not mal_anime:
+                    return respond_with({'meta': {}, 'message': 'Anime not found on MAL'}), 404
+                
+                meta = mal_to_meta(mal_anime, meta_id, mal_id)
+            except Exception as mal_e:
+                log_error(f"MAL API error: {mal_e}")
                 return respond_with({'meta': {}, 'message': 'An unexpected error occurred.'}), 500
         else:
-            return respond_with({'meta': {}, 'message': str(e)}), e.response.status_code
+            return respond_with({'meta': {}, 'message': str(e)}), 500
 
     meta['type'] = meta_type
 
@@ -111,60 +94,96 @@ def addon_meta(meta_type: str, meta_id: str):
     return respond_with({'meta': meta}, 86400, 86400)
 
 
-def jikan_to_meta(jikan_main_data: dict, jikan_episodes_data: dict, meta_id: str, mal_id: str) -> dict:
+def mal_to_meta(mal_anime, meta_id: str, mal_id: str) -> dict:
     """
-    Converts Jikan API responses into a Stremio meta object format, including episodes.
-    :param jikan_main_data: The main anime data from the Jikan API.
-    :param jikan_episodes_data: The episode data from the Jikan API.
+    Converts MAL API response into a Stremio meta object format.
+    :param mal_anime: The anime data from MAL API.
     :param meta_id: The Stremio meta ID for the item.
     :param mal_id: The MyAnimeList ID for the item.
     :return: A dictionary formatted as a Stremio meta object.
     """
-    data = jikan_main_data.get('data', {})
-
-    name = data.get('title_english') or data.get('title')
-    description = data.get('synopsis')
-    year = data.get('year')
-    imdb_rating = data.get('score')
-
-    images = data.get('images', {}).get('jpg', {})
-    poster = images.get('large_image_url') or images.get('image_url')
-
-    genres = [genre['name'] for genre in data.get('genres', [])]
-
-    release_info = str(year) if year else None
-    runtime = data.get('duration')
-
-    trailers = []
-    if data.get('trailer') and data['trailer'].get('youtube_id'):
-        trailers.append({'source': data['trailer']['youtube_id'], 'type': 'Trailer'})
-
+    # Prefer English title
+    name = mal_anime.title
+    if mal_anime.alternative_titles and mal_anime.alternative_titles.en:
+        name = mal_anime.alternative_titles.en
+    
+    description = mal_anime.synopsis if mal_anime.synopsis else None
+    
+    # Poster and background
+    poster = None
+    background = None
+    if mal_anime.main_picture:
+        poster = mal_anime.main_picture.large or mal_anime.main_picture.medium
+    if mal_anime.background:
+        background = mal_anime.background
+    elif poster:
+        background = poster
+    
+    # Year
+    year = None
+    if mal_anime.start_date:
+        try:
+            year = mal_anime.start_date.year
+        except (ValueError, AttributeError):
+            pass
+    
+    # Genres
+    genres = []
+    if mal_anime.genres:
+        genres = [genre.name for genre in mal_anime.genres]
+    
+    # Rating
+    imdb_rating = mal_anime.mean if mal_anime.mean else None
+    
+    # Runtime (convert from seconds to minutes)
+    runtime = None
+    if mal_anime.average_episode_duration:
+        runtime = f"{mal_anime.average_episode_duration // 60} min"
+    
+    # Episodes
     videos = []
-    episodes_data = jikan_episodes_data.get('data', [])
-    for episode in episodes_data:
-        episode_number = episode.get('mal_id')
-        videos.append({
-            "id": f"mal:{mal_id}:{episode_number}",
-            "title": episode.get('title'),
-            "episode": episode_number,
-            "season": 1,
-            "released": episode.get('aired'),
-            "overview": None,
-            "thumbnail": None,
-        })
-
+    if mal_anime.num_episodes:
+        # Get first episode date from start_date
+        first_episode_date = None
+        if mal_anime.start_date:
+            try:
+                first_episode_date = mal_anime.start_date.strftime('%Y-%m-%d')
+            except (ValueError, AttributeError):
+                pass
+        
+        for ep_num in range(1, mal_anime.num_episodes + 1):
+            # Extrapolate release date: first episode + 7 days per episode
+            episode_date = None
+            if first_episode_date and mal_anime.start_date:
+                try:
+                    from datetime import timedelta
+                    episode_datetime = mal_anime.start_date + timedelta(days=(ep_num - 1) * 7)
+                    episode_date = episode_datetime.strftime('%Y-%m-%d')
+                except Exception:
+                    pass
+            
+            videos.append({
+                "id": f"mal:{mal_id}:{ep_num}",
+                "title": f"Episode {ep_num}",
+                "episode": ep_num,
+                "season": 1,
+                "released": episode_date,
+                "overview": None,
+                "thumbnail": None,
+            })
+    
     return {
         'id': meta_id,
         'name': name,
         'description': description,
         'poster': poster,
-        'background': poster,
+        'background': background,
         'genres': genres,
-        'releaseInfo': release_info,
+        'releaseInfo': str(year) if year else None,
         'year': year,
         'imdbRating': imdb_rating,
         'runtime': runtime,
-        'trailers': trailers,
+        'trailers': [],
         'videos': videos
     }
 

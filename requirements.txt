@@ -10,5 +10,6 @@ aiocache~=0.12.3
 Flask-Compress~=1.17
 python-dotenv~=1.0.1
 pycryptodome~=3.23.0
-jikanpy-v4~=1.0.2
-cloudscraper-enhanced~=3.0.0
+pyMALv2==0.0.3
+cloudscraper~=1.2.71
+python-dateutil~=2.8.2
