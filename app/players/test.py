@@ -3,7 +3,7 @@ import aiohttp
 from typing import Callable, Coroutine, List, Any
 
 
-async def run_player_test(player_function: Callable, test_urls: List[str]):
+async def run_player_test(player_function: Callable, test_urls: List[str], is_vip):
     timeout = aiohttp.ClientTimeout(total=30, connect=10)
     connector = aiohttp.TCPConnector(limit=10, verify_ssl=False)
     
@@ -14,7 +14,7 @@ async def run_player_test(player_function: Callable, test_urls: List[str]):
             print(f"Testing URL: {test_url}")
 
             try:
-                video_link, video_quality, video_headers = await player_function(session, test_url)
+                video_link, video_quality, video_headers = await player_function(session, test_url, is_vip)
 
                 if video_link:
                     print("\n--- SUCCESS ---")
@@ -32,5 +32,5 @@ async def run_player_test(player_function: Callable, test_urls: List[str]):
             print()
 
 
-def run_tests(player_function: Callable, test_urls: List[str]):
-    asyncio.run(run_player_test(player_function, test_urls))
+def run_tests(player_function: Callable, test_urls: List[str], is_vip = False):
+    asyncio.run(run_player_test(player_function, test_urls, is_vip))

@@ -68,11 +68,30 @@ def unpack_js(encoded_js):
     return decoded.replace('\\\\', '')
 
 
-async def fetch_resolution_from_m3u8(session: aiohttp.ClientSession, m3u8_url: str, headers: dict) -> str | None:
-    """Extract maximum resolution from m3u8 playlist."""
-    async with session.get(m3u8_url, headers=headers, timeout=10) as response:
-        response.raise_for_status()
-        m3u8_content = await response.text()
+async def fetch_resolution_from_m3u8(session: aiohttp.ClientSession, m3u8_url: str, headers: dict, use_proxy: bool = False) -> str | None:
+    """Extract maximum resolution from m3u8 playlist.
+    
+    Args:
+        session: aiohttp ClientSession
+        m3u8_url: URL to m3u8 playlist
+        headers: Request headers
+        use_proxy: If True, use MediaFlow proxy to fetch m3u8
+    
+    Returns:
+        Resolution string (e.g. '1080p') or None
+    """
+    if use_proxy:
+        from config import Config
+        user_agent = headers.get('User-Agent', get_random_agent())
+        proxied_url = f'{Config.STREAM_PROXY_URL}/proxy/stream?d={m3u8_url}&api_password={Config.STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
+        async with session.get(proxied_url, timeout=10) as response:
+            response.raise_for_status()
+            m3u8_content = await response.text()
+    else:
+        async with session.get(m3u8_url, headers=headers, timeout=10) as response:
+            response.raise_for_status()
+            m3u8_content = await response.text()
+    
     resolutions = re.findall(r'RESOLUTION=\s*(\d+)x(\d+)', m3u8_content)
     if resolutions:
         max_resolution = max(int(height) for width, height in resolutions)

@@ -4,7 +4,7 @@ import base64
 import aiohttp
 from urllib.parse import urljoin, urlparse, quote
 from Crypto.Cipher import AES
-from app.utils.common_utils import get_random_agent
+from app.utils.common_utils import get_random_agent, fetch_resolution_from_m3u8
 from app.utils.proxy_utils import generate_proxy_url
 from config import Config
 
@@ -44,14 +44,14 @@ def xn(e: list) -> bytes:
 
 
 
-async def process_stream_url(session: aiohttp.ClientSession, stream_url: str, quality_label: str, headers: dict, url: str, is_vip: bool = False) -> tuple:
+async def process_stream_url(session: aiohttp.ClientSession, stream_url: str, headers: dict, url: str) -> tuple:
     """Process stream URL and return final URL, quality, and headers."""
     # Handle relative URLs
     if stream_url.startswith('/'):
         stream_url = urljoin(url, stream_url)
     
     # Proxify m3u8 if VIP stream proxy is enabled
-    if is_vip and PROXIFY_STREAMS:
+    if PROXIFY_STREAMS:
         stream_url = await generate_proxy_url(
             session, 
             stream_url, 
@@ -59,14 +59,17 @@ async def process_stream_url(session: aiohttp.ClientSession, stream_url: str, qu
             request_headers=headers
         )
     
-    # Extract quality
-    quality = re.sub(r'\D', '', quality_label) + 'p' if quality_label else 'unknown'
+    # Fetch quality from m3u8
+    try:
+        quality = await fetch_resolution_from_m3u8(session, stream_url, headers, use_proxy=PROXIFY_STREAMS) or "unknown"
+    except Exception:
+        quality = "unknown"
     
-    stream_headers = None
+    stream_headers = {'request': headers}
     return stream_url, quality, stream_headers
 
 
-async def get_video_from_filemoon_player(session: aiohttp.ClientSession, url: str, is_vip: bool = True):
+async def get_video_from_filemoon_player(session: aiohttp.ClientSession, url: str, is_vip: bool = False):
     """
     Extract video URL from Filemoon/F16Px player.
     Supports both plain JSON sources and AES-GCM encrypted playback data.
@@ -110,18 +113,15 @@ async def get_video_from_filemoon_player(session: aiohttp.ClientSession, url: st
                 response.raise_for_status()
                 data = await response.json()
         
+        sources = None
+        
         # Try plain sources first
-        sources = data.get('sources')
-        if sources:
-            sources_list = [(x.get('label', '0'), x.get('url')) for x in sources if x.get('url')]
-            if sources_list:
-                sources_list.sort(key=lambda x: int(re.sub(r'\D', '', x[0]) or '0'), reverse=True)
-                quality_label, stream_url = sources_list[0]
-                return await process_stream_url(session, stream_url, quality_label, headers, url, is_vip)
+        if data.get('sources'):
+            sources = data.get('sources')
         
         # Try encrypted playback data
-        pd = data.get('playback')
-        if pd:
+        if not sources and data.get('playback'):
+            pd = data.get('playback')
             try:
                 iv = ft(pd.get('iv'))
                 key = xn(pd.get('key_parts'))
@@ -135,16 +135,15 @@ async def get_video_from_filemoon_player(session: aiohttp.ClientSession, url: st
                 cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
                 decrypted = cipher.decrypt_and_verify(ciphertext, tag)
                 ct = json.loads(decrypted.decode('utf-8'))
-                
                 sources = ct.get('sources')
-                if sources:
-                    sources_list = [(x.get('label', '0'), x.get('url')) for x in sources if x.get('url')]
-                    if sources_list:
-                        sources_list.sort(key=lambda x: int(re.sub(r'\D', '', x[0]) or '0'), reverse=True)
-                        quality_label, stream_url = sources_list[0]
-                        return await process_stream_url(session, stream_url, quality_label, headers, url, is_vip)
             except Exception as e:
                 print(f"Filemoon Decryption Error: {e}")
+
+        if sources:
+            sources_list = [x.get('url') for x in sources if x.get('url')]
+            if sources_list:
+                stream_url = sources_list[0]
+                return await process_stream_url(session, stream_url, headers, url)
         
         print("Filemoon Player Error: No video sources found")
         return None, None, None
@@ -158,8 +157,7 @@ if __name__ == '__main__':
     from app.players.test import run_tests
 
     urls_to_test = [
-        "https://bysesukior.com/e/fz8zj7n323qy",
-        "https://filemoon.sx/e/lxdu2hvivd44",
+        "https://bysesukior.com/e/14vq5iiffkuv",
     ]
 
-    run_tests(get_video_from_filemoon_player, urls_to_test)
+    run_tests(get_video_from_filemoon_player, urls_to_test, True)
