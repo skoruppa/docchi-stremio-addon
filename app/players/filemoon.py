@@ -49,7 +49,7 @@ async def process_stream_url(session: aiohttp.ClientSession, stream_url: str, he
     # Handle relative URLs
     if stream_url.startswith('/'):
         stream_url = urljoin(url, stream_url)
-    
+    stream_headers = {'request': headers}
     # Proxify m3u8 if VIP stream proxy is enabled
     if PROXIFY_STREAMS:
         stream_url = await generate_proxy_url(
@@ -58,14 +58,15 @@ async def process_stream_url(session: aiohttp.ClientSession, stream_url: str, he
             '/proxy/hls/manifest.m3u8',
             request_headers=headers
         )
-    
+        stream_headers = None
+
     # Fetch quality from m3u8
     try:
         quality = await fetch_resolution_from_m3u8(session, stream_url, headers, use_proxy=PROXIFY_STREAMS) or "unknown"
     except Exception:
         quality = "unknown"
-    
-    stream_headers = {'request': headers}
+
+
     return stream_url, quality, stream_headers
 
 
