@@ -151,9 +151,7 @@ def mal_to_meta(mal_anime, meta_id: str, mal_id: str) -> dict:
             slug = DocchiAPI.get_slug_from_mal_id(mal_id)
             if slug:
                 episode_data = DocchiAPI.get_available_episodes(slug)
-                num_episodes = episode_data.get('count', 0)
-                if num_episodes:
-                    log_error(f"Got {num_episodes} episodes from Docchi for MAL ID {mal_id}")
+                num_episodes = len(episode_data) if isinstance(episode_data, list) else 0
         except Exception as e:
             log_error(f"Failed to get episodes from Docchi: {e}")
     
