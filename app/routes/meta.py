@@ -142,7 +142,22 @@ def mal_to_meta(mal_anime, meta_id: str, mal_id: str) -> dict:
     
     # Episodes
     videos = []
-    if mal_anime.num_episodes:
+    num_episodes = mal_anime.num_episodes
+    
+    # If no episodes from MAL, try Docchi API
+    if not num_episodes:
+        try:
+            from app.api.docchi import DocchiAPI
+            slug = DocchiAPI.get_slug_from_mal_id(mal_id)
+            if slug:
+                episode_data = DocchiAPI.get_available_episodes(slug)
+                num_episodes = episode_data.get('count', 0)
+                if num_episodes:
+                    log_error(f"Got {num_episodes} episodes from Docchi for MAL ID {mal_id}")
+        except Exception as e:
+            log_error(f"Failed to get episodes from Docchi: {e}")
+    
+    if num_episodes:
         # Get first episode date from start_date
         first_episode_date = None
         if mal_anime.start_date:
@@ -151,7 +166,7 @@ def mal_to_meta(mal_anime, meta_id: str, mal_id: str) -> dict:
             except (ValueError, AttributeError):
                 pass
         
-        for ep_num in range(1, mal_anime.num_episodes + 1):
+        for ep_num in range(1, num_episodes + 1):
             # Extrapolate release date: first episode + 7 days per episode
             episode_date = None
             if first_episode_date and mal_anime.start_date:
