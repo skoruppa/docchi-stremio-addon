@@ -50,8 +50,10 @@ async def get_video_from_dood_player(session, player_url, is_vip: bool = False):
         print(f"Dood Player: Fetching page: {url}")
         response = scraper.get(url)
         print(f"Dood Player: Response status: {response.status_code}")
+        print(f"Dood Player: Response headers: {dict(response.headers)}")
         html = response.text
         print(f"Dood Player: HTML length: {len(html)}")
+        print(f"Dood Player: HTML content: {html}")
         
         if 'Video not found' in html:
             print("Dood Player Error: Video not found")
@@ -71,6 +73,7 @@ async def get_video_from_dood_player(session, player_url, is_vip: bool = False):
         # Get base URL using cloudscraper
         pass_response = scraper.get(pass_md5_url, headers={'Referer': url})
         print(f"Dood Player: pass_md5 response status: {pass_response.status_code}")
+        print(f"Dood Player: pass_md5 response headers: {dict(pass_response.headers)}")
         base_url = pass_response.text.strip()
         print(f"Dood Player: Base URL: {base_url}")
         
