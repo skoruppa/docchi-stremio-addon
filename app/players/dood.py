@@ -14,7 +14,7 @@ DOMAINS = [
     'd-s.io', 'dsvplay.com', 'myvidplay.com'
 ]
 
-ENABLED = False
+ENABLED = True
 # cloudflare blocks requests from vercel. Works locally even without cloudscraper
 
 async def get_video_from_dood_player(session, player_url, is_vip: bool = False):
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     from app.players.test import run_tests
 
     urls_to_test = [
-        "https://myvidplay.com/e/l1ebnruggzly"
+        "https://dood.yt/e/aorzlvboafi6"
     ]
 
     run_tests(get_video_from_dood_player, urls_to_test)
