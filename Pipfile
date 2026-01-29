@@ -19,6 +19,7 @@ pycryptodome = "~=3.23.0"
 pymalv2 = "==0.0.3"
 cloudscraper-enhanced = "~=3.0.0"
 python-dateutil = "~=2.8.2"
+stealth-requests = "*"
 
 [requires]
 python_version = "3.12"
