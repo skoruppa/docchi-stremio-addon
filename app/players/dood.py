@@ -3,7 +3,7 @@ import time
 import string
 import random
 from urllib.parse import urlparse
-from stealth_requests import StealthSession
+from curl_cffi import requests
 
 DOMAINS = [
     'dood.watch', 'doodstream.com', 'dood.to', 'dood.so', 'dood.cx', 'dood.la', 'dood.ws',
@@ -28,52 +28,52 @@ async def get_video_from_dood_player(session, player_url, is_vip: bool = False):
     print(f"Dood Player: Processing URL: {url}")
     
     try:
-        # Use stealth-requests to bypass Cloudflare
-        print("Dood Player: Creating stealth session...")
-        with StealthSession() as stealth:
-            print(f"Dood Player: Fetching page: {url}")
-            response = stealth.get(url)
-            print(f"Dood Player: Response status: {response.status_code}")
-            print(f"Dood Player: Response headers: {dict(response.headers)}")
-            html = response.text
-            print(f"Dood Player: HTML length: {len(html)}")
-            print(f"Dood Player: HTML content: {html}")
-            
-            if 'Video not found' in html:
-                print("Dood Player Error: Video not found")
-                return None, None, None
-            
-            # Extract pass_md5 path and token
-            pass_md5_match = re.search(r'/pass_md5/[\w-]+/([\w-]+)', html)
-            if not pass_md5_match:
-                print("Dood Player Error: No pass_md5 match found")
-                return None, None, None
-            
-            token = pass_md5_match.group(1)
-            pass_md5_url = f"http://dood.to{pass_md5_match.group(0)}"
-            print(f"Dood Player: Token: {token}")
-            print(f"Dood Player: Fetching pass_md5: {pass_md5_url}")
-            
-            # Get base URL using stealth session
-            pass_response = stealth.get(pass_md5_url, headers={'Referer': url})
-            print(f"Dood Player: pass_md5 response status: {pass_response.status_code}")
-            print(f"Dood Player: pass_md5 response headers: {dict(pass_response.headers)}")
-            base_url = pass_response.text.strip()
-            print(f"Dood Player: Base URL: {base_url}")
-            
-            # Build final URL
-            if 'cloudflarestorage' in base_url:
-                final_url = base_url
-                print("Dood Player: Using cloudflare storage URL")
-            else:
-                random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
-                expiry = int(time.time() * 1000)
-                final_url = f"{base_url}{random_str}?token={token}&expiry={expiry}"
-                print(f"Dood Player: Built final URL with random string")
-            
-            print(f"Dood Player: Success - Final URL: {final_url[:100]}...")
-            stream_headers = {'request': {'Referer': 'http://dood.to'}}
-            return final_url, 'unknown', stream_headers
+        # Use curl-cffi with Chrome impersonation
+        print("Dood Player: Using curl-cffi with Chrome impersonation...")
+        
+        print(f"Dood Player: Fetching page: {url}")
+        response = requests.get(url, impersonate="chrome")
+        print(f"Dood Player: Response status: {response.status_code}")
+        print(f"Dood Player: Response headers: {dict(response.headers)}")
+        html = response.text
+        print(f"Dood Player: HTML length: {len(html)}")
+        print(f"Dood Player: HTML content: {html}")
+        
+        if 'Video not found' in html:
+            print("Dood Player Error: Video not found")
+            return None, None, None
+        
+        # Extract pass_md5 path and token
+        pass_md5_match = re.search(r'/pass_md5/[\w-]+/([\w-]+)', html)
+        if not pass_md5_match:
+            print("Dood Player Error: No pass_md5 match found")
+            return None, None, None
+        
+        token = pass_md5_match.group(1)
+        pass_md5_url = f"http://dood.to{pass_md5_match.group(0)}"
+        print(f"Dood Player: Token: {token}")
+        print(f"Dood Player: Fetching pass_md5: {pass_md5_url}")
+        
+        # Get base URL with curl-cffi
+        pass_response = requests.get(pass_md5_url, headers={'Referer': url}, impersonate="chrome")
+        print(f"Dood Player: pass_md5 response status: {pass_response.status_code}")
+        print(f"Dood Player: pass_md5 response headers: {dict(pass_response.headers)}")
+        base_url = pass_response.text.strip()
+        print(f"Dood Player: Base URL: {base_url}")
+        
+        # Build final URL
+        if 'cloudflarestorage' in base_url:
+            final_url = base_url
+            print("Dood Player: Using cloudflare storage URL")
+        else:
+            random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+            expiry = int(time.time() * 1000)
+            final_url = f"{base_url}{random_str}?token={token}&expiry={expiry}"
+            print(f"Dood Player: Built final URL with random string")
+        
+        print(f"Dood Player: Success - Final URL: {final_url[:100]}...")
+        stream_headers = {'request': {'Referer': 'http://dood.to'}}
+        return final_url, 'unknown', stream_headers
     
     except Exception as e:
         print(f"Dood Player Error: Unexpected Error: {e}")
