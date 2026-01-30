@@ -34,6 +34,7 @@ footer {
     bottom: 0;
     z-index: 10;
     border-top: 1px solid var(--docchi-bg2);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.5);
 }
 
 .logo {
@@ -168,7 +169,6 @@ a:hover {
 .anime-card {
     flex: 0 0 208px;
     pointer-events: auto;
-    cursor: pointer;
 }
 
 .anime-cover {
