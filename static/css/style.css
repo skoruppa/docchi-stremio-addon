@@ -29,12 +29,12 @@ body {
 
 footer {
     margin-top: auto;
-    background-color: #252525 !important;
+    background-color: #141414 !important;
     position: sticky;
     bottom: 0;
     z-index: 10;
     border-top: 1px solid var(--docchi-bg2);
-    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .logo {
