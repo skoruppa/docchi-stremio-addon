@@ -100,10 +100,14 @@
         function startAutoScroll() {
             autoScrollInterval = setInterval(() => {
                 const carousel = document.getElementById('trending-carousel');
-                const containerWidth = window.innerWidth;
-                const cardWidth = 208 + 60;
-                const maxScroll = (animeCount * cardWidth) - containerWidth;
-                const nextOffset = (currentIndex + 1) * cardWidth;
+                const containerWidth = carousel.parentElement.offsetWidth;
+                const isMobile = window.innerWidth <= 768;
+                const cardWidth = isMobile ? 150 : 208;
+                const gap = isMobile ? 40 : 60;
+                const totalCardWidth = cardWidth + gap;
+                const totalWidth = animeCount * totalCardWidth;
+                const maxScroll = totalWidth - containerWidth;
+                const nextOffset = (currentIndex + 1) * totalCardWidth;
                 
                 if (nextOffset >= maxScroll) {
                     carousel.style.transition = 'transform 0.3s ease';
@@ -111,7 +115,7 @@
                     currentIndex = 0;
                 } else {
                     currentIndex++;
-                    const offset = currentIndex * cardWidth;
+                    const offset = currentIndex * totalCardWidth;
                     carousel.style.transition = 'transform 0.5s ease';
                     carousel.style.transform = `translateX(-${offset}px)`;
                 }
