@@ -7,15 +7,26 @@ function copy_to_clipboard() {
 
     /* Copy the text inside the text field */
     try {
-        navigator.clipboard.writeText(copyText.value).then(() => alert("Copied Manifest URL to clipboard"));
+        navigator.clipboard.writeText(copyText.value).then(() => showToast("Skopiowano URL manifestu do schowka"));
     } catch (Exception) {
         try {
             // noinspection JSDeprecatedSymbols
             document.execCommand('copy')
+            showToast("Skopiowano URL manifestu do schowka");
         } catch (Exception) {
-            alert("Failed to copy to clipboard");
+            showToast("Nie udało się skopiować do schowka");
         }
     }
+}
+
+function showToast(message) {
+    const toast = document.getElementById('toast');
+    const toastMessage = document.getElementById('toast-message');
+    toastMessage.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3000);
 }
 
 function toast() {
