@@ -4,34 +4,113 @@
     Docchi.pl Stremio Addon
 {% endblock %}
 
-{% block header %}
-    Docchi.pl Stremio Addon
-{% endblock %}
-
-{% with messages = get_flashed_messages() %}
-    {% if messages %}
-        <div class=flashes>
-            {% for message in messages %}
-                <h2>{{ message }}</h2>
-            {% endfor %}
-        </div>
-    {% endif %}
-{% endwith %}
-
 {% block content %}
-    <div class="card border-0 text-center bg-dark text-white">
-            <label for="manifest_url">
-                <input id="manifest_url" class="bg-dark text-warning form-control" type="text"
-                       value="{{ manifest_url }}" readonly>
-            </label>
-            <div class="d-col pt-3">
-                <button class="btn btn-primary mr-2" onclick="copy_to_clipboard()">
-                    Copy Manifest URL
-                </button>
-
-                <button class="btn btn-primary ml-2" onclick="location.href='{{ manifest_magnet }}'">
-                    Open In Stremio
-                </button>
+    <header class="text-center mb-5">
+        <div class="d-flex align-items-center justify-content-center mb-3">
+            <img src="https://docchi.pl/static/img/logo.svg" alt="Docchi.pl" class="logo-inline me-3">
+            <h1 class="display-5 fw-bold mb-0">
+                <a href="https://docchi.pl" target="_blank" class="text-accent">Docchi.pl</a> Stremio Addon
+            </h1>
+        </div>
+        <p class="text-white-50 mt-3 d-none d-md-block">
+            Nieoficjalny dodatek do Stremio umożliwiający oglądanie anime z polskimi napisami z 
+            <a href="https://docchi.pl" target="_blank" class="text-accent">docchi.pl</a>
+        </p>
+        <p class="text-white-50 small d-none d-md-block">
+            Najlepsza strona z anime z polskimi napisami
+        </p>
+    </header>
+    
+    <main>
+        <div class="row justify-content-center">
+            <div class="col-12 col-md-10 col-lg-8">
+                <div class="card border-0 shadow-lg">
+                    <div class="card-body p-4 p-md-5">
+                        <p class="text-center text-white-50 mb-4">
+                            Oglądaj anime z polskimi napisami bezpośrednio w Stremio
+                        </p>
+                        
+                        <div class="mb-4">
+                            <label for="manifest_url" class="form-label text-white-50 small">URL Manifestu</label>
+                            <div class="input-group">
+                                <input id="manifest_url" class="form-control" type="text" value="{{ manifest_url }}" readonly>
+                                <button class="btn btn-outline-warning" onclick="copy_to_clipboard()" title="Kopiuj">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                            <button class="btn btn-primary btn-lg px-4" onclick="copy_to_clipboard()">
+                                <i class="bi bi-clipboard me-2"></i>Kopiuj URL
+                            </button>
+                            <button class="btn btn-primary btn-lg px-4" onclick="location.href='{{ manifest_magnet }}'">
+                                <i class="bi bi-download me-2"></i>Zainstaluj w Stremio
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4 text-center text-white-50">
+                    <small>
+                        <i class="bi bi-info-circle me-1"></i>
+                        Skopiuj URL i wklej w ustawieniach dodatków Stremio lub kliknij "Zainstaluj w Stremio"
+                    </small>
+                </div>
             </div>
-    </div>
+        </div>
+
+        <div class="carousel-container">
+            <div class="carousel-track" id="trending-carousel"></div>
+        </div>
+    </main>
+
+    <script>
+        let scrollInterval;
+        
+        async function loadTrendingAnime() {
+            try {
+                const response = await fetch('/catalog/series/trending.json');
+                const data = await response.json();
+                const carousel = document.getElementById('trending-carousel');
+                
+                data.metas.forEach((anime, index) => {
+                    const card = document.createElement('div');
+                    card.className = 'anime-card';
+                    card.innerHTML = `
+                        <div class="anime-cover">
+                            <img src="${anime.poster}" alt="${anime.name}">
+                            <div class="anime-overlay">
+                                <h3 class="anime-title">${anime.name}</h3>
+                            </div>
+                        </div>
+                    `;
+                    carousel.appendChild(card);
+                });
+                
+                startAutoScroll();
+            } catch (error) {
+                console.error('Błąd ładowania anime:', error);
+            }
+        }
+        
+        function startAutoScroll() {
+            const carousel = document.getElementById('trending-carousel');
+            scrollInterval = setInterval(() => {
+                carousel.scrollLeft += 1;
+                if (carousel.scrollLeft >= carousel.scrollWidth - carousel.clientWidth) {
+                    carousel.scrollLeft = 0;
+                }
+            }, 30);
+        }
+        
+        function stopAutoScroll() {
+            clearInterval(scrollInterval);
+        }
+        
+        document.getElementById('trending-carousel').addEventListener('mouseenter', stopAutoScroll);
+        document.getElementById('trending-carousel').addEventListener('mouseleave', startAutoScroll);
+        
+        loadTrendingAnime();
+    </script>
 {% endblock %}
