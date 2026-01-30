@@ -66,15 +66,18 @@
     </main>
 
     <script>
-        let scrollInterval;
+        let currentIndex = 0;
+        let autoScrollInterval;
+        let animeCount = 0;
         
         async function loadTrendingAnime() {
             try {
                 const response = await fetch('/catalog/series/trending.json');
                 const data = await response.json();
                 const carousel = document.getElementById('trending-carousel');
+                animeCount = data.metas.length;
                 
-                data.metas.forEach((anime, index) => {
+                data.metas.forEach((anime) => {
                     const card = document.createElement('div');
                     card.className = 'anime-card';
                     card.innerHTML = `
@@ -95,21 +98,29 @@
         }
         
         function startAutoScroll() {
-            const carousel = document.getElementById('trending-carousel');
-            scrollInterval = setInterval(() => {
-                carousel.scrollLeft += 1;
-                if (carousel.scrollLeft >= carousel.scrollWidth - carousel.clientWidth) {
-                    carousel.scrollLeft = 0;
+            autoScrollInterval = setInterval(() => {
+                const carousel = document.getElementById('trending-carousel');
+                const containerWidth = window.innerWidth;
+                const cardWidth = 208 + 60;
+                const maxScroll = (animeCount * cardWidth) - containerWidth;
+                const nextOffset = (currentIndex + 1) * cardWidth;
+                
+                if (nextOffset >= maxScroll) {
+                    carousel.style.transition = 'transform 0.3s ease';
+                    carousel.style.transform = 'translateX(0)';
+                    currentIndex = 0;
+                } else {
+                    currentIndex++;
+                    const offset = currentIndex * cardWidth;
+                    carousel.style.transition = 'transform 0.5s ease';
+                    carousel.style.transform = `translateX(-${offset}px)`;
                 }
-            }, 30);
+            }, 2500);
         }
         
-        function stopAutoScroll() {
-            clearInterval(scrollInterval);
-        }
-        
-        document.getElementById('trending-carousel').addEventListener('mouseenter', stopAutoScroll);
-        document.getElementById('trending-carousel').addEventListener('mouseleave', startAutoScroll);
+        const carousel = document.getElementById('trending-carousel');
+        carousel.addEventListener('mouseenter', () => clearInterval(autoScrollInterval));
+        carousel.addEventListener('mouseleave', startAutoScroll);
         
         loadTrendingAnime();
     </script>

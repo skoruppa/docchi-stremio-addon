@@ -29,7 +29,7 @@ body {
 
 footer {
     margin-top: auto;
-    background-color: var(--docchi-bg) !important;
+    background-color: #252525 !important;
     position: sticky;
     bottom: 0;
     z-index: 10;
@@ -161,8 +161,8 @@ a:hover {
 .carousel-track {
     display: flex;
     gap: 60px;
-    overflow-x: hidden;
     padding: 1rem 0;
+    transition: transform 0.5s ease;
 }
 
 .anime-card {
