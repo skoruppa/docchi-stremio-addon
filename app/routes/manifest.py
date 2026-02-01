@@ -43,18 +43,30 @@ MANIFEST = {
 
     'behaviorHints': {'configurable': False},
     'resources': ['catalog', 'meta', 'stream'],
-    'idPrefixes': ['mal', 'kitsu', 'tt'],
+    'idPrefixes': ['mal', 'kitsu'],
     "stremioAddonsConfig": {
         "issuer": "https://stremio-addons.net",
         "signature": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0.._T2DcWi9u658Np-4PJmH3A.TQRRcCrhHuY4NCyyfK_RhV8htIVzS4mA-NlAply7ix1E81487ORg113u6gpAJa4181kQNIBoem_vyh42ox9CKBaKG1OePGzkKdBtrntEywVtFn3gjKU6FpWyNXs3obuB.YzRd5NZjmqb3FQlAgpSS9g"
       }
 }
 
+MANIFEST_VIP = {
+    **MANIFEST,
+    'id': 'com.skoruppa.docchi-stremio-addon-vip',
+    'name': 'Docchi.pl Addon VIP',
+    'idPrefixes': ['mal', 'kitsu', 'tt']
+}
+
 
 @manifest_blueprint.route('/manifest.json')
 def addon_manifest():
     """
-    Provides the manifest for the addon after the user has authenticated with MyAnimeList
+    Provides the manifest for the addon
     :return: JSON response
     """
-    return respond_with(MANIFEST, 7200)
+    from flask import request
+    from config import Config
+    
+    is_vip = Config.VIP_PATH in request.path
+    manifest = MANIFEST_VIP if is_vip else MANIFEST
+    return respond_with(manifest, 7200)
