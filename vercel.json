@@ -1,14 +1,21 @@
- {
-     "builds": [
-         {
-             "src": "run.py",
-             "use": "@vercel/python"
-         }
-     ],
-     "routes": [
-         {
-             "src": "/(.*)",
-             "dest": "run.py"
-         }
-     ]
- }
+{
+    "buildCommand": "git submodule update --init --recursive",
+    "builds": [
+        {
+            "src": "run.py",
+            "use": "@vercel/python"
+        }
+    ],
+    "routes": [
+        {
+            "src": "/(.*)",
+            "dest": "run.py"
+        }
+    ],
+    "functions": {
+        "run.py": {
+            "memory": 512,
+            "maxDuration": 10
+        }
+    }
+}

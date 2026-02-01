@@ -5,7 +5,7 @@ import requests
 from flask import Blueprint, abort, url_for, request, Request
 from werkzeug.exceptions import abort
 
-from . import docchi_client, MAL_ID_PREFIX
+from . import docchi_client
 from app.db.db import save_slug_from_mal_id, save_mal_id_from_slug, get_mal_id_from_slug
 from app.utils.stream_utils import cache, respond_with, log_error
 from .manifest import MANIFEST, genres as manifest_genres
@@ -168,7 +168,7 @@ def docchi_to_meta(anime_item: dict, catalog_type: str, catalog_id: str, transpo
     content_id = anime_item.get('mal_id', None)
     save_slug_from_mal_id(content_id, anime_item.get('slug', None))
     if content_id:
-        formatted_content_id = f"{MAL_ID_PREFIX}:{content_id}"
+        formatted_content_id = f"mal:{content_id}"
 
     title = anime_item.get('title', None)
     poster = anime_item.get('cover', {})

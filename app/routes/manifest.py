@@ -1,6 +1,5 @@
 from flask import Blueprint, abort
 
-from . import MAL_ID_PREFIX
 from app.utils.stream_utils import respond_with
 
 manifest_blueprint = Blueprint('manifest', __name__)
@@ -14,7 +13,7 @@ genres = ['Action', 'Adventure', 'Avant Garde',
 
 MANIFEST = {
     'id': 'com.skoruppa.docchi-stremio-addon',
-    'version': '0.0.7',
+    'version': '0.0.8',
     'name': 'Docchi.pl Addon',
     'logo': 'https://docchi.pl/static/img/logo.svg',
     'description': 'Provides users with possibility to watch anime with polish subtitles based on data returned by Docchi.pl',
@@ -44,7 +43,7 @@ MANIFEST = {
 
     'behaviorHints': {'configurable': False},
     'resources': ['catalog', 'meta', 'stream'],
-    'idPrefixes': [MAL_ID_PREFIX, 'kitsu'],
+    'idPrefixes': ['mal', 'kitsu', 'tt'],
     "stremioAddonsConfig": {
         "issuer": "https://stremio-addons.net",
         "signature": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0.._T2DcWi9u658Np-4PJmH3A.TQRRcCrhHuY4NCyyfK_RhV8htIVzS4mA-NlAply7ix1E81487ORg113u6gpAJa4181kQNIBoem_vyh42ox9CKBaKG1OePGzkKdBtrntEywVtFn3gjKU6FpWyNXs3obuB.YzRd5NZjmqb3FQlAgpSS9g"

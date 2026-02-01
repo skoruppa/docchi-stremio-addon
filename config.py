@@ -25,6 +25,10 @@ class Config:
     
     # Secret key for encoding/decoding proxy URLs
     PROXY_SECRET_KEY = os.getenv('PROXY_SECRET_KEY', 'default-secret-key-change-in-production')
+    
+    # Redis for anime mapping
+    USE_REDIS = os.getenv('USE_REDIS', 'false').lower() in ['true', '1', 'yes']
+    REDIS_URL = os.getenv('REDIS_URL', '')
 
     # Env dependent configs
     if DEBUG in ["1", True, "True"]:  # Local development

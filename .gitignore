@@ -6,3 +6,7 @@
 /app/__pycache__
 *.pyc
 .env
+
+# Anime lists submodule
+!data/
+!data/anime-lists/

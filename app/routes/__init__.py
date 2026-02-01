@@ -1,6 +1,5 @@
 from app.api.docchi import DocchiAPI
-from app.api.kitsu import KitsuAPI
+from app.utils import anime_mapping
 
 docchi_client = DocchiAPI()
-kitsu_client = KitsuAPI()
-MAL_ID_PREFIX = "mal"
+mapping = anime_mapping

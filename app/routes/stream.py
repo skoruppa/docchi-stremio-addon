@@ -5,7 +5,7 @@ from flask import Blueprint, abort
 from .manifest import MANIFEST
 
 
-from app.routes import MAL_ID_PREFIX, docchi_client, kitsu_client
+from app.routes import docchi_client, mapping
 from app.utils.stream_utils import respond_with
 from app.db.db import get_slug_from_mal_id, save_slug_from_mal_id
 from app.utils.player_utils import detect_player_from_url, get_player_handler
@@ -25,6 +25,11 @@ async def process_player(session, player, is_vip=False):
     if detected_player != 'default' and detected_player != player_hosting:
         player_hosting = detected_player
     
+    # Early return if no handler available
+    handler = get_player_handler(player_hosting)
+    if not handler:
+        return None
+    
     stream = {
         'url': None,
         'quality': None,
@@ -38,13 +43,10 @@ async def process_player(session, player, is_vip=False):
     inverted = False
 
     try:
-        handler = get_player_handler(player_hosting)
+        url, quality, headers = await handler(session, player['player'], is_vip=is_vip)
         
-        if handler:
-            url, quality, headers = await handler(session, player['player'], is_vip=is_vip)
-            
-            if player_hosting == 'vk' and player.get('isInverted'):
-                inverted = True
+        if player_hosting == 'vk' and player.get('isInverted'):
+            inverted = True
     except Exception as e:
         pass
         
@@ -99,8 +101,8 @@ async def process_players(players, content_id=None, content_type='series', is_vi
         if len(parts) > 2:
             episode_num = parts[2]
     
-    timeout = aiohttp.ClientTimeout(total=10, connect=5)
-    connector = aiohttp.TCPConnector(limit=30, limit_per_host=10, ttl_dns_cache=300, verify_ssl=False)
+    timeout = aiohttp.ClientTimeout(total=8, connect=3)
+    connector = aiohttp.TCPConnector(limit=15, limit_per_host=5, ttl_dns_cache=300, verify_ssl=False)
     
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
         tasks = [process_player(session, player, is_vip) for player in players]
@@ -185,20 +187,36 @@ async def addon_stream(content_type: str, content_id: str):
         abort(404)
 
     prefix = parts[0]
-
     prefix_id = parts[1]
+    season = None
+    episode = '1'
+    
+    # Handle different ID formats
     if prefix == 'kitsu':
-        prefix_id = kitsu_client.get_mal_id_from_kitsu_id(prefix_id)
+        # Format: kitsu:1555:1 (kitsu_id:episode)
+        prefix_id = mapping.get_mal_id_from_kitsu_id(prefix_id)
         if prefix_id:
-            prefix = MAL_ID_PREFIX
+            prefix = 'mal'
+            episode = parts[2] if len(parts) > 2 else '1'
         else:
             return respond_with({})
-    try:
-        episode = parts[2]
-    except IndexError:
-        episode = '1'
+    elif prefix.startswith('tt'):
+        if len(parts) == 1:
+            episode = '1'
+        elif len(parts) == 3:
+            season = int(parts[1])
+            episode = int(parts[2])
+        
+        prefix_id = mapping.get_mal_id_from_imdb_id(prefix, season)
+        if prefix_id:
+            prefix = 'mal'
+        else:
+            return respond_with({})
+    else:
+        # Format: mal:2141:1 (mal_id:episode)
+        episode = parts[2] if len(parts) > 2 else '1'
 
-    if prefix != MAL_ID_PREFIX:
+    if prefix != 'mal':
         return respond_with({})
 
     exists, slug = get_slug_from_mal_id(prefix_id)
@@ -218,5 +236,5 @@ async def addon_stream(content_type: str, content_id: str):
                 unique_players.append(player)
         
         streams = await process_players(unique_players, content_id, content_type, is_vip)
-        return respond_with(streams)
-    return {'streams': []}
+        return respond_with(streams, 3600, 1800)
+    return respond_with({'streams': []}, 3600, 1800)

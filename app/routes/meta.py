@@ -5,7 +5,7 @@ from flask import Blueprint, abort
 from pyMALv2.auth import Authorization
 from pyMALv2.services.anime_service.anime_service import AnimeService
 
-from . import MAL_ID_PREFIX, kitsu_client
+from . import mapping
 from config import Config
 from .manifest import MANIFEST
 from app.utils.stream_utils import respond_with, log_error
@@ -41,22 +41,37 @@ def addon_meta(meta_type: str, meta_id: str):
         abort(404)
 
     if 'kitsu' in meta_id:
+        # Format: kitsu:1555
         kitsu_id = meta_id.split(":")[1]
         try:
-            mal_id_from_kitsu = kitsu_client.get_mal_id_from_kitsu_id(kitsu_id)
+            mal_id_from_kitsu = mapping.get_mal_id_from_kitsu_id(kitsu_id)
             if not mal_id_from_kitsu:
                 raise ValueError("MAL ID not found for the given Kitsu ID")
-            meta_id = f'{MAL_ID_PREFIX}:{mal_id_from_kitsu}'
+            meta_id = f'mal:{mal_id_from_kitsu}'
         except Exception as e:
             log_error(e)
             return respond_with({'meta': {}, 'message': 'Could not find MAL ID for the given Kitsu ID.'}), 404
+    
+    elif 'tt' in meta_id:  # IMDB ID
+        parts = meta_id.split(":")
+        season = None
+        if len(parts) == 3:
+            season = int(parts[1])
+        try:
+            mal_id_from_imdb = mapping.get_mal_id_from_imdb_id(parts[0], season)
+            if not mal_id_from_imdb:
+                raise ValueError("MAL ID not found for the given IMDB ID")
+            meta_id = f'mal:{mal_id_from_imdb}'
+        except Exception as e:
+            log_error(e)
+            return respond_with({'meta': {}, 'message': 'Could not find MAL ID for the given IMDB ID.'}), 404
 
     mal_id = None
     if '_' in meta_id:
         meta_id = meta_id.replace("_", ":")
 
-    if MAL_ID_PREFIX in meta_id:
-        mal_id = meta_id.replace(f"{MAL_ID_PREFIX}:", '')
+    if 'mal' in meta_id:
+        mal_id = meta_id.replace("mal:", '')
 
     try:
         url = f"{kitsu_API}/{meta_type}/mal:{mal_id}.json"
@@ -89,7 +104,7 @@ def addon_meta(meta_type: str, meta_id: str):
         kitsu_id = meta.get('kitsu_id')
         for item in meta['videos']:
             if kitsu_id and 'kitsu:' in item.get("id", ""):
-                item["id"] = item["id"].replace(f"kitsu:{kitsu_id}", f"{MAL_ID_PREFIX}:{mal_id}")
+                item["id"] = item["id"].replace(f"kitsu:{kitsu_id}", f"mal:{mal_id}")
 
     return respond_with({'meta': meta}, 86400, 86400)
 
