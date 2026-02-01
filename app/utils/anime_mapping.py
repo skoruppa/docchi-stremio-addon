@@ -31,20 +31,23 @@ def load_mapping():
         return
     
     try:
-        file_mtime = int(os.path.getmtime(MAPPING_FILE))
-        
         with open(MAPPING_FILE, 'r') as f:
             data = json.load(f)
+        
+        # Use hash of file content to detect changes
+        import hashlib
+        file_content = json.dumps(data, sort_keys=True)
+        file_hash = hashlib.md5(file_content.encode()).hexdigest()
             
         if _redis_client:
-            # Check if Redis has newer or same data
-            cached_mtime = _redis_client.get('mapping:mtime')
-            if cached_mtime and int(cached_mtime) >= file_mtime:
-                logging.info(f"Redis has up-to-date anime mapping (mtime: {cached_mtime}), skipping load")
+            # Check if Redis has same version
+            cached_hash = _redis_client.get('mapping:hash')
+            if cached_hash == file_hash:
+                logging.info(f"Redis has up-to-date anime mapping (hash: {file_hash[:8]}), skipping load")
             else:
                 _load_to_redis(data)
-                _redis_client.set('mapping:mtime', str(file_mtime))
-                logging.info(f"Loaded anime mapping with mtime: {file_mtime}")
+                _redis_client.set('mapping:hash', file_hash)
+                logging.info(f"Loaded anime mapping with hash: {file_hash[:8]}")
         else:
             _load_to_tinydb(data)
         
