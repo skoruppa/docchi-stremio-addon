@@ -46,29 +46,50 @@ def load_mapping():
         logging.error(f"Failed to load anime mapping: {e}")
 
 def _load_to_redis(data):
-    """Load data to Redis with TTL"""
+    """Load only necessary fields to Redis with TTL"""
     pipe = _redis_client.pipeline()
     ttl = 86400 * 7  # 7 days
     
     for item in data:
-        item_json = json.dumps(item)
+        mini = {}
         if item.get('mal_id'):
-            pipe.setex(f"mal:{item['mal_id']}", ttl, item_json)
+            mini['mal_id'] = item['mal_id']
         if item.get('kitsu_id'):
-            pipe.setex(f"kitsu:{item['kitsu_id']}", ttl, item_json)
+            mini['kitsu_id'] = item['kitsu_id']
+        if item.get('imdb_id'):
+            mini['imdb_id'] = item['imdb_id']
+        if item.get('season', {}).get('tvdb'):
+            mini['season'] = {'tvdb': item['season']['tvdb']}
+
+        item_json = json.dumps(mini)
+        if mini.get('mal_id'):
+            pipe.setex(f"mal:{mini['mal_id']}", ttl, item_json)
+        if mini.get('kitsu_id'):
+            pipe.setex(f"kitsu:{mini['kitsu_id']}", ttl, item_json)
     
     pipe.execute()
-    
-    # Build IMDB multi-season lists
+
     imdb_map = {}
     for item in data:
         imdb_id = item.get('imdb_id')
-        if imdb_id:
-            ids = [imdb_id] if not isinstance(imdb_id, list) else imdb_id
-            for iid in ids:
-                if iid not in imdb_map:
-                    imdb_map[iid] = []
-                imdb_map[iid].append(item)
+        if not imdb_id:
+            continue
+            
+        mini = {}
+        if item.get('mal_id'):
+            mini['mal_id'] = item['mal_id']
+        if item.get('kitsu_id'):
+            mini['kitsu_id'] = item['kitsu_id']
+        if item.get('imdb_id'):
+            mini['imdb_id'] = item['imdb_id']
+        if item.get('season', {}).get('tvdb'):
+            mini['season'] = {'tvdb': item['season']['tvdb']}
+            
+        ids = [imdb_id] if not isinstance(imdb_id, list) else imdb_id
+        for iid in ids:
+            if iid not in imdb_map:
+                imdb_map[iid] = []
+            imdb_map[iid].append(mini)
     
     pipe = _redis_client.pipeline()
     for iid, items in imdb_map.items():
