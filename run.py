@@ -41,8 +41,6 @@ app.register_blueprint(proxy_bp, name='proxy_vip', url_prefix=f'/{Config.VIP_PAT
 Compress(app)
 cache.init_app(app)
 
-logging.basicConfig(format='%(asctime)s %(message)s')
-
 
 @app.route('/')
 @app.route('/configure')
@@ -52,6 +50,18 @@ def index():
     """
     manifest_url = f'{Config.PROTOCOL}://{Config.REDIRECT_URL}/manifest.json'
     manifest_magnet = f'stremio://{Config.REDIRECT_URL}/manifest.json'
+    return render_template('index.html', logged_in=True,
+                               manifest_url=manifest_url, manifest_magnet=manifest_magnet)
+
+
+@app.route(f'/{Config.VIP_PATH}')
+@app.route(f'/{Config.VIP_PATH}/configure')
+def index_vip():
+    """
+    Render the VIP index page
+    """
+    manifest_url = f'{Config.PROTOCOL}://{Config.REDIRECT_URL}/{Config.VIP_PATH}/manifest.json'
+    manifest_magnet = f'stremio://{Config.REDIRECT_URL}/{Config.VIP_PATH}/manifest.json'
     return render_template('index.html', logged_in=True,
                                manifest_url=manifest_url, manifest_magnet=manifest_magnet)
 
@@ -76,7 +86,17 @@ def callback():
 if __name__ == '__main__':
     try:
         from waitress import serve
-
+        import sys
+        
+        # Configure logging to stdout
+        logging.basicConfig(
+            format='%(asctime)s %(levelname)s: %(message)s',
+            level=logging.INFO,
+            stream=sys.stdout,
+            force=True
+        )
+        
+        logging.info("Starting Docchi Stremio Addon on http://0.0.0.0:5000")
         serve(app, host='0.0.0.0', port=5000)
     finally:
         database.storage.flush()

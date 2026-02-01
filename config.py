@@ -27,7 +27,7 @@ class Config:
     PROXY_SECRET_KEY = os.getenv('PROXY_SECRET_KEY', 'default-secret-key-change-in-production')
     
     # Redis for anime mapping
-    USE_REDIS = os.getenv('USE_REDIS', 'false').lower() in ['true', '1', 'yes']
+    USE_REDIS = os.getenv('USE_REDIS', False)
     REDIS_URL = os.getenv('REDIS_URL', '')
 
     # Env dependent configs
