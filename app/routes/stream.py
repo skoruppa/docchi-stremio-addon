@@ -187,37 +187,37 @@ async def addon_stream(content_type: str, content_id: str):
         abort(404)
 
     prefix = parts[0]
-    prefix_id = parts[1]
     season = None
     episode = '1'
-    
+
     # Handle different ID formats
-    if prefix == 'kitsu':
-        # Format: kitsu:1555:1 (kitsu_id:episode)
-        prefix_id = mapping.get_mal_id_from_kitsu_id(prefix_id)
-        if prefix_id:
-            prefix = 'mal'
-            episode = parts[2] if len(parts) > 2 else '1'
-        else:
-            return respond_with({})
-    elif prefix.startswith('tt'):
+    if prefix.startswith('tt'):
         if len(parts) == 1:
             episode = '1'
         elif len(parts) == 3:
             season = int(parts[1])
             episode = int(parts[2])
-        
+
         prefix_id = mapping.get_mal_id_from_imdb_id(prefix, season)
         if prefix_id:
             prefix = 'mal'
         else:
-            return respond_with({})
+            return respond_with({'streams': []}, 2592000, 2592000)
+    elif prefix == 'kitsu':
+        prefix_id = parts[1]
+        prefix_id = mapping.get_mal_id_from_kitsu_id(prefix_id)
+        if prefix_id:
+            prefix = 'mal'
+            episode = parts[2] if len(parts) > 2 else '1'
+        else:
+            return respond_with({'streams': []}, 2592000, 2592000)
+
     else:
-        # Format: mal:2141:1 (mal_id:episode)
+        prefix_id = parts[1]
         episode = parts[2] if len(parts) > 2 else '1'
 
     if prefix != 'mal':
-        return respond_with({})
+        return respond_with({'streams': []}, 2592000, 2592000)
 
     exists, slug = get_slug_from_mal_id(prefix_id)
     if not exists:
