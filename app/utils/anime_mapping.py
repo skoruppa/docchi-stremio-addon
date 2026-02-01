@@ -31,11 +31,20 @@ def load_mapping():
         return
     
     try:
+        file_mtime = int(os.path.getmtime(MAPPING_FILE))
+        
         with open(MAPPING_FILE, 'r') as f:
             data = json.load(f)
             
         if _redis_client:
-            _load_to_redis(data)
+            # Check if Redis has newer or same data
+            cached_mtime = _redis_client.get('mapping:mtime')
+            if cached_mtime and int(cached_mtime) >= file_mtime:
+                logging.info(f"Redis has up-to-date anime mapping (mtime: {cached_mtime}), skipping load")
+            else:
+                _load_to_redis(data)
+                _redis_client.set('mapping:mtime', str(file_mtime))
+                logging.info(f"Loaded anime mapping with mtime: {file_mtime}")
         else:
             _load_to_tinydb(data)
         

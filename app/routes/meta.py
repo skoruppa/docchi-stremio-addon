@@ -35,6 +35,9 @@ def addon_meta(meta_type: str, meta_id: str):
     :param meta_id: The ID of the content
     :return: JSON response
     """
+    from flask import request
+    is_vip = Config.VIP_PATH in request.path
+
     meta_id = unquote(meta_id)
 
     if meta_type not in MANIFEST['types']:
@@ -52,7 +55,7 @@ def addon_meta(meta_type: str, meta_id: str):
             log_error(e)
             return respond_with({'meta': {}, 'message': 'Could not find MAL ID for the given Kitsu ID.'}), 404
     
-    elif 'tt' in meta_id:  # IMDB ID
+    elif 'tt' in meta_id and is_vip:  # IMDB ID
         parts = meta_id.split(":")
         season = None
         if len(parts) == 3:
@@ -70,40 +73,43 @@ def addon_meta(meta_type: str, meta_id: str):
     if 'mal' in meta_id:
         mal_id = meta_id.replace("mal:", '')
 
-    try:
-        url = f"{kitsu_API}/{meta_type}/mal:{mal_id}.json"
-        resp = requests.get(url=url, headers=HEADERS)
-        resp.raise_for_status()
-        meta = kitsu_to_meta(resp.json(), meta_id)
+    if mal_id:
+        try:
+            url = f"{kitsu_API}/{meta_type}/mal:{mal_id}.json"
+            resp = requests.get(url=url, headers=HEADERS)
+            resp.raise_for_status()
+            meta = kitsu_to_meta(resp.json(), meta_id)
 
-    except (requests.HTTPError, requests.ConnectionError, requests.RequestException) as e:
-        log_error(f"Kitsu error: {e}. Falling back to MAL API.")
-        if mal_id:
-            try:
-                mal_anime = anime_service.get(
-                    int(mal_id),
-                    fields='id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,num_episodes,start_season,genres,media_type,studios,pictures,background,average_episode_duration'
-                )
-                
-                if not mal_anime:
-                    return respond_with({'meta': {}, 'message': 'Anime not found on MAL'}), 404
-                
-                meta = mal_to_meta(mal_anime, meta_id, mal_id)
-            except Exception as mal_e:
-                log_error(f"MAL API error: {mal_e}")
-                return respond_with({'meta': {}, 'message': 'An unexpected error occurred.'}), 500
-        else:
-            return respond_with({'meta': {}, 'message': str(e)}), 500
+        except (requests.HTTPError, requests.ConnectionError, requests.RequestException) as e:
+            log_error(f"Kitsu error: {e}. Falling back to MAL API.")
+            if mal_id:
+                try:
+                    mal_anime = anime_service.get(
+                        int(mal_id),
+                        fields='id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,num_episodes,start_season,genres,media_type,studios,pictures,background,average_episode_duration'
+                    )
 
-    meta['type'] = meta_type
+                    if not mal_anime:
+                        return respond_with({'meta': {}, 'message': 'Anime not found on MAL'}), 404
 
-    if 'videos' in meta and meta['videos']:
-        kitsu_id = meta.get('kitsu_id')
-        for item in meta['videos']:
-            if kitsu_id and 'kitsu:' in item.get("id", ""):
-                item["id"] = item["id"].replace(f"kitsu:{kitsu_id}", f"mal:{mal_id}")
+                    meta = mal_to_meta(mal_anime, meta_id, mal_id)
+                except Exception as mal_e:
+                    log_error(f"MAL API error: {mal_e}")
+                    return respond_with({'meta': {}, 'message': 'An unexpected error occurred.'}), 500
+            else:
+                return respond_with({'meta': {}, 'message': str(e)}), 500
 
-    return respond_with({'meta': meta}, 86400, 86400)
+        meta['type'] = meta_type
+
+        if 'videos' in meta and meta['videos']:
+            kitsu_id = meta.get('kitsu_id')
+            for item in meta['videos']:
+                if kitsu_id and 'kitsu:' in item.get("id", ""):
+                    item["id"] = item["id"].replace(f"kitsu:{kitsu_id}", f"mal:{mal_id}")
+
+        return respond_with({'meta': meta}, 86400, 86400)
+    else:
+        return respond_with({'meta': {}}, 86400, 86400)
 
 
 def mal_to_meta(mal_anime, meta_id: str, mal_id: str) -> dict:
