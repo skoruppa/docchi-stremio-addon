@@ -11,11 +11,5 @@
             "src": "/(.*)",
             "dest": "run.py"
         }
-    ],
-    "functions": {
-        "run.py": {
-            "memory": 512,
-            "maxDuration": 10
-        }
-    }
+    ]
 }
