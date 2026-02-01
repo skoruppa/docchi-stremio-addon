@@ -57,14 +57,11 @@ def addon_meta(meta_type: str, meta_id: str):
         season = None
         if len(parts) == 3:
             season = int(parts[1])
-        try:
-            mal_id_from_imdb = mapping.get_mal_id_from_imdb_id(parts[0], season)
-            if not mal_id_from_imdb:
-                raise ValueError("MAL ID not found for the given IMDB ID")
-            meta_id = f'mal:{mal_id_from_imdb}'
-        except Exception as e:
-            log_error(e)
-            return respond_with({'meta': {}, 'message': 'Could not find MAL ID for the given IMDB ID.'}), 404
+        
+        mal_id_from_imdb = mapping.get_mal_id_from_imdb_id(parts[0], season)
+        if not mal_id_from_imdb:
+            return respond_with({'meta': {}}, 2592000, 2592000)
+        meta_id = f'mal:{mal_id_from_imdb}'
 
     mal_id = None
     if '_' in meta_id:
