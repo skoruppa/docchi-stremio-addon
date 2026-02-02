@@ -24,13 +24,16 @@ jobs:
           VERSION=$(grep -oP "__version__\s*=\s*['\"]\\K[^'\"]+(?=['\"])" version.py)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
       
-      - name: Update README.md
-        run: |
-          sed -i "s|!\[Version\](https://img.shields.io/badge/version-[^-]*-blue.svg)|![Version](https://img.shields.io/badge/version-${{ steps.get_version.outputs.version }}-blue.svg)|g" README.md
-      
-      - name: Commit and push if changed
+      - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+      - name: Update README.md
+        run: |
+          sed -i "s|!\[Version\](https://img.shields.io/badge/version-[^-]*-blue.svg)|![Version](https://img.shields.io/badge/version-${{ steps.get_version.outputs.version }}-blue.svg)|g" README.md
           git add README.md
-          git diff --staged --quiet || (git commit -m "Update version badge to ${{ steps.get_version.outputs.version }}" && git push)
+      
+      - name: Commit and push if changed
+        run: |
+          git diff --staged --quiet || (git commit -m "Update version badge to ${{ steps.get_version.outputs.version }}" && git pull --rebase && git push)
