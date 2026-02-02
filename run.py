@@ -28,14 +28,12 @@ app.register_blueprint(manifest_blueprint)
 app.register_blueprint(catalog_bp)
 app.register_blueprint(meta_bp)
 app.register_blueprint(stream_bp)
-app.register_blueprint(proxy_bp)
 
 # Register blueprints with VIP prefix
 app.register_blueprint(manifest_blueprint, name='manifest_vip', url_prefix=f'/{Config.VIP_PATH}')
 app.register_blueprint(catalog_bp, name='catalog_vip', url_prefix=f'/{Config.VIP_PATH}')
 app.register_blueprint(meta_bp, name='meta_vip', url_prefix=f'/{Config.VIP_PATH}')
 app.register_blueprint(stream_bp, name='stream_vip', url_prefix=f'/{Config.VIP_PATH}')
-app.register_blueprint(proxy_bp, name='proxy_vip', url_prefix=f'/{Config.VIP_PATH}')
 
 Compress(app)
 cache.init_app(app)
