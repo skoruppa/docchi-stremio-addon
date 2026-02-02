@@ -6,7 +6,6 @@ from app.routes.catalog import catalog_bp
 from app.routes.manifest import manifest_blueprint
 from app.routes.meta import meta_bp
 from app.routes.stream import stream_bp
-from app.routes.proxy import proxy_bp
 from app.db import database
 from app.utils.stream_utils import cache
 from app.utils.anime_mapping import load_mapping
