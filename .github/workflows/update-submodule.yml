@@ -16,6 +16,7 @@ jobs:
         with:
           submodules: true
           persist-credentials: true
+          fetch-depth: 0
       
       - name: Update submodule
         run: |

@@ -17,6 +17,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: true
+          fetch-depth: 0
       
       - name: Extract version from version.py
         id: get_version
