@@ -13,26 +13,26 @@ genres = ['Action', 'Adventure', 'Avant Garde',
 
 MANIFEST = {
     'id': 'com.skoruppa.docchi-stremio-addon',
-    'version': '0.0.8',
+    'version': '0.1.0',
     'name': 'Docchi.pl Addon',
     'logo': 'https://docchi.pl/static/img/logo.svg',
     'description': 'Provides users with possibility to watch anime with polish subtitles based on data returned by Docchi.pl',
     'types': ['anime', 'series', 'movie'],
     'contactEmail': 'skoruppa@gmail.com',
     'catalogs': [
-        {'type': 'anime', 'id': 'season', 'name': 'Current Season',
+        {'type': 'anime', 'id': 'season', 'name': 'Docchi.pl - Current Season',
          'extra': [{'name': 'genre', 'options': genres}],
          'genre': genres},
-        {'type': 'anime', 'id': 'latest', 'name': 'Latest',
+        {'type': 'anime', 'id': 'latest', 'name': 'Docchi.pl - Latest',
          'extra': [{'name': 'genre', 'options': genres}],
          'genre': genres},
-        {'type': 'anime', 'id': 'trending', 'name': 'Trending',
+        {'type': 'anime', 'id': 'trending', 'name': 'Docchi.pl - Trending',
          'extra': [{'name': 'genre', 'options': genres}],
          'genre': genres},
         {
             'type': 'anime',
             'id': 'search_list',
-            'name': 'search',
+            'name': 'Docchi.pl - search',
             'extra': [
                 {'name': 'search', 'isRequired': True},
                 {'name': 'genre', 'options': genres, 'isRequired': False}
