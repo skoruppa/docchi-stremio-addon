@@ -1,0 +1,34 @@
+name: Sync version to README
+
+on:
+  push:
+    paths:
+      - 'version.py'
+    branches:
+      - main
+
+jobs:
+  sync-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract version from version.py
+        id: get_version
+        run: |
+          VERSION=$(grep -oP "__version__\s*=\s*['\"]\\K[^'\"]+(?=['\"])" version.py)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Update README.md
+        run: |
+          sed -i "s|!\[Version\](https://img.shields.io/badge/version-[^-]*-blue.svg)|![Version](https://img.shields.io/badge/version-${{ steps.get_version.outputs.version }}-blue.svg)|g" README.md
+      
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git diff --staged --quiet || (git commit -m "Update version badge to ${{ steps.get_version.outputs.version }}" && git push)

@@ -10,6 +10,7 @@ from app.db import database
 from app.utils.stream_utils import cache
 from app.utils.anime_mapping import load_mapping
 from config import Config
+from version import __version__
 
 app = Flask(__name__, template_folder='./templates', static_folder='./static')
 app.config.from_object('config.Config')
@@ -37,6 +38,11 @@ app.register_blueprint(stream_bp, name='stream_vip', url_prefix=f'/{Config.VIP_P
 
 Compress(app)
 cache.init_app(app)
+
+
+@app.context_processor
+def inject_version():
+    return {'version': __version__}
 
 
 @app.route('/')
@@ -93,7 +99,7 @@ if __name__ == '__main__':
             force=True
         )
         
-        logging.info("Starting Docchi Stremio Addon on http://0.0.0.0:5000")
+        logging.info(f"Starting Docchi Stremio Addon v{__version__} on http://0.0.0.0:5000")
         serve(app, host='0.0.0.0', port=5000)
     finally:
         database.storage.flush()

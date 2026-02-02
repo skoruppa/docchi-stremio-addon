@@ -1,6 +1,7 @@
 from flask import Blueprint, abort
 
 from app.utils.stream_utils import respond_with
+from version import __version__
 
 manifest_blueprint = Blueprint('manifest', __name__)
 
@@ -13,7 +14,7 @@ genres = ['Action', 'Adventure', 'Avant Garde',
 
 MANIFEST = {
     'id': 'com.skoruppa.docchi-stremio-addon',
-    'version': '0.1.0',
+    'version': __version__,
     'name': 'Docchi.pl Addon',
     'logo': 'https://docchi.pl/static/img/logo.svg',
     'description': 'Provides users with possibility to watch anime with polish subtitles based on data returned by Docchi.pl',
