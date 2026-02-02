@@ -8,7 +8,7 @@ from pyMALv2.services.anime_service.anime_service import AnimeService
 from . import mapping
 from config import Config
 from .manifest import MANIFEST
-from app.utils.stream_utils import respond_with, log_error
+from app.utils.stream_utils import respond_with, log_error, log_warning
 
 meta_bp = Blueprint('meta', __name__)
 
@@ -81,7 +81,7 @@ def addon_meta(meta_type: str, meta_id: str):
             meta = kitsu_to_meta(resp.json(), meta_id)
 
         except (requests.HTTPError, requests.ConnectionError, requests.RequestException) as e:
-            log_error(f"Kitsu error: {e}. Falling back to MAL API.")
+            log_warning(f"Kitsu error: {e}. Falling back to MAL API.")
             if mal_id:
                 try:
                     mal_anime = anime_service.get(

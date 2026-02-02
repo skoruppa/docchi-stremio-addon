@@ -24,7 +24,6 @@ async def get_video_from_hqq_player(session, player_url, is_vip: bool = False):
     try:
         from app.utils.hqq_captcha_solver import solve_hqq_captcha
     except ImportError:
-        # OpenCV not available - skip HQQ
         return None, None, None
     
     headers = {'User-Agent': get_random_agent()}
@@ -151,3 +150,12 @@ def decode_hqq_link(obf_link: str) -> str:
             break
     
     return result
+
+if __name__ == '__main__':
+    from app.players.test import run_tests
+
+    urls_to_test = [
+        "https://hqq.tv/e/NEYvTktac2pMOTFtQTNjNUhHUy9EUT09"
+    ]
+
+    run_tests(get_video_from_hqq_player, urls_to_test)
