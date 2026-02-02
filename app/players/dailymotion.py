@@ -15,6 +15,8 @@ async def get_video_from_dailymotion_player(session: aiohttp.ClientSession, url:
         match = re.search(pattern, url)
         if not match:
             return None, None, None
+
+        session.get("https://www.dailymotion.com/", headers=headers, timeout=aiohttp.ClientTimeout(total=10)) #cookie warmup 
         
         media_id = match.group(2)
         
