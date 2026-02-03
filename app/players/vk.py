@@ -6,7 +6,7 @@ from app.utils.common_utils import get_random_agent
 from flask import request
 
 # Domains handled by this player
-DOMAINS = ['vk.com']
+DOMAINS = ['vk.com', 'vkvideo.ru']
 NAMES = ['vk']
 
 VK_URL = "https://vk.com"

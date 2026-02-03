@@ -81,3 +81,11 @@ async def get_video_from_streamtape_player(session: aiohttp.ClientSession, url: 
     
     except Exception:
         return None, None, None
+
+if __name__ == '__main__':
+    from app.players.test import run_tests
+    urls_to_test = [
+        "https://streamtape.com/e/dKlxwmoRrXskYM2/"
+    ]
+
+    run_tests(get_video_from_streamtape_player, urls_to_test, True)
