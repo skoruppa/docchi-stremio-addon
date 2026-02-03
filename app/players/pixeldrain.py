@@ -7,6 +7,7 @@ from config import Config
 
 # Domains handled by this player
 DOMAINS = ['pixeldrain.com']
+NAMES = ['pixeldrain']
 
 
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS

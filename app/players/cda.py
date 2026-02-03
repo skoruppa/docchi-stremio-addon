@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 
 # Domains handled by this player
 DOMAINS = ['m.cda.pl', 'cda.pl', 'www.cda.pl', 'ebd.cda.pl']
+NAMES = ['cda']
 
 
 def decrypt_url(url: str) -> str:

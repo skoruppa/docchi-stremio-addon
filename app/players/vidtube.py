@@ -1,11 +1,11 @@
 import re
 import aiohttp
 
-from app.utils.common_utils import get_random_agent
-from app.utils.common_utils import unpack_js
+from app.utils.common_utils import get_random_agent, get_packed_data
 
 # Domains handled by this player
 DOMAINS = ['vidtube.one']
+NAMES = ['vidtube']
 
 
 def fix_mp4_link(link: str) -> str:
@@ -59,11 +59,11 @@ async def get_video_from_vidtube_player(session: aiohttp.ClientSession, filelink
             html_content = await response.text()
 
         try:
-            if re.search(r"eval\(function\(p,a,c,k,e", html_content):
-                player_data = unpack_js(html_content)
-                mp4_match = re.search(r"sources:\[\{file:\"([^\"]+)\"", player_data)
+            packed_data = get_packed_data(html_content)
+            if packed_data:
+                mp4_match = re.search(r"sources:\[\{file:\"([^\"]+)\"", packed_data)
                 stream_url = fix_mp4_link(mp4_match.group(1))
-                label_match = re.search(r'label\s*:\s*"([^"]+)"', player_data, re.IGNORECASE)
+                label_match = re.search(r'label\s*:\s*"([^"]+)"', packed_data, re.IGNORECASE)
             else:
                 mp4_match = re.search(r'sources: \[\{file:"(https?://[^"]+)"\}\]', html_content)
                 stream_url = mp4_match.group(1)

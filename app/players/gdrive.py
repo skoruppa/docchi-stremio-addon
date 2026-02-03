@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 
 # Domains handled by this player
 DOMAINS = ['drive.google.com', 'drive.usercontent.google.com']
+NAMES = ['gdrive']
 
 
 def build_video_url(base_url, document):

@@ -6,6 +6,7 @@ from config import Config
 
 # Domains handled by this player
 DOMAINS = ['sibnet.ru', 'video.sibnet.ru']
+NAMES = ['sibnet']
 
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 STREAM_PROXY_URL = Config.STREAM_PROXY_URL

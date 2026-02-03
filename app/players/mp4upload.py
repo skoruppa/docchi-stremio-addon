@@ -6,6 +6,7 @@ from app.utils.common_utils import get_random_agent
 
 # Domains handled by this player
 DOMAINS = ['mp4upload.com']
+NAMES = ['mp4upload']
 
 async def get_video_from_mp4upload_player(session: aiohttp.ClientSession, player_url: str, is_vip: bool = False):
 

@@ -1,11 +1,11 @@
 import re
 import aiohttp
 
-from app.utils.common_utils import get_random_agent
-from app.utils.common_utils import unpack_js
+from app.utils.common_utils import get_random_agent, get_packed_data
 
 # Domains handled by this player
-DOMAINS = ['luluvdo.com']
+DOMAINS = ['luluvdo.com', 'lulu.st']
+NAMES = ['lulustream', 'lulu']
 
 
 def fix_m3u8_link(link: str) -> str:
@@ -59,12 +59,10 @@ async def get_video_from_lulustream_player(session: aiohttp.ClientSession, filel
         response.raise_for_status()
         html_content = await response.text()
 
-    m3u8_match = ""
-    player_data = ""
     try:
-        if re.search(r"eval\(function\(p,a,c,k,e", html_content):
-            player_data = unpack_js(html_content)
-            m3u8_match = re.search(r"sources:\[\{file:\"([^\"]+)\"", player_data)
+        packed_data = get_packed_data(html_content)
+        if packed_data:
+            m3u8_match = re.search(r"sources:\[\{file:\"([^\"]+)\"", packed_data)
             stream_url = fix_m3u8_link(m3u8_match.group(1))
         else:
             m3u8_match = re.search(r'sources: \[\{file:"(https?://[^"]+)"\}\]', html_content)
@@ -83,3 +81,13 @@ async def get_video_from_lulustream_player(session: aiohttp.ClientSession, filel
     stream_headers = {'request': headers}
 
     return stream_url, quality, stream_headers
+
+
+if __name__ == '__main__':
+    from app.players.test import run_tests
+
+    urls_to_test = [
+        "https://lulu.st/e/y1i2ys6efo82",
+    ]
+
+    run_tests(get_video_from_lulustream_player, urls_to_test, True)

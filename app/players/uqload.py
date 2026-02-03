@@ -7,6 +7,7 @@ from config import Config
 
 # Domains handled by this player
 DOMAINS = ['uqload.com', 'uqload.co', 'uqload.to']
+NAMES = ['uqload']
 
 # NOTE: Enabled only for VIP, as whole stream needs to go through proxy
 ENABLED = True

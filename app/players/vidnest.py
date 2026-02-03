@@ -5,6 +5,7 @@ from app.utils.common_utils import get_random_agent
 
 # Domains handled by this player
 DOMAINS = ['vidnest.io']
+NAMES = ['vidnest']
 
 
 async def get_video_from_vidnest_player(session: aiohttp.ClientSession, url: str, is_vip: bool = False):

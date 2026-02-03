@@ -8,6 +8,7 @@ from app.players.test import run_tests
 
 # Domains handled by this player
 DOMAINS = ['abysscdn.com']
+NAMES = ['abyss']
 
 # NOTE: Disabled - can't support their binary playlist format
 ENABLED = False

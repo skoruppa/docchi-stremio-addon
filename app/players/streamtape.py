@@ -7,6 +7,7 @@ from config import Config
 
 # Domains handled by this player
 DOMAINS = ['streamtape.com', 'streamtape.to']
+NAMES = ['streamtape']
 
 # NOTE: Enabled only for VIP, as whole stream needs to go through proxy
 ENABLED = True

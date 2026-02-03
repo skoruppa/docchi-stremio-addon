@@ -7,8 +7,9 @@ import os
 
 
 def _collect_player_info():
-    """Collect domains and handler functions from enabled player modules."""
+    """Collect domains, names and handler functions from enabled player modules."""
     player_domains = {}
+    player_names = {}
     player_handlers = {}
     players_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'players')
     
@@ -30,6 +31,13 @@ def _collect_player_info():
                 if domains:
                     player_domains[module_name] = domains
             
+            # Collect names (default to module name)
+            if hasattr(module, 'NAMES'):
+                names = getattr(module, 'NAMES')
+            else:
+                names = [module_name]
+            player_names[module_name] = names
+            
             # Collect handler function
             handler_name = f'get_video_from_{module_name}_player'
             if hasattr(module, handler_name):
@@ -38,23 +46,37 @@ def _collect_player_info():
         except Exception:
             pass
     
-    return player_domains, player_handlers
+    return player_domains, player_names, player_handlers
 
 
-# Collect domains and handlers from enabled players
-PLAYER_DOMAINS, PLAYER_HANDLERS = _collect_player_info()
+# Collect domains, names and handlers from enabled players
+PLAYER_DOMAINS, PLAYER_NAMES, PLAYER_HANDLERS = _collect_player_info()
 
 
-def detect_player_from_url(url: str) -> str:
+def detect_player(player_obj: dict) -> str:
     """
-    Detect player name from URL based on domain.
+    Detect player name from player object.
+    Uses player URL, player_hosting field, and NAMES list.
     Returns player name or 'default' if not found.
     """
-    url_lower = url.lower()
+    url = player_obj.get('player', '').lower()
+    player_hosting = player_obj.get('player_hosting', '').lower()
     
+    # Try domain matching first
     for player_name, domains in PLAYER_DOMAINS.items():
         for domain in domains:
-            if domain in url_lower:
+            if domain in url:
+                return player_name
+    
+    # Try player_hosting against NAMES
+    for player_name, names in PLAYER_NAMES.items():
+        if player_hosting in names:
+            return player_name
+
+    # Fallback: try to match any name in URL
+    for player_name, names in PLAYER_NAMES.items():
+        for name in names:
+            if name in url:
                 return player_name
     
     return 'default'

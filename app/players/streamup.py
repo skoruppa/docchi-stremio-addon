@@ -10,6 +10,7 @@ from app.utils.common_utils import fetch_resolution_from_m3u8
 
 # Domains handled by this player
 DOMAINS = ['strmup.to']
+NAMES = ['streamup']
 
 
 def decode_printable_95(encoded_hex_string: str, shift: int) -> str:

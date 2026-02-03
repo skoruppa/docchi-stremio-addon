@@ -11,8 +11,9 @@ from app.utils.common_utils import get_random_agent
 
 ENABLED = False
 # it seems that everything should work but even when x&y looks correct, we not always receive response with link. Leaving for learning
-DOMAINS = ['waaw.ac', 'netu.ac', 'hqq.ac', 'waaw.tv', 'netu.tv', 'hqq.tv', 
-           'waaw.to', 'netu.to', 'hqq.to', 'doplay.store', 'younetu.com']
+DOMAINS = ['waaw.ac', 'netu.ac', 'hqq.ac', 'waaw.tv', 'netu.tv', 'hqq.tv', 'waaw.to', 'netu.to', 'hqq.to', 'doplay.store', 'younetu.com']
+NAMES = ['hqq']
+
 
 
 async def get_video_from_hqq_player(session, player_url, is_vip: bool = False):

@@ -15,15 +15,15 @@ STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 
 
 # Domains handled by this player
-DOMAINS = [
-    'f16px.com', 'bysesayeveum.com', 'bysetayico.com', 'bysevepoin.com', 'bysezejataos.com',
+DOMAINS = ['f16px.com', 'bysesayeveum.com', 'bysetayico.com', 'bysevepoin.com', 'bysezejataos.com',
     'bysekoze.com', 'bysesukior.com', 'bysejikuar.com', 'bysefujedu.com', 'bysedikamoum.com',
     'bysebuho.com', 'filemoon.sx', 'filemoon.to', 'filemoon.in', 'filemoon.link', 'filemoon.nl',
     'filemoon.wf', 'cinegrab.com', 'filemoon.eu', 'filemoon.art', 'moonmov.pro', '96ar.com',
     'kerapoxy.cc', 'furher.in', '1azayf9w.xyz', '81u6xl9d.xyz', 'smdfs40r.skin', 'c1z39.com',
     'bf0skv.org', 'z1ekv717.fun', 'l1afav.net', '222i8x.lol', '8mhlloqo.fun', 'f51rm.com',
-    'xcoic.com', 'boosteradx.online'
-]
+    'xcoic.com', 'boosteradx.online', 'byseqekaho.com']
+NAMES = ['filemoon']
+
 
 # NOTE: Enabled only for VIP, as whole stream needs to go through proxy 
 ENABLED = True
@@ -158,7 +158,7 @@ if __name__ == '__main__':
     from app.players.test import run_tests
 
     urls_to_test = [
-        "https://bysesukior.com/e/14vq5iiffkuv",
+        "https://byseqekaho.com/e/fyzwblxj555r",
     ]
 
     run_tests(get_video_from_filemoon_player, urls_to_test, True)

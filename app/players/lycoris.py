@@ -11,6 +11,7 @@ from config import Config
 
 # Domains handled by this player
 DOMAINS = ['lycoris.cafe']
+NAMES = ['lycoris']
 
 DECRYPT_API_KEY = "303a897d-sd12-41a8-84d1-5e4f5e208878"
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS

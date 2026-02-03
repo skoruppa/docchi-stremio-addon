@@ -12,6 +12,7 @@ from app.utils.common_utils import fetch_resolution_from_m3u8
 
 # NOTE: Disabled - seems to be down right now
 DOMAINS = ['listeamed.net', 'vidguard.to', 'vgfplay.com']
+NAMES = ['vidguard']
 ENABLED = False
 
 sys.setrecursionlimit(2000)

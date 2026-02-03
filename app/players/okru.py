@@ -9,6 +9,7 @@ from config import Config
 
 # Domains handled by this player
 DOMAINS = ['ok.ru']
+NAMES = ['okru', 'ok.ru']
 
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 STREAM_PROXY_URL = Config.STREAM_PROXY_URL

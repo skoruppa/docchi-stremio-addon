@@ -7,6 +7,7 @@ from app.utils.common_utils import fetch_resolution_from_m3u8
 
 # Domains handled by this player
 DOMAINS = ['upns.pro', 'rpmhub.site', 'rpmvip.com']
+NAMES = ['upn', 'rpm']
 
 
 DECRYPTION_KEY_HEX = "6b69656d7469656e6d75613931316361"

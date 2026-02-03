@@ -6,6 +6,7 @@ from app.utils.common_utils import fetch_resolution_from_m3u8
 
 # Domains handled by this player
 DOMAINS = ['rumble.com']
+NAMES = ['rumble']
 
 
 def extract_ua_section(js_string):

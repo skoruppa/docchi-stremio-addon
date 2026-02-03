@@ -5,6 +5,7 @@ from app.utils.common_utils import get_random_agent
 
 # Domains handled by this player
 DOMAINS = ['dailymotion.com', 'dai.ly']
+NAMES = ['dailymotion']
 
 
 async def get_video_from_dailymotion_player(session: aiohttp.ClientSession, url: str, is_vip: bool = False) -> tuple:

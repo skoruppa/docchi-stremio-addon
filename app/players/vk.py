@@ -7,6 +7,7 @@ from flask import request
 
 # Domains handled by this player
 DOMAINS = ['vk.com']
+NAMES = ['vk']
 
 VK_URL = "https://vk.com"
 VK_API_URL = "https://vk.com/al_video.php?act=show"

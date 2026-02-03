@@ -8,7 +8,7 @@ from .manifest import MANIFEST
 from app.routes import docchi_client, mapping
 from app.utils.stream_utils import respond_with
 from app.db.db import get_slug_from_mal_id, save_slug_from_mal_id
-from app.utils.player_utils import detect_player_from_url, get_player_handler
+from app.utils.player_utils import detect_player, get_player_handler
 from app.routes.meta import addon_meta
 
 
@@ -20,7 +20,7 @@ PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 
 async def process_player(session, player, is_vip=False):
     player_hosting = player['player_hosting'].lower()
-    detected_player = detect_player_from_url(player['player'])
+    detected_player = detect_player(player)
     
     if detected_player != 'default' and detected_player != player_hosting:
         player_hosting = detected_player
