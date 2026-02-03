@@ -1,10 +1,15 @@
 import re
 import aiohttp
 from app.utils.common_utils import get_random_agent
+from config import Config
 
 # Domains handled by this player
 DOMAINS = ['buzzheavier.com']
 NAMES = ['buzz']
+
+PROXIFY_STREAMS = Config.PROXIFY_STREAMS
+STREAM_PROXY_URL = Config.STREAM_PROXY_URL
+STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 
 
 async def get_video_from_buzz_player(session: aiohttp.ClientSession, player_url: str, is_vip: bool = False):
@@ -25,9 +30,16 @@ async def get_video_from_buzz_player(session: aiohttp.ClientSession, player_url:
             "Referer": player_url
         }
         
-        async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
-            response.raise_for_status()
-            html_content = await response.text()
+        if PROXIFY_STREAMS:
+            user_agent = headers['User-Agent']
+            proxied_url = f'{STREAM_PROXY_URL}/proxy/stream?d={url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
+            async with session.get(proxied_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                response.raise_for_status()
+                html_content = await response.text()
+        else:
+            async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                response.raise_for_status()
+                html_content = await response.text()
         
         # Try to find video source in <source> tag
         source_match = re.search(r'<source\s+src="([^"]+)"', html_content)

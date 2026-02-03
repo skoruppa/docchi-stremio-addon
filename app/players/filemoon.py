@@ -93,6 +93,9 @@ async def get_video_from_filemoon_player(session: aiohttp.ClientSession, url: st
         media_id = match.group(1)
         parsed = urlparse(url)
         host = parsed.netloc
+
+        if host == 'filemoon.to':
+            host = 'bysesukior.com'
         
         # Build API URL
         api_url = f"https://{host}/api/videos/{media_id}/embed/playback"
