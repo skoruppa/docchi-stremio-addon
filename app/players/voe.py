@@ -118,7 +118,7 @@ async def get_video_from_voe_player(session: aiohttp.ClientSession, player_url: 
                 
                 if stream_url:
                     if PROXIFY_STREAMS:
-                        stream_url = await generate_proxy_url(session, stream_url, request_headers=headers)
+                        stream_url = await generate_proxy_url(session, stream_url, '/proxy/hls/manifest.m3u8', request_headers=headers)
                     
                     try:
                         quality = await fetch_resolution_from_m3u8(session, stream_url, headers) or "unknown"
@@ -143,7 +143,7 @@ async def get_video_from_voe_player(session: aiohttp.ClientSession, player_url: 
                 
                 if stream_url.endswith('.m3u8'):
                     if PROXIFY_STREAMS:
-                        proxied_stream_url = await generate_proxy_url(session, stream_url, request_headers=headers)
+                        proxied_stream_url = await generate_proxy_url(session, stream_url, '/proxy/hls/manifest.m3u8', request_headers=headers)
                     else:
                         proxied_stream_url = stream_url
                     
