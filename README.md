@@ -31,6 +31,8 @@ The addon supports the following video players:
 - **Vidnest**
 - **Pixeldrain**
 - **Savefiles**
+- **Turbovid**
+- **Buzzheavier**
 - **Uqload*** 
 - **Filemoon***
 - **Streamtape***
