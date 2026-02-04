@@ -57,7 +57,7 @@ def get_packed_data(html):
     return packed_data
 
 
-async def fetch_resolution_from_m3u8(session: aiohttp.ClientSession, m3u8_url: str, headers: dict, use_proxy: bool = False) -> str | None:
+async def fetch_resolution_from_m3u8(session: aiohttp.ClientSession, m3u8_url: str, headers: dict, use_proxy: bool = False, timeout: int = 2) -> str | None:
     """Extract maximum resolution from m3u8 playlist.
     
     Args:
@@ -65,6 +65,7 @@ async def fetch_resolution_from_m3u8(session: aiohttp.ClientSession, m3u8_url: s
         m3u8_url: URL to m3u8 playlist
         headers: Request headers
         use_proxy: If True, use MediaFlow proxy to fetch m3u8
+        timeout: Timeout in seconds (default: 3)
     
     Returns:
         Resolution string (e.g. '1080p') or None
@@ -73,11 +74,11 @@ async def fetch_resolution_from_m3u8(session: aiohttp.ClientSession, m3u8_url: s
         from config import Config
         user_agent = headers.get('User-Agent', get_random_agent())
         proxied_url = f'{Config.STREAM_PROXY_URL}/proxy/stream?d={m3u8_url}&api_password={Config.STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
-        async with session.get(proxied_url, timeout=10) as response:
+        async with session.get(proxied_url, timeout=timeout) as response:
             response.raise_for_status()
             m3u8_content = await response.text()
     else:
-        async with session.get(m3u8_url, headers=headers, timeout=10) as response:
+        async with session.get(m3u8_url, headers=headers, timeout=timeout) as response:
             response.raise_for_status()
             m3u8_content = await response.text()
     

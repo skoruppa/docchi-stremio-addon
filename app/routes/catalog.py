@@ -1,7 +1,7 @@
 import urllib.parse
+import logging
 
-
-import requests
+import aiohttp
 from flask import Blueprint, abort, url_for, request, Request
 from werkzeug.exceptions import abort
 
@@ -38,12 +38,15 @@ def _is_valid_catalog(catalog_type: str, catalog_id: str):
     return False
 
 
-def _process_latest_anime(results):
+async def _process_latest_anime(results):
     """
     Get only unique anime and add mal ids to them
     :param results: latest episode results
     :return: Sorted list with mal ids
     """
+    if not results:
+        return []
+    
     unique_anime = {}
     for anime in results:
         anime_id = anime.get("anime_id") or anime.get("slug")
@@ -60,9 +63,13 @@ def _process_latest_anime(results):
         if saved_mal_id:
             u_anime['mal_id'] = saved_mal_id
         else:
-            anime_details = docchi_client.get_anime_details(u_anime['slug'])
-            u_anime['mal_id'] = anime_details['mal_id']
-            save_mal_id_from_slug(u_anime['slug'], anime_details['mal_id'])
+            try:
+                anime_details = await docchi_client.get_anime_details(u_anime['slug'])
+                u_anime['mal_id'] = anime_details['mal_id']
+                save_mal_id_from_slug(u_anime['slug'], anime_details['mal_id'])
+            except Exception as e:
+                logging.error(f"Failed to get anime details for {u_anime['slug']}: {e}")
+                continue
     return unique_anime_list
 
 
@@ -81,7 +88,7 @@ def _set_cache_time(catalog_id):
     return cache_time
 
 
-def _fetch_anime_list(search, catalog_id, genre):
+async def _fetch_anime_list(search, catalog_id, genre):
     """
     Fetch a list of anime from Docchi API based on the provided parameters
     :param search: The search query
@@ -95,27 +102,33 @@ def _fetch_anime_list(search, catalog_id, genre):
         search = urllib.parse.unquote(search)
     if search and not genre:
         if len(search) < 3:
-            return {}
-        return docchi_client.search_anime(name=search)
+            return []
+        return await docchi_client.search_anime(name=search)
     if genre:
-        results = docchi_client.get_anime_by_genre(genre=genre)
+        results = await docchi_client.get_anime_by_genre(genre=genre)
+        if not results:
+            return []
         if search:
             if len(search) < 3:
-                return {}
+                return []
             filtered_results = list(filter(lambda x: search.lower() in x["title"].lower(), results))
             return filtered_results
         return results
     if catalog_id == 'latest':
-        latest = docchi_client.get_latest_episodes(season, season_year)
-        return _process_latest_anime(latest)
+        latest = await docchi_client.get_latest_episodes(season, season_year)
+        if not latest:
+            return []
+        return await _process_latest_anime(latest)
     elif catalog_id == "trending":
-        trending = docchi_client.get_trending_anime()
-        return _process_latest_anime(trending)
+        trending = await docchi_client.get_trending_anime()
+        if not trending:
+            return []
+        return await _process_latest_anime(trending)
     elif catalog_id == "season":
-        return docchi_client.get_seasonal_anime(season, season_year)
+        return await docchi_client.get_seasonal_anime(season, season_year)
     elif "_" in catalog_id:  # for compatibility with previous version
-        return docchi_client.get_seasonal_anime(season, season_year)
-    return {}
+        return await docchi_client.get_seasonal_anime(season, season_year)
+    return []
 
 
 @catalog_bp.route('/catalog/<catalog_type>/<catalog_id>.json')
@@ -123,7 +136,7 @@ def _fetch_anime_list(search, catalog_id, genre):
 @catalog_bp.route('/catalog/<catalog_type>/<catalog_id>/genre=<genre>.json')
 @catalog_bp.route('/catalog/<catalog_type>/<catalog_id>/genre=<genre>&search=<search>.json')
 @cache.cached()
-def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None,
+async def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None,
                   search: str = None):
     """
     Provides a list of anime from MyAnimeList
@@ -140,7 +153,7 @@ def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None,
     cache_time = _set_cache_time(catalog_id)
 
     try:
-        response_data = _fetch_anime_list(search, catalog_id, genre)
+        response_data = await _fetch_anime_list(search, catalog_id, genre)
 
         meta_previews = []
         for anime_item in response_data:
@@ -149,7 +162,7 @@ def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None,
         return respond_with({'metas': meta_previews}, cache_time, 900)
     except ValueError as e:
         return respond_with({'metas': [], 'message': str(e)}), 400
-    except requests.HTTPError as e:
+    except aiohttp.ClientError as e:
         log_error(e)
         return respond_with({'metas': []}, cache_time, 900)
 

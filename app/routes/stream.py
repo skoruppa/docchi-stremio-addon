@@ -221,10 +221,10 @@ async def addon_stream(content_type: str, content_id: str):
 
     exists, slug = get_slug_from_mal_id(prefix_id)
     if not exists:
-        slug = docchi_client.get_slug_from_mal_id(prefix_id)
+        slug = await docchi_client.get_slug_from_mal_id(prefix_id)
         save_slug_from_mal_id(prefix_id, slug)
 
-    players = docchi_client.get_episode_players(slug, episode)
+    players = await docchi_client.get_episode_players(slug, episode)
     if players:
         # Remove duplicates based on 'player' field
         seen = set()

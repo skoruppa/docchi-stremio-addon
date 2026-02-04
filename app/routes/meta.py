@@ -1,6 +1,5 @@
-from functools import lru_cache
 from urllib.parse import unquote
-import requests
+import aiohttp
 from flask import Blueprint, abort
 from pyMALv2.auth import Authorization
 from pyMALv2.services.anime_service.anime_service import AnimeService
@@ -8,7 +7,7 @@ from pyMALv2.services.anime_service.anime_service import AnimeService
 from . import mapping
 from config import Config
 from .manifest import MANIFEST
-from app.utils.stream_utils import respond_with, log_error, log_warning
+from app.utils.stream_utils import respond_with, log_error, log_warning, cache
 
 meta_bp = Blueprint('meta', __name__)
 
@@ -27,8 +26,8 @@ anime_service = AnimeService(auth)
 
 
 @meta_bp.route('/meta/<meta_type>/<meta_id>.json')
-@lru_cache(maxsize=1000)
-def addon_meta(meta_type: str, meta_id: str):
+@cache.cached(timeout=86400)
+async def addon_meta(meta_type: str, meta_id: str):
     """
     Provides metadata for a specific content
     :param meta_type: The type of metadata to return
@@ -76,15 +75,20 @@ def addon_meta(meta_type: str, meta_id: str):
     if mal_id:
         try:
             url = f"{kitsu_API}/{meta_type}/mal:{mal_id}.json"
-            resp = requests.get(url=url, headers=HEADERS)
-            resp.raise_for_status()
-            meta = kitsu_to_meta(resp.json(), meta_id)
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, headers=HEADERS) as resp:
+                    resp.raise_for_status()
+                    json_data = await resp.json()
+                    meta = kitsu_to_meta(json_data, meta_id)
 
-        except (requests.HTTPError, requests.ConnectionError, requests.RequestException) as e:
+        except (aiohttp.ClientError, aiohttp.ClientResponseError) as e:
             log_warning(f"Kitsu error: {e}. Falling back to MAL API.")
             if mal_id:
                 try:
-                    mal_anime = anime_service.get(
+                    import asyncio
+                    mal_anime = await asyncio.to_thread(
+                        anime_service.get,
                         int(mal_id),
                         fields='id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,num_episodes,start_season,genres,media_type,studios,pictures,background,average_episode_duration'
                     )
@@ -92,7 +96,7 @@ def addon_meta(meta_type: str, meta_id: str):
                     if not mal_anime:
                         return respond_with({'meta': {}, 'message': 'Anime not found on MAL'}), 404
 
-                    meta = mal_to_meta(mal_anime, meta_id, mal_id)
+                    meta = await mal_to_meta(mal_anime, meta_id, mal_id)
                 except Exception as mal_e:
                     log_error(f"MAL API error: {mal_e}")
                     return respond_with({'meta': {}, 'message': 'An unexpected error occurred.'}), 500
@@ -112,7 +116,7 @@ def addon_meta(meta_type: str, meta_id: str):
         return respond_with({'meta': {}}, 86400, 86400)
 
 
-def mal_to_meta(mal_anime, meta_id: str, mal_id: str) -> dict:
+async def mal_to_meta(mal_anime, meta_id: str, mal_id: str) -> dict:
     """
     Converts MAL API response into a Stremio meta object format.
     :param mal_anime: The anime data from MAL API.
@@ -165,10 +169,10 @@ def mal_to_meta(mal_anime, meta_id: str, mal_id: str) -> dict:
     # If no episodes from MAL, try Docchi API
     if not num_episodes:
         try:
-            from app.api.docchi import DocchiAPI
-            slug = DocchiAPI.get_slug_from_mal_id(mal_id)
+            from . import docchi_client
+            slug = await docchi_client.get_slug_from_mal_id(mal_id)
             if slug:
-                episode_data = DocchiAPI.get_available_episodes(slug)
+                episode_data = await docchi_client.get_available_episodes(slug)
                 num_episodes = len(episode_data) if isinstance(episode_data, list) else 0
         except Exception as e:
             log_error(f"Failed to get episodes from Docchi: {e}")
