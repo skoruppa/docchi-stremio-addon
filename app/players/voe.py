@@ -4,6 +4,8 @@ import base64
 import aiohttp
 from urllib.parse import urljoin
 from app.utils.common_utils import get_random_agent, fetch_resolution_from_m3u8
+from app.utils.proxy_utils import generate_proxy_url
+from config import Config
 
 # Domains handled by this player
 DOMAINS = [
@@ -22,6 +24,13 @@ DOMAINS = [
 ]
 DOMAINS += [f'voeunblock{x}.com' for x in range(1, 11)]
 NAMES = ['voe']
+
+# NOTE: Enabled only for VIP, as whole stream needs to go through proxy
+ENABLED = True
+
+PROXIFY_STREAMS = Config.PROXIFY_STREAMS
+STREAM_PROXY_URL = Config.STREAM_PROXY_URL
+STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 
 
 def voe_decode(ct: str, luts: str) -> dict:
@@ -48,24 +57,43 @@ def voe_decode(ct: str, luts: str) -> dict:
 
 
 async def get_video_from_voe_player(session: aiohttp.ClientSession, player_url: str, is_vip: bool = False):
+    """Extract video URL from VOE player. VIP only (or local selfhost without proxy)."""
+    # VOE requires VIP
+    if not is_vip:
+        return None, None, None
+    
     try:
         headers = {
             "User-Agent": get_random_agent(),
             "Referer": player_url
         }
         
-        async with session.get(player_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
-            response.raise_for_status()
-            html_content = await response.text()
+        if PROXIFY_STREAMS:
+            user_agent = headers['User-Agent']
+            proxied_url = f'{STREAM_PROXY_URL}/proxy/stream?d={player_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
+            async with session.get(proxied_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                response.raise_for_status()
+                html_content = await response.text()
+        else:
+            async with session.get(player_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                response.raise_for_status()
+                html_content = await response.text()
         
         # Check for redirect
         if 'const currentUrl' in html_content:
             redirect_match = re.search(r"window\.location\.href\s*=\s*'([^']+)'", html_content)
             if redirect_match:
                 player_url = redirect_match.group(1)
-                async with session.get(player_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                    response.raise_for_status()
-                    html_content = await response.text()
+                if PROXIFY_STREAMS:
+                    user_agent = headers['User-Agent']
+                    proxied_url = f'{STREAM_PROXY_URL}/proxy/stream?d={player_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
+                    async with session.get(proxied_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                        response.raise_for_status()
+                        html_content = await response.text()
+                else:
+                    async with session.get(player_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                        response.raise_for_status()
+                        html_content = await response.text()
         
         # Try new decoding method
         match = re.search(r'json">\["([^"]+)"]</script>\s*<script\s*src="([^"]+)', html_content)
@@ -89,10 +117,14 @@ async def get_video_from_voe_player(session: aiohttp.ClientSession, player_url: 
                         break
                 
                 if stream_url:
+                    if PROXIFY_STREAMS:
+                        stream_url = await generate_proxy_url(session, stream_url, request_headers=headers)
+                    
                     try:
                         quality = await fetch_resolution_from_m3u8(session, stream_url, headers) or "unknown"
                     except Exception:
                         quality = "unknown"
+                    
                     stream_headers = {'request': headers}
                     return stream_url, quality, stream_headers
         
@@ -110,8 +142,13 @@ async def get_video_from_voe_player(session: aiohttp.ClientSession, player_url: 
                 quality = match.groupdict().get('label', 'unknown')
                 
                 if stream_url.endswith('.m3u8'):
+                    if PROXIFY_STREAMS:
+                        proxied_stream_url = await generate_proxy_url(session, stream_url, request_headers=headers)
+                    else:
+                        proxied_stream_url = stream_url
+                    
                     try:
-                        quality = await fetch_resolution_from_m3u8(session, stream_url, headers) or quality
+                        quality = await fetch_resolution_from_m3u8(session, proxied_stream_url, headers) or quality
                     except Exception:
                         pass
                 

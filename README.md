@@ -36,6 +36,7 @@ The addon supports the following video players:
 - **Uqload*** 
 - **Filemoon***
 - **Streamtape***
+- **VOE***
 
 **\* These players require full stream proxying through [MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy)** or local deployment 
 
