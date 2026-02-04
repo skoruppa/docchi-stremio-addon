@@ -70,6 +70,18 @@ def build_filename(anime_name, episode_num, content_id, quality, translator_norm
     return f"{content_base}.{quality}-{translator_norm}.docc"
 
 
+def build_binge_group(anime_name, content_id, quality, translator_norm):
+    """Build bingeGroup identifier (same as filename but without episode number)."""
+    if anime_name:
+        name_norm = anime_name.replace(' ', '_').replace(':', '').replace('/', '')
+        return f"{name_norm}.{quality}-{translator_norm}.docc"
+    
+    # Fallback to content_id
+    parts = content_id.split(':')
+    content_base = f"{parts[0]}:{parts[1]}"
+    return f"{content_base}.{quality}-{translator_norm}.docc"
+
+
 async def process_players(players, content_id=None, content_type='series', is_vip=False):
     streams = {'streams': []}
     
@@ -116,9 +128,10 @@ async def process_players(players, content_id=None, content_type='series', is_vi
                     player = stream['player_hosting']
                     is_ai = translator.lower() == 'ai'
                     
-                    # Build filename
+                    # Build filename and bingeGroup
                     translator_norm = translator.replace(' ', '_').replace('.','_')
                     filename = build_filename(anime_name, episode_num, content_id, quality, translator_norm)
+                    binge_group = build_binge_group(anime_name, content_id, quality, translator_norm)
                     
                     # Build description
                     translator_flag = f"🇵🇱 {'⚠️ ' if is_ai else ''}{translator}"
@@ -133,7 +146,10 @@ async def process_players(players, content_id=None, content_type='series', is_vi
                         'name': quality,
                         'description': description,
                         'url': stream['url'],
-                        'behaviorHints': {'filename': filename},
+                        'behaviorHints': {
+                            'filename': filename,
+                            'bingeGroup': binge_group
+                        },
                         '_priority': priority  
                     }
                     
