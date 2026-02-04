@@ -75,14 +75,14 @@ async def addon_meta(meta_type: str, meta_id: str):
     if mal_id:
         try:
             url = f"{kitsu_API}/{meta_type}/mal:{mal_id}.json"
-            timeout = aiohttp.ClientTimeout(total=10)
+            timeout = aiohttp.ClientTimeout(total=3)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(url, headers=HEADERS) as resp:
                     resp.raise_for_status()
                     json_data = await resp.json()
                     meta = kitsu_to_meta(json_data, meta_id)
 
-        except (aiohttp.ClientError, aiohttp.ClientResponseError) as e:
+        except (aiohttp.ClientError, aiohttp.ClientResponseError, TimeoutError) as e:
             log_warning(f"Kitsu error: {e}. Falling back to MAL API.")
             if mal_id:
                 try:

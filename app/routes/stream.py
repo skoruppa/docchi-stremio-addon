@@ -210,7 +210,7 @@ async def addon_stream(content_type: str, content_id: str):
             prefix = 'mal'
             episode = parts[2] if len(parts) > 2 else '1'
         else:
-            return respond_with({'streams': []}, 2592000, 2592000)
+            return respond_with({'streams': []})
 
     else:
         prefix_id = parts[1]
@@ -236,5 +236,5 @@ async def addon_stream(content_type: str, content_id: str):
                 unique_players.append(player)
         
         streams = await process_players(unique_players, content_id, content_type, is_vip)
-        return respond_with(streams, 3600, 1800)
-    return respond_with({'streams': []}, 3600, 1800)
+        return respond_with(streams, 600, 300)
+    return respond_with({'streams': []})
