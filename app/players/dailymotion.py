@@ -20,7 +20,7 @@ async def get_video_from_dailymotion_player(session: aiohttp.ClientSession, url:
         media_id = match.group(2)
         
         headers = {
-            'User-Agent': get_random_agent()
+            'User-Agent': get_random_agent(),
             'Referer': 'https://www.dailymotion.com/'
         }
         
