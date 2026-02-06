@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "a7dc5ebee4bd53c2de9fc95f99b5d81be99fa40977dc89dfc1b3e612019b83b7"
+            "sha256": "5814f819c2aa4ae9f283159735b05810f2c3e97108622001369bad7d806d32b4"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -130,11 +130,20 @@
         },
         "asgiref": {
             "hashes": [
-                "sha256:13acff32519542a1736223fb79a715acdebe24286d98e8b164a73085f40da2c4",
-                "sha256:1db9021efadb0d9512ce8ffaf72fcef601c7b73a8807a1bb2ef143dc6b14846d"
+                "sha256:5f184dc43b7e763efe848065441eac62229c9f7b0475f41f80e207a114eda4ce",
+                "sha256:e8667a091e69529631969fd45dc268fa79b99c92c5fcdda727757e52146ec133"
             ],
             "markers": "python_version >= '3.9'",
-            "version": "==3.11.0"
+            "version": "==3.11.1"
+        },
+        "async-tls-client": {
+            "hashes": [
+                "sha256:012bfe1a91fddff800dd73453f0ddcff5c398269af666c344a36225bda970d49",
+                "sha256:a2af7908e29d9d8a72f6950f08493fd5199c862f4c5c2e5307735297d4ec3d15"
+            ],
+            "index": "pypi",
+            "markers": "python_version >= '3.9'",
+            "version": "==2.1.0"
         },
         "attrs": {
             "hashes": [
@@ -1126,6 +1135,14 @@
             ],
             "markers": "python_version >= '3.9'",
             "version": "==6.7.1"
+        },
+        "nocasedict": {
+            "hashes": [
+                "sha256:6f2b608602b0568cd06ff46e2a0f231d2a0c247d6dc120672c381cb29169e1e7",
+                "sha256:ca46fd37843c94ca21c7933abd59b8c3ec6f50310c699e0db1eaa208452c155a"
+            ],
+            "markers": "python_version >= '3.9'",
+            "version": "==2.2.0"
         },
         "propcache": {
             "hashes": [
