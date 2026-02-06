@@ -25,7 +25,7 @@ async def get_video_from_gdrive_player(session: aiohttp.ClientSession, drive_url
     headers = {'User-Agent': get_random_agent()}
 
     try:
-        async with session.get(info_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+        async with session.get(info_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10), allow_redirects=False) as response:
             if response.status == 403 or response.status == 429:
                 return None, None, None
             
@@ -41,7 +41,7 @@ async def get_video_from_gdrive_player(session: aiohttp.ClientSession, drive_url
 
         value = unquote(fmt_match.group(1))
         items = value.split(',')
-        
+
         sources = []
         for item in items:
             parts = item.split('|')
@@ -54,11 +54,18 @@ async def get_video_from_gdrive_player(session: aiohttp.ClientSession, drive_url
             return None, None, None
 
         sources.sort(key=lambda x: int(re.search(r'(\d+)', x[0]).group(1)) if re.search(r'(\d+)', x[0]) else 0, reverse=True)
-        
+
         best_url = sources[0][1]
         best_quality = sources[0][0]
 
-        return best_url, best_quality, None
+        # Add cookies from session to headers
+        stream_headers = None
+        cookies = {cookie.key: cookie.value for cookie in session.cookie_jar}
+        if cookies:
+            cookie_str = '; '.join([f'{k}={v}' for k, v in cookies.items()])
+            stream_headers = {'request': {'Cookie': cookie_str, 'User-Agent': headers['User-Agent']}}
+
+        return best_url, best_quality, stream_headers
 
     except Exception:
         return None, None, None
@@ -68,7 +75,7 @@ if __name__ == '__main__':
     from app.players.test import run_tests
 
     urls_to_test = [
-        "https://drive.google.com/file/d/1K-L0D3sZMFFr2uIEX2MY93Z7ov2FMUxM/view"
+        "https://drive.google.com/file/d/1XmSKnPkReGgYVnz6fGBvP57UC0n6Ln9d/view"
     ]
 
     run_tests(get_video_from_gdrive_player, urls_to_test)
