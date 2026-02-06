@@ -41,20 +41,16 @@ async def get_video_from_dailymotion_player(session: aiohttp.ClientSession, url:
         if not quals:
             return None, None, None
         
+        # Priority 1: MP4
         for q in ['1080', '720', '480', '380', '240']:
             if q in quals:
                 for source in quals[q]:
                     if source.get('type') == 'video/mp4':
                         master_url = source.get('url')
                         if master_url:
-                            cookies = {cookie.key: cookie.value for cookie in session.cookie_jar}
-                            if cookies:
-                                cookie_str = '; '.join([f'{k}={v}' for k, v in cookies.items()])
-                                headers['Cookie'] = cookie_str
-                            
-                            stream_headers = {'request': headers}
-                            return master_url, f'{q}p', stream_headers
+                            return master_url, f'{q}p', None
         
+        # Priority 2: HLS
         auto_qual = quals.get('auto', [])
         if auto_qual:
             master_url = auto_qual[0].get('url')
@@ -64,14 +60,7 @@ async def get_video_from_dailymotion_player(session: aiohttp.ClientSession, url:
                     quality = await fetch_resolution_from_m3u8(session, master_url, headers) or quality
                 except Exception:
                     pass
-                
-                cookies = {cookie.key: cookie.value for cookie in session.cookie_jar}
-                if cookies:
-                    cookie_str = '; '.join([f'{k}={v}' for k, v in cookies.items()])
-                    headers['Cookie'] = cookie_str
-                
-                stream_headers = {'request': headers}
-                return master_url, quality, stream_headers
+                return master_url, quality, None
         
         return None, None, None
     
