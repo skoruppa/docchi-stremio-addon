@@ -1,7 +1,7 @@
 import re
 import aiohttp
 from urllib.parse import urlparse, quote
-from app.utils.common_utils import get_random_agent
+from app.utils.common_utils import get_random_agent, fetch_resolution_from_m3u8
 
 # Domains handled by this player
 DOMAINS = ['dailymotion.com', 'dai.ly']
@@ -21,16 +21,12 @@ async def get_video_from_dailymotion_player(session: aiohttp.ClientSession, url:
         
         # Build metadata URL
         metadata_url = f'https://www.dailymotion.com/player/metadata/video/{media_id}'
-        
+
+
+
         headers = {
-            'User-Agent': get_random_agent(),
-            'Origin': 'https://www.dailymotion.com',
-            'Referer': 'https://www.dailymotion.com/'
+            'User-Agent': get_random_agent()
         }
-
-        await session.get("https://www.dailymotion.com/", headers=headers,
-                          timeout=aiohttp.ClientTimeout(total=10))  #cookie warmup
-
         
         async with session.get(metadata_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
             response.raise_for_status()
@@ -51,31 +47,15 @@ async def get_video_from_dailymotion_player(session: aiohttp.ClientSession, url:
         master_url = auto_qual[0].get('url')
         if not master_url:
             return None, None, None
-        
-        # Fetch master playlist
-        async with session.get(master_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
-            response.raise_for_status()
-            m3u8_content = await response.text()
-        
-        # Parse m3u8 for best quality
-        sources = re.findall(r'NAME="(?P<label>[^"]+)".*(?:,PROGRESSIVE-URI="|\n)(?P<url>[^#]+)', m3u8_content)
-        if not sources:
-            return None, None, None
-        
-        # Sort by quality and pick highest
-        sources_sorted = sorted(sources, key=lambda x: int(re.sub(r'\D', '', x[0]) or '0'), reverse=True)
-        best_quality, stream_url = sources_sorted[0]
-        
-        # Normalize URL - encode special characters for Stremio compatibility
-        parsed = urlparse(stream_url)
-        encoded_path = quote(parsed.path, safe='/.')
-        stream_url = f"{parsed.scheme}://{parsed.netloc}{encoded_path}"
-        
-        # Format quality (add 'p' if not present)
-        quality = best_quality if 'p' in best_quality.lower() else f'{best_quality}p'
+
+        quality = 'unknown'
+        try:
+            quality = await fetch_resolution_from_m3u8(session, master_url, headers) or quality
+        except Exception:
+            pass
         
         stream_headers = {'request': headers}
-        return stream_url, quality, stream_headers
+        return master_url, quality, stream_headers
     
     except Exception as e:
         print(f"Dailymotion Player Error: {e}")

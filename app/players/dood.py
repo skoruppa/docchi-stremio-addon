@@ -2,8 +2,8 @@ import re
 import time
 import string
 import random
-import cloudscraper
 from urllib.parse import urlparse
+from async_tls_client import AsyncSession
 
 DOMAINS = [    'dood.watch', 'doodstream.com', 'dood.to', 'dood.so', 'dood.cx', 'dood.la', 'dood.ws',
     'dood.sh', 'doodstream.co', 'dood.pm', 'dood.wf', 'dood.re', 'dood.yt', 'dooood.com',
@@ -14,64 +14,48 @@ DOMAINS = [    'dood.watch', 'doodstream.com', 'dood.to', 'dood.so', 'dood.cx', 
 ]
 NAMES = ['dood']
 
-ENABLED = False
-# cloudflare blocks requests from vercel. Works locally even without cloudscraper
+ENABLED = True
 
 async def get_video_from_dood_player(session, player_url, is_vip: bool = False):
     """Extract video URL from DoodStream player"""
+    from app.utils.common_utils import fetch_resolution_from_m3u8
 
     parsed = urlparse(player_url)
     video_id = parsed.path.rstrip('/').split('/')[-1]
-
-    # Normalize to /e/ endpoint
     url = f"http://dood.to/e/{video_id}"
 
     try:
-        # Use cloudscraper to bypass Cloudflare
-        scraper = cloudscraper.create_scraper(
-            enable_stealth=True,
-            stealth_options={
-                'min_delay': 2.0,
-                'max_delay': 3.0,
-                'human_like_delays': True,
-                'randomize_headers': True,
-                'browser_quirks': True
-            },
+        async with AsyncSession(client_identifier="chrome_120", random_tls_extension_order=True) as client:
+            response = await client.get(url, allow_redirects=True)
+            html = response.text
 
-            # Browser emulation
-            browser='chrome',
+            if 'Video not found' in html:
+                return None, None, None
 
-            # Debug mode
-            debug=False
-        )
-        html = scraper.get(url).text
+            pass_md5_match = re.search(r'/pass_md5/[\w-]+/([\w-]+)', html)
+            if not pass_md5_match:
+                return None, None, None
 
-        if 'Video not found' in html:
-            return None, None, None
+            token = pass_md5_match.group(1)
+            pass_md5_url = f"http://dood.to{pass_md5_match.group(0)}"
 
-        # Extract pass_md5 path and token
-        pass_md5_match = re.search(r'/pass_md5/[\w-]+/([\w-]+)', html)
-        if not pass_md5_match:
-            return None, None, None
+            response = await client.get(pass_md5_url, headers={'Referer': url}, allow_redirects=True)
+            base_url = response.text.strip()
 
-        token = pass_md5_match.group(1)
-        pass_md5_url = f"http://dood.to{pass_md5_match.group(0)}"
+            if 'cloudflarestorage' in base_url:
+                final_url = base_url
+            else:
+                random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+                expiry = int(time.time() * 1000)
+                final_url = f"{base_url}{random_str}?token={token}&expiry={expiry}"
 
-        # Get base URL using cloudscraper
-        base_url = scraper.get(pass_md5_url, headers={'Referer': url}).text.strip()
+            # Check quality
+            quality = 'unknown'
 
-        # Build final URL
-        if 'cloudflarestorage' in base_url:
-            final_url = base_url
-        else:
-            random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
-            expiry = int(time.time() * 1000)
-            final_url = f"{base_url}{random_str}?token={token}&expiry={expiry}"
+            stream_headers = {'request': {'Referer': 'http://dood.to'}}
+            return final_url, quality, stream_headers
 
-        stream_headers = {'request': {'Referer': 'http://dood.to'}}
-        return final_url, 'unknown', stream_headers
-
-    except Exception as e:
+    except Exception:
         return None, None, None
 
 

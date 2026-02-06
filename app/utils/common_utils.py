@@ -5,8 +5,8 @@ Common utilities shared across the application.
 import re
 import random
 import aiohttp
-from html.parser import HTMLParser
 from app.utils import jsunpack
+from async_tls_client import AsyncSession
 
 
 def get_random_agent(browser: str = None):
@@ -58,14 +58,14 @@ def get_packed_data(html):
 
 
 async def fetch_resolution_from_m3u8(session: aiohttp.ClientSession, m3u8_url: str, headers: dict, use_proxy: bool = False, timeout: int = 2) -> str | None:
-    """Extract maximum resolution from m3u8 playlist.
+    """Extract maximum resolution from m3u8 playlist using async-tls-client.
     
     Args:
-        session: aiohttp ClientSession
+        session: aiohttp ClientSession (cookies will be copied)
         m3u8_url: URL to m3u8 playlist
         headers: Request headers
         use_proxy: If True, use MediaFlow proxy to fetch m3u8
-        timeout: Timeout in seconds (default: 3)
+        timeout: Timeout in seconds (default: 2)
     
     Returns:
         Resolution string (e.g. '1080p') or None
@@ -74,16 +74,23 @@ async def fetch_resolution_from_m3u8(session: aiohttp.ClientSession, m3u8_url: s
         from config import Config
         user_agent = headers.get('User-Agent', get_random_agent())
         proxied_url = f'{Config.STREAM_PROXY_URL}/proxy/stream?d={m3u8_url}&api_password={Config.STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
-        async with session.get(proxied_url, timeout=timeout) as response:
-            response.raise_for_status()
-            m3u8_content = await response.text()
-    else:
-        async with session.get(m3u8_url, headers=headers, timeout=timeout) as response:
-            response.raise_for_status()
-            m3u8_content = await response.text()
+        m3u8_url = proxied_url
     
-    resolutions = re.findall(r'RESOLUTION=\s*(\d+)x(\d+)', m3u8_content)
-    if resolutions:
-        max_resolution = max(int(height) for width, height in resolutions)
-        return f"{max_resolution}p"
-    return None
+    try:
+        async with AsyncSession(client_identifier="chrome_120", random_tls_extension_order=True) as client:
+            # Copy cookies from aiohttp session
+            cookies = {cookie.key: cookie.value for cookie in session.cookie_jar}
+            if cookies:
+                await client.add_cookies(cookies, m3u8_url)
+            
+            response = await client.get(m3u8_url, headers=headers, timeout_seconds=timeout)
+            if response.status_code != 200:
+                return None
+            
+            resolutions = re.findall(r'RESOLUTION=\s*(\d+)x(\d+)', response.text)
+            if resolutions:
+                max_resolution = max(int(height) for width, height in resolutions)
+                return f"{max_resolution}p"
+        return None
+    except Exception as e:
+        return None
