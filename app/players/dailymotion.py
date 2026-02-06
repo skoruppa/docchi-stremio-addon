@@ -19,15 +19,17 @@ async def get_video_from_dailymotion_player(session: aiohttp.ClientSession, url:
 
         media_id = match.group(2)
         
-        # Build metadata URL
-        metadata_url = f'https://www.dailymotion.com/player/metadata/video/{media_id}'
-
-
-
         headers = {
             'User-Agent': get_random_agent()
+            'Referer': 'https://www.dailymotion.com/'
         }
         
+        # Warm-up session to get cookies
+        async with session.get('https://www.dailymotion.com/', headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as response:
+            pass
+        
+        # Get metadata
+        metadata_url = f'https://www.dailymotion.com/player/metadata/video/{media_id}'
         async with session.get(metadata_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
             response.raise_for_status()
             js_result = await response.json()
@@ -39,23 +41,39 @@ async def get_video_from_dailymotion_player(session: aiohttp.ClientSession, url:
         if not quals:
             return None, None, None
         
-        # Get auto quality master playlist
+        for q in ['1080', '720', '480', '380', '240']:
+            if q in quals:
+                for source in quals[q]:
+                    if source.get('type') == 'video/mp4':
+                        master_url = source.get('url')
+                        if master_url:
+                            cookies = {cookie.key: cookie.value for cookie in session.cookie_jar}
+                            if cookies:
+                                cookie_str = '; '.join([f'{k}={v}' for k, v in cookies.items()])
+                                headers['Cookie'] = cookie_str
+                            
+                            stream_headers = {'request': headers}
+                            return master_url, f'{q}p', stream_headers
+        
         auto_qual = quals.get('auto', [])
-        if not auto_qual:
-            return None, None, None
+        if auto_qual:
+            master_url = auto_qual[0].get('url')
+            if master_url:
+                quality = 'unknown'
+                try:
+                    quality = await fetch_resolution_from_m3u8(session, master_url, headers) or quality
+                except Exception:
+                    pass
+                
+                cookies = {cookie.key: cookie.value for cookie in session.cookie_jar}
+                if cookies:
+                    cookie_str = '; '.join([f'{k}={v}' for k, v in cookies.items()])
+                    headers['Cookie'] = cookie_str
+                
+                stream_headers = {'request': headers}
+                return master_url, quality, stream_headers
         
-        master_url = auto_qual[0].get('url')
-        if not master_url:
-            return None, None, None
-
-        quality = 'unknown'
-        try:
-            quality = await fetch_resolution_from_m3u8(session, master_url, headers) or quality
-        except Exception:
-            pass
-        
-        stream_headers = {'request': headers}
-        return master_url, quality, stream_headers
+        return None, None, None
     
     except Exception as e:
         print(f"Dailymotion Player Error: {e}")
