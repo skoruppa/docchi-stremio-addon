@@ -57,6 +57,12 @@ async def get_video_from_gdrive_player(session: aiohttp.ClientSession, drive_url
                     quality = ITAG_MAP.get(source_itag, f'unknown [{source_itag}]')
                     source_url = unquote(source_url)
                     
+                    # Add cookies from session if any
+                    cookies = {cookie.key: cookie.value for cookie in session.cookie_jar}
+                    if cookies:
+                        cookie_str = '; '.join([f'{k}={v}' for k, v in cookies.items()])
+                        headers['Cookie'] = cookie_str
+                    
                     return source_url, quality, {'request': headers}
 
         return None, None, None
