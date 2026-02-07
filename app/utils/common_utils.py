@@ -77,13 +77,17 @@ async def fetch_resolution_from_m3u8(session: aiohttp.ClientSession, m3u8_url: s
         m3u8_url = proxied_url
     
     try:
-        async with AsyncSession(client_identifier="chrome_120", random_tls_extension_order=True) as client:
-            # Copy cookies from aiohttp session
+        async with AsyncSession(
+            client_identifier="chrome_120",
+            random_tls_extension_order=True,
+            timeout_milliseconds=timeout*1000
+        ) as client:
+            client.timeout_seconds = None
             cookies = {cookie.key: cookie.value for cookie in session.cookie_jar}
             if cookies:
                 await client.add_cookies(cookies, m3u8_url)
             
-            response = await client.get(m3u8_url, headers=headers, timeout=timeout)
+            response = await client.get(m3u8_url, headers=headers)
             if response.status_code != 200:
                 return None
             
@@ -92,5 +96,5 @@ async def fetch_resolution_from_m3u8(session: aiohttp.ClientSession, m3u8_url: s
                 max_resolution = max(int(height) for width, height in resolutions)
                 return f"{max_resolution}p"
         return None
-    except Exception as e:
+    except Exception:
         return None

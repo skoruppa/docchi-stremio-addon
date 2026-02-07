@@ -103,10 +103,9 @@ async def get_video_from_streamup_player(session: aiohttp.ClientSession, player_
         }
         stream_headers = {'request': stream_headers_dict}
 
-        try:
-            quality = await fetch_resolution_from_m3u8(session, stream_url, stream_headers_dict) or "unknown"
-        except Exception:
-            quality = "unknown"
+        quality = await fetch_resolution_from_m3u8(session, stream_url, stream_headers_dict)
+        if quality is None:
+            return None, None, None
 
         return stream_url, quality, stream_headers
 

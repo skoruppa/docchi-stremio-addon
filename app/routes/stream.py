@@ -174,15 +174,17 @@ async def process_players(players, content_id=None, content_type='series', is_vi
 def sort_priority(stream):
     if 'lycoris' in stream['player_hosting']:
         return 0
-    elif stream['player_hosting'] == 'cda':
+    elif stream['player_hosting'] == 'rumble':
         return 1
+    elif stream['player_hosting'] == 'cda':
+        return 2
     elif stream['player_hosting'] == 'uqload':
         return 4
     elif stream['player_hosting'] == 'streamtape':
         return 5
     elif stream['translator_title'].lower() == 'ai':
         return 9
-    return 2
+    return 3
 
 
 @stream_bp.route('/stream/<content_type>/<content_id>.json')
