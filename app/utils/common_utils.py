@@ -83,7 +83,7 @@ async def fetch_resolution_from_m3u8(session: aiohttp.ClientSession, m3u8_url: s
             if cookies:
                 await client.add_cookies(cookies, m3u8_url)
             
-            response = await client.get(m3u8_url, headers=headers, timeout_seconds=timeout)
+            response = await client.get(m3u8_url, headers=headers, timeout=timeout)
             if response.status_code != 200:
                 return None
             
