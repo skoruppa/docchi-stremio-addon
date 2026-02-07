@@ -1,81 +1,58 @@
 import re
+from bs4 import BeautifulSoup
 import aiohttp
-from urllib.parse import unquote, urlencode
 from app.utils.common_utils import get_random_agent
+from urllib.parse import urlencode
 
+# Domains handled by this player
 DOMAINS = ['drive.google.com', 'drive.usercontent.google.com']
 NAMES = ['gdrive']
 
-ITAG_MAP = {
-    '18': '360p', '22': '720p', '37': '1080p', '38': '3072p',
-    '59': '480p', '133': '240p', '134': '360p', '135': '480p',
-    '136': '720p', '137': '1080p', '138': '2160p', '160': '144p',
-    '264': '1440p', '266': '2160p', '298': '720p', '299': '1080p'
-}
+
+def build_video_url(base_url, document):
+    url = base_url.split('?')[0]
+    params = {
+        input_elem["name"]: input_elem["value"]
+        for input_elem in document.select("input[type=hidden]")
+    }
+    query_string = urlencode(params)
+
+    return f"{url}?{query_string}"
 
 
 async def get_video_from_gdrive_player(session: aiohttp.ClientSession, drive_url: str, is_vip: bool = False):
-    match = re.search(r'[-\w]{25,}', drive_url)
+    match = re.search(r"/d/([a-zA-Z0-9_-]+)", drive_url)
     if not match:
+        return None
+
+    item_id = match.group(1)
+    video_url = f"https://drive.usercontent.google.com/download?id={item_id}"
+
+    headers = {
+        "User-Agent": get_random_agent(),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    }
+
+    async with session.get(video_url, headers=headers) as response:
+        text = await response.text()
+
+    if 'Error 404 (Not Found)' in text:
         return None, None, None
+    elif not text.startswith("<!DOCTYPE html>"):
+        return video_url, "unknown", headers
 
-    doc_id = match.group(0)
-    info_url = f'https://drive.google.com/get_video_info?docid={doc_id}'
+    soup = BeautifulSoup(text, "html.parser")
+    quality = "unknown"
 
-    headers = {'User-Agent': get_random_agent()}
-
-    try:
-        async with session.get(info_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10), allow_redirects=False) as response:
-            if response.status == 403 or response.status == 429:
-                return None, None, None
-            
-            html = await response.text()
-
-        if 'error' in html:
-            return None, None, None
-
-        # Parse fmt_stream_map
-        fmt_match = re.search(r'fmt_stream_map=([^&]+)', html)
-        if not fmt_match:
-            return None, None, None
-
-        value = unquote(fmt_match.group(1))
-        items = value.split(',')
-
-        sources = []
-        for item in items:
-            parts = item.split('|')
-            if len(parts) == 2:
-                itag, url = parts
-                quality = ITAG_MAP.get(itag, f'unknown [{itag}]')
-                sources.append((quality, unquote(url)))
-
-        if not sources:
-            return None, None, None
-
-        sources.sort(key=lambda x: int(re.search(r'(\d+)', x[0]).group(1)) if re.search(r'(\d+)', x[0]) else 0, reverse=True)
-
-        best_url = sources[0][1]
-        best_quality = sources[0][0]
-
-        # Add cookies from session to headers
-        stream_headers = None
-        cookies = {cookie.key: cookie.value for cookie in session.cookie_jar}
-        if cookies:
-            cookie_str = '; '.join([f'{k}={v}' for k, v in cookies.items()])
-            stream_headers = {'request': {'Cookie': cookie_str, 'User-Agent': headers['User-Agent']}}
-
-        return best_url, best_quality, stream_headers
-
-    except Exception:
-        return None, None, None
+    final_video_url = build_video_url(video_url, soup)
+    return final_video_url, quality, headers
 
 
 if __name__ == '__main__':
     from app.players.test import run_tests
 
     urls_to_test = [
-        "https://drive.google.com/file/d/1XmSKnPkReGgYVnz6fGBvP57UC0n6Ln9d/view"
+        "https://drive.google.com/file/d/1hZ_DD0kRVSDMYC3gbt97HuExOzY2Ey_6/view"
     ]
 
     run_tests(get_video_from_gdrive_player, urls_to_test)
