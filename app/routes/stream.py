@@ -176,8 +176,10 @@ def sort_priority(stream):
         return 0
     elif stream['player_hosting'] == 'rumble':
         return 1
-    elif stream['player_hosting'] == 'cda':
+    elif stream['player_hosting'] == 'gdrive':
         return 2
+    elif stream['player_hosting'] == 'cda':
+        return 3
     elif stream['player_hosting'] == 'uqload':
         return 4
     elif stream['player_hosting'] == 'streamtape':
