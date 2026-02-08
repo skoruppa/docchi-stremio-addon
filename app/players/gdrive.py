@@ -1,7 +1,7 @@
 import re
 import aiohttp
 from app.utils.common_utils import get_random_agent
-from urllib.parse import unquote
+from urllib.parse import unquote, urlencode
 
 # Domains handled by this player
 DOMAINS = ['drive.google.com', 'drive.usercontent.google.com']
@@ -21,47 +21,67 @@ ITAG_MAP = {
 }
 
 
+def build_video_url(base_url, html):
+    url = base_url.split('?')[0]
+    params = {}
+    for match in re.finditer(r'<input[^>]+type="hidden"[^>]+name="([^"]+)"[^>]+value="([^"]+)"', html):
+        params[match.group(1)] = match.group(2)
+    query_string = urlencode(params)
+    return f"{url}?{query_string}"
+
+
 async def get_video_from_gdrive_player(session: aiohttp.ClientSession, drive_url: str, is_vip: bool = False):
-    match = re.search(r'[-\w]{25,}', drive_url)
+    match = re.search(r'/d/([a-zA-Z0-9_-]+)', drive_url)
     if not match:
         return None, None, None
 
-    doc_id = match.group(0)
-    info_url = f'https://drive.google.com/u/0/get_video_info?docid={doc_id}&drive_originator_app=303'
-
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0'}
-
+    item_id = match.group(1)
+    
+    # Check quality using get_video_info
+    info_url = f'https://drive.google.com/u/0/get_video_info?docid={item_id}&drive_originator_app=303'
+    headers = {'User-Agent': get_random_agent()}
+    
+    quality = 'unknown'
     try:
         async with session.get(info_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
             html = await response.text()
-            cookies = {cookie.key: cookie.value for cookie in response.cookies.values()}
-
+        
         if 'reason=' in html:
             return None, None, None
-
-        fmt_match = re.findall(r'fmt_stream_map=([^&]+)', html)
-        if not fmt_match:
-            return None, None, None
-
-        value = unquote(fmt_match[0])
-        items = value.split(',')
         
-        if items:
-            for item in reversed(items):
-                parts = item.split('|')
-                if len(parts) == 2:
-                    source_itag, source_url = parts
-                    quality = ITAG_MAP.get(source_itag, f'unknown [{source_itag}]')
-                    source_url = unquote(source_url)
-                    
-                    if cookies:
-                        cookie_str = '; '.join([f'{k}={v}' for k, v in cookies.items()])
-                        headers['Cookie'] = cookie_str
-                    
-                    return source_url, quality, {'request': headers}
-
-        return None, None, None
-
+        fmt_match = re.findall(r'fmt_stream_map=([^&]+)', html)
+        if fmt_match:
+            value = unquote(fmt_match[0])
+            items = value.split(',')
+            if items:
+                for item in reversed(items):
+                    parts = item.split('|')
+                    if len(parts) == 2:
+                        source_itag = parts[0]
+                        quality = ITAG_MAP.get(source_itag, f'unknown [{source_itag}]')
+                        break
+    except Exception:
+        pass
+    
+    # Generate video URL using download endpoint
+    video_url = f"https://drive.usercontent.google.com/download?id={item_id}"
+    headers = {
+        "User-Agent": get_random_agent(),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    }
+    
+    try:
+        async with session.get(video_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            text = await response.text()
+        
+        if 'Error 404 (Not Found)' in text:
+            return None, None, None
+        elif not text.startswith("<!DOCTYPE html>"):
+            return video_url, quality, {'request': headers}
+        
+        final_video_url = build_video_url(video_url, text)
+        return final_video_url, quality, {'request': headers}
+    
     except Exception:
         return None, None, None
 
