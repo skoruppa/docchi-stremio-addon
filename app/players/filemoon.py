@@ -62,7 +62,7 @@ async def process_stream_url(session: aiohttp.ClientSession, stream_url: str, he
 
     # Fetch quality from m3u8
     try:
-        quality = await fetch_resolution_from_m3u8(session, stream_url, headers, use_proxy=PROXIFY_STREAMS) or "unknown"
+        quality = await fetch_resolution_from_m3u8(session, stream_url, headers) or "unknown"
     except Exception:
         quality = "unknown"
 
