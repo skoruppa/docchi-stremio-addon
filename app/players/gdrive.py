@@ -27,19 +27,18 @@ async def get_video_from_gdrive_player(session: aiohttp.ClientSession, drive_url
         return None, None, None
 
     doc_id = match.group(0)
-    info_url = f'https://drive.google.com/get_video_info?docid={doc_id}'
+    info_url = f'https://drive.google.com/u/0/get_video_info?docid={doc_id}&drive_originator_app=303'
 
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0'}
 
     try:
         async with session.get(info_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
             html = await response.text()
+            cookies = {cookie.key: cookie.value for cookie in response.cookies.values()}
 
-        # Check for error
         if 'reason=' in html:
             return None, None, None
 
-        # Parse fmt_stream_map (exactly like ResolveURL _parse_gdocs)
         fmt_match = re.findall(r'fmt_stream_map=([^&]+)', html)
         if not fmt_match:
             return None, None, None
@@ -47,9 +46,7 @@ async def get_video_from_gdrive_player(session: aiohttp.ClientSession, drive_url
         value = unquote(fmt_match[0])
         items = value.split(',')
         
-        # Get best quality (last item has highest quality: 37=1080p, 22=720p, 18=360p)
         if items:
-            # Reverse to get best quality first
             for item in reversed(items):
                 parts = item.split('|')
                 if len(parts) == 2:
@@ -57,8 +54,6 @@ async def get_video_from_gdrive_player(session: aiohttp.ClientSession, drive_url
                     quality = ITAG_MAP.get(source_itag, f'unknown [{source_itag}]')
                     source_url = unquote(source_url)
                     
-                    # Add cookies from session if any
-                    cookies = {cookie.key: cookie.value for cookie in session.cookie_jar}
                     if cookies:
                         cookie_str = '; '.join([f'{k}={v}' for k, v in cookies.items()])
                         headers['Cookie'] = cookie_str
