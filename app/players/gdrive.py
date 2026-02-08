@@ -29,7 +29,7 @@ async def get_video_from_gdrive_player(session: aiohttp.ClientSession, drive_url
     doc_id = match.group(0)
     info_url = f'https://drive.google.com/get_video_info?docid={doc_id}'
 
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'}
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0'}
 
     try:
         async with session.get(info_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
