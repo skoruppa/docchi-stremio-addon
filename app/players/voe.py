@@ -58,8 +58,8 @@ def voe_decode(ct: str, luts: str) -> dict:
 
 async def get_video_from_voe_player(session: aiohttp.ClientSession, player_url: str, is_vip: bool = False):
     """Extract video URL from VOE player. VIP only (or local selfhost without proxy)."""
-    # VOE requires VIP
-    if not is_vip:
+    # VOE requires VIP (unless FORCE_VIP_PLAYERS is enabled)
+    if not is_vip and not Config.FORCE_VIP_PLAYERS:
         return None, None, None
     
     try:

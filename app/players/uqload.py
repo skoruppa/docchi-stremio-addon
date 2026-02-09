@@ -19,8 +19,8 @@ STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 
 async def get_video_from_uqload_player(session: aiohttp.ClientSession, url: str, is_vip: bool = False):
     """Extract video URL from Uqload player. VIP only (or local selfhost without proxy)."""
-    # Uqload requires VIP
-    if not is_vip:
+    # Uqload requires VIP (unless FORCE_VIP_PLAYERS is enabled)
+    if not is_vip and not Config.FORCE_VIP_PLAYERS:
         return None, None, None
     if "embed-" in url:
         url = url.replace("embed-", "")
@@ -76,3 +76,12 @@ async def get_video_from_uqload_player(session: aiohttp.ClientSession, url: str,
         return None, None, None
 
     return None, None, None
+
+
+if __name__ == '__main__':
+    from app.players.test import run_tests
+    urls_to_test = [
+        "https://uqload.bz/embed-57iyaik6qohj.html"
+    ]
+
+    run_tests(get_video_from_uqload_player, urls_to_test, True)

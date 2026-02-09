@@ -17,6 +17,7 @@ class Config:
     STREAM_PROXY_URL = os.getenv('STREAM_PROXY_URL', "")  # MediaFlow Proxy
     STREAM_PROXY_PASSWORD = os.getenv('STREAM_PROXY_PASSWORD', "")  # MediaFlowProxy API_PASSWORD
     VIP_PATH = os.getenv('VIP_PATH', 'vip')  # Secret path for VIP users with proxy access
+    FORCE_VIP_PLAYERS = os.getenv('FORCE_VIP_PLAYERS', False)  # Make VIP-only players available for all users
     KITSU_STREMIO_API_URL = os.getenv('KITSU_STREMIO_API_URL', "https://anime-kitsu.strem.fun/meta")
     MAL_CLIENT_ID = os.getenv('MAL_CLIENT_ID', '')  # MyAnimeList API Client ID
 

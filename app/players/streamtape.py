@@ -19,8 +19,8 @@ STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 
 async def get_video_from_streamtape_player(session: aiohttp.ClientSession, url: str, is_vip: bool = False):
     """Extract video URL from Streamtape player. VIP only (or local selfhost without proxy)."""
-    # Streamtape requires VIP
-    if not is_vip:
+    # Streamtape requires VIP (unless FORCE_VIP_PLAYERS is enabled)
+    if not is_vip and not Config.FORCE_VIP_PLAYERS:
         return None, None, None
     
     quality = "unknown"
@@ -85,7 +85,7 @@ async def get_video_from_streamtape_player(session: aiohttp.ClientSession, url: 
 if __name__ == '__main__':
     from app.players.test import run_tests
     urls_to_test = [
-        "https://streamtape.com/e/dKlxwmoRrXskYM2/"
+        "https://streamtape.com/e/4RjVoMZ0zWcKQDb/"
     ]
 
     run_tests(get_video_from_streamtape_player, urls_to_test, True)

@@ -76,8 +76,8 @@ async def get_video_from_filemoon_player(session: aiohttp.ClientSession, url: st
     Supports both plain JSON sources and AES-GCM encrypted playback data.
     VIP only (or local selfhost without proxy).
     """
-    # Filemoon requires VIP
-    if not is_vip:
+    # Filemoon requires VIP (unless FORCE_VIP_PLAYERS is enabled)
+    if not is_vip and not Config.FORCE_VIP_PLAYERS:
         return None, None, None
     
     try:
