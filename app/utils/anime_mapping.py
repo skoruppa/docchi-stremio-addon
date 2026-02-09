@@ -195,8 +195,8 @@ def get_slug_from_mal_id(mal_id: str) -> Optional[str]:
     slug = DocchiAPI.get_slug_from_mal_id(mal_id)
     if slug:
         if _redis_client:
-                _redis_client.setex(f"slug:mal:{mal_id}", 86400 * 7, slug)
-                _redis_client.setex(f"slug:docchi:{slug}", 86400 * 7, str(mal_id))
+                _redis_client.setex(f"slug:mal:{mal_id}", 86400 * 90, slug)
+                _redis_client.setex(f"slug:docchi:{slug}", 86400 * 90, str(mal_id))
         else:
             db.save_slug_from_mal_id(int(mal_id), slug)
     return slug
