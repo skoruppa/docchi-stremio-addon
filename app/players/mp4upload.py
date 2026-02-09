@@ -11,12 +11,20 @@ NAMES = ['mp4upload']
 async def get_video_from_mp4upload_player(session: aiohttp.ClientSession, player_url: str, is_vip: bool = False):
 
     try:
+        # Normalize URL to embed format
+        video_id_match = re.search(r'mp4upload\.com/(?:embed-)?([a-zA-Z0-9]+)', player_url)
+        if not video_id_match:
+            return None, None, None
+        
+        video_id = video_id_match.group(1)
+        embed_url = f"https://www.mp4upload.com/embed-{video_id}.html"
+        
         headers = {
             "User-Agent": get_random_agent(),
             "Referer": "https://www.mp4upload.com/"
         }
 
-        async with session.get(player_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+        async with session.get(embed_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
             response.raise_for_status()
             html_content = await response.text()
 
@@ -47,7 +55,7 @@ if __name__ == '__main__':
     from app.players.test import run_tests
 
     urls_to_test = [
-        "https://www.mp4upload.com/embed-4kz23r0tp9li.html",
+        "https://www.mp4upload.com/y8xh3ip7qxey",
     ]
 
     run_tests(get_video_from_mp4upload_player, urls_to_test)
