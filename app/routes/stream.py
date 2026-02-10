@@ -9,10 +9,11 @@ from app.routes import docchi_client, mapping
 from app.utils.stream_utils import respond_with
 from app.db.db import get_slug_from_mal_id, save_slug_from_mal_id
 from app.utils.player_utils import detect_player, get_player_handler
-from app.routes.meta import addon_meta
 
 
 from config import Config
+
+from app.utils.meta_cache import fetch_and_cache_meta
 
 stream_bp = Blueprint('stream', __name__)
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
@@ -89,29 +90,13 @@ async def process_players(players, content_id=None, content_type='series', is_vi
     anime_name = None
     episode_num = None
     if content_id:
+        meta, _ = await fetch_and_cache_meta(content_id, is_vip)
+        anime_name = meta.get('name') if meta else None
+        
+        # Extract episode number from content_id
         parts = content_id.split(':')
-        meta_id = f"{parts[0]}:{parts[1]}"
-        
-        # Try to get from cache first, then fetch if needed
-        try:
-            # addon_meta is cached with lru_cache, so this will use cache if available
-            meta_response = addon_meta(content_type, meta_id)
-            if meta_response:
-                # Response is tuple (response_data, cache_time, stale_time)
-                response_data = meta_response[0] if isinstance(meta_response, tuple) else meta_response
-                if hasattr(response_data, 'json'):
-                    meta_json = response_data.json
-                else:
-                    meta_json = response_data
-                
-                if isinstance(meta_json, dict) and 'meta' in meta_json:
-                    anime_name = meta_json['meta'].get('name', '')
-        except Exception:
-            pass
-        
-        # Extract episode number
         if len(parts) > 2:
-            episode_num = parts[2]
+            episode_num = parts[-1]  # Last part is always episode
     
     timeout = aiohttp.ClientTimeout(total=8, connect=3)
     connector = aiohttp.TCPConnector(limit=15, limit_per_host=5, ttl_dns_cache=300, verify_ssl=False)

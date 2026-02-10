@@ -1,13 +1,11 @@
 from urllib.parse import unquote
-import aiohttp
 from flask import Blueprint, abort
 from pyMALv2.auth import Authorization
 from pyMALv2.services.anime_service.anime_service import AnimeService
-
-from . import mapping
 from config import Config
 from .manifest import MANIFEST
 from app.utils.stream_utils import respond_with, log_error, log_warning, cache
+from app.utils.meta_cache import fetch_and_cache_meta
 
 meta_bp = Blueprint('meta', __name__)
 
@@ -42,78 +40,31 @@ async def addon_meta(meta_type: str, meta_id: str):
     if meta_type not in MANIFEST['types']:
         abort(404)
 
-    if 'kitsu' in meta_id:
-        # Format: kitsu:1555
-        kitsu_id = meta_id.split(":")[1]
-        try:
-            mal_id_from_kitsu = mapping.get_mal_id_from_kitsu_id(kitsu_id)
-            if not mal_id_from_kitsu:
-                raise ValueError("MAL ID not found for the given Kitsu ID")
-            meta_id = f'mal:{mal_id_from_kitsu}'
-        except Exception as e:
-            log_error(e)
-            return respond_with({'meta': {}, 'message': 'Could not find MAL ID for the given Kitsu ID.'}), 404
-    
-    elif 'tt' in meta_id and is_vip:  # IMDB ID
-        parts = meta_id.split(":")
-        season = None
-        if len(parts) == 3:
-            season = int(parts[1])
-        
-        mal_id_from_imdb = mapping.get_mal_id_from_imdb_id(parts[0], season)
-        if not mal_id_from_imdb:
-            return respond_with({'meta': {}}, 2592000, 2592000)
-        meta_id = f'mal:{mal_id_from_imdb}'
-
-    mal_id = None
+    # Handle underscore format
     if '_' in meta_id:
         meta_id = meta_id.replace("_", ":")
+    
+    # Fetch metadata (handles mal/kitsu/imdb conversion internally)
+    meta, mal_id = await fetch_and_cache_meta(meta_id, is_vip)
+    
+    if not meta:
+        return respond_with({'meta': {}, 'message': 'Could not fetch anime metadata'}), 404
+    
+    # Update meta fields
+    meta['id'] = meta_id
+    meta['type'] = meta_type
 
-    if 'mal' in meta_id:
-        mal_id = meta_id.replace("mal:", '')
+    # Fix video IDs - use MAL ID for video IDs instead of original content_id
+    if 'videos' in meta and meta['videos'] and mal_id:
+        for item in meta['videos']:
+            video_id = item.get("id", "")
+            # Extract episode number from video_id (e.g., "kitsu:5121241:2" -> "2")
+            if ':' in video_id:
+                episode = video_id.split(':')[-1]
+                # Use MAL ID for video (e.g., "mal:241:2")
+                item["id"] = f"mal:{mal_id}:{episode}"
 
-    if mal_id:
-        try:
-            url = f"{kitsu_API}/{meta_type}/mal:{mal_id}.json"
-            timeout = aiohttp.ClientTimeout(total=3)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(url, headers=HEADERS) as resp:
-                    resp.raise_for_status()
-                    json_data = await resp.json()
-                    meta = kitsu_to_meta(json_data, meta_id)
-
-        except (aiohttp.ClientError, aiohttp.ClientResponseError, TimeoutError) as e:
-            log_warning(f"Kitsu error: {e}. Falling back to MAL API.")
-            if mal_id:
-                try:
-                    import asyncio
-                    mal_anime = await asyncio.to_thread(
-                        anime_service.get,
-                        int(mal_id),
-                        fields='id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,num_episodes,start_season,genres,media_type,studios,pictures,background,average_episode_duration'
-                    )
-
-                    if not mal_anime:
-                        return respond_with({'meta': {}, 'message': 'Anime not found on MAL'}), 404
-
-                    meta = await mal_to_meta(mal_anime, meta_id, mal_id)
-                except Exception as mal_e:
-                    log_error(f"MAL API error: {mal_e}")
-                    return respond_with({'meta': {}, 'message': 'An unexpected error occurred.'}), 500
-            else:
-                return respond_with({'meta': {}, 'message': str(e)}), 500
-
-        meta['type'] = meta_type
-
-        if 'videos' in meta and meta['videos']:
-            kitsu_id = meta.get('kitsu_id')
-            for item in meta['videos']:
-                if kitsu_id and 'kitsu:' in item.get("id", ""):
-                    item["id"] = item["id"].replace(f"kitsu:{kitsu_id}", f"mal:{mal_id}")
-
-        return respond_with({'meta': meta}, 86400, 86400)
-    else:
-        return respond_with({'meta': {}}, 86400, 86400)
+    return respond_with({'meta': meta}, 86400, 86400)
 
 
 async def mal_to_meta(mal_anime, meta_id: str, mal_id: str) -> dict:
