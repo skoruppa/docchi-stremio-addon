@@ -166,12 +166,12 @@ def sort_priority(stream):
     elif stream['player_hosting'] == 'cda':
         return 3
     elif stream['player_hosting'] == 'uqload':
-        return 4
-    elif stream['player_hosting'] == 'streamtape':
         return 5
+    elif stream['player_hosting'] == 'streamtape':
+        return 6
     elif stream['translator_title'].lower() == 'ai':
         return 9
-    return 3
+    return 4
 
 
 @stream_bp.route('/stream/<content_type>/<content_id>.json')
