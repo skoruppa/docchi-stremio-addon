@@ -59,7 +59,26 @@ To install the addon:
 
 ### Self-Hosting with Docker 🐳
 
-**Quick Start:**
+**Using Pre-built Image (Recommended):**
+```bash
+docker pull ghcr.io/skoruppa/docchi-stremio-addon:latest
+docker run -d -p 5000:5000 ghcr.io/skoruppa/docchi-stremio-addon:latest
+```
+
+Or with docker-compose:
+```yaml
+services:
+  docchi-addon:
+    image: ghcr.io/skoruppa/docchi-stremio-addon:latest
+    ports:
+      - "5000:5000"
+    environment:
+      - VIP_PATH=vip
+      - MAL_CLIENT_ID=your_client_id
+    restart: unless-stopped
+```
+
+**Building from Source:**
 ```bash
 git clone --recurse-submodules https://github.com/skoruppa/docchi-stremio-addon.git
 cd docchi-stremio-addon
@@ -68,6 +87,10 @@ docker-compose up -d
 
 Addon will be available at `http://localhost:5000` & `http://localhost:5000/vip`
 
+**Docker Image Tags:**
+- `latest` - Latest stable release from main branch
+- Images are automatically built and published to [GitHub Container Registry](https://github.com/skoruppa/docchi-stremio-addon/pkgs/container/docchi-stremio-addon)
+
 **Environment Variables:**
 
 - `VIP_PATH` (default: `vip`) - Path for VIP features. Due to limited resources on the public server and the need to proxy certain players, some features are behind this path:
@@ -75,6 +98,8 @@ Addon will be available at `http://localhost:5000` & `http://localhost:5000/vip`
   - **Full player support** - includes Filemoon, Uqload, and Streamtape (require proxying)
   
   For self-hosting, all features should work without restrictions (and proxy - if your addon instance will be in same network as Stremio). Install the addon from the VIP path at: `http://localhost:5000/vip`
+
+- `FORCE_VIP_PLAYERS` (default: `false`) - Make VIP-only players (Filemoon, Uqload, Streamtape, VOE) available for all users without VIP path. Useful for self-hosting when you have MediaFlow Proxy configured.
 
 - `MAL_CLIENT_ID` - MyAnimeList Client ID (optional but recommended). The addon uses Kitsu Stremio addon for metadata, which sometimes has issues. MAL API is used as fallback.
   

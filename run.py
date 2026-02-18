@@ -76,16 +76,6 @@ def favicon():
     """
     return app.send_static_file('favicon.ico')
 
-
-@app.route('/callback')
-def callback():
-    """
-    Callback URL from MyAnimeList
-    :return: A webpage response with the manifest URL and Magnet URL
-    """
-    return redirect(url_for('index'))
-
-
 if __name__ == '__main__':
     try:
         from waitress import serve
