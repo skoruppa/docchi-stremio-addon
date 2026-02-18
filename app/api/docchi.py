@@ -165,6 +165,22 @@ class DocchiAPI:
             logging.error(f"Docchi API error (latest): {e}")
             return []
 
+    async def get_recent_episodes(self, season: str = None, year: str = None):
+        """
+        Get recent episodes from Docchi
+        :param season: Season
+        :param year: Year
+        :return: JSON response
+        """
+        if not season and not year:
+            season, year = self.get_current_season()
+        url = f'{BASE_URL}/episodes/recent?season_year={year}&season={season}'
+        try:
+            return await self._make_request(url)
+        except aiohttp.ClientError as e:
+            logging.error(f"Docchi API error (recent): {e}")
+            return []
+
     async def get_trending_anime(self, **kwargs):
         """
         Get trending anime list from Docchi

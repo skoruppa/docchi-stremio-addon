@@ -76,8 +76,10 @@ async def _process_latest_anime(results):
 def _set_cache_time(catalog_id):
     if catalog_id == 'search_list':
         cache_time = 3600
+    elif catalog_id == 'newest':
+        cache_time = 60
     elif catalog_id == 'latest':
-        cache_time = 900
+        cache_time = 60
     elif catalog_id == 'season':
         cache_time = 86400
     elif catalog_id == 'trending':
@@ -119,6 +121,11 @@ async def _fetch_anime_list(search, catalog_id, genre):
         if not latest:
             return []
         return await _process_latest_anime(latest)
+    elif catalog_id == 'newest':
+        recent = await docchi_client.get_recent_episodes(season, season_year)
+        if not recent:
+            return []
+        return await _process_latest_anime(recent)
     elif catalog_id == "trending":
         trending = await docchi_client.get_trending_anime()
         if not trending:
