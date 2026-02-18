@@ -39,3 +39,8 @@ jobs:
       - name: Commit and push if changed
         run: |
           git diff --staged --quiet || (git commit -m "Update version badge to ${{ steps.get_version.outputs.version }}" && git pull --rebase && git push)
+      
+      - name: Create version tag
+        run: |
+          git tag -f "v${{ steps.get_version.outputs.version }}"
+          git push origin "v${{ steps.get_version.outputs.version }}" --force
