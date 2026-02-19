@@ -1,4 +1,5 @@
 import urllib.parse
+import asyncio
 import logging
 
 import aiohttp
@@ -8,6 +9,7 @@ from werkzeug.exceptions import abort
 from . import docchi_client
 from app.db.db import save_slug_from_mal_id, save_mal_id_from_slug, get_mal_id_from_slug
 from app.utils.stream_utils import cache, respond_with, log_error
+from app.utils.meta_cache import fetch_and_cache_meta
 from .manifest import MANIFEST, genres as manifest_genres
 
 catalog_bp = Blueprint('catalog', __name__)
@@ -133,8 +135,6 @@ async def _fetch_anime_list(search, catalog_id, genre):
         return await _process_latest_anime(trending)
     elif catalog_id == "season":
         return await docchi_client.get_seasonal_anime(season, season_year)
-    elif "_" in catalog_id:  # for compatibility with previous version
-        return await docchi_client.get_seasonal_anime(season, season_year)
     return []
 
 
@@ -162,11 +162,20 @@ async def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None,
     try:
         response_data = await _fetch_anime_list(search, catalog_id, genre)
 
-        meta_previews = []
-        for anime_item in response_data:
-            meta = docchi_to_meta(anime_item, catalog_type=catalog_type, catalog_id=catalog_id, transport_url=_get_transport_url(request))
-            meta_previews.append(meta)
-        return respond_with({'metas': meta_previews}, cache_time, 900)
+        async def _get_meta(anime_item):
+            mal_id = anime_item.get('mal_id')
+            if mal_id:
+                try:
+                    meta, _ = await fetch_and_cache_meta(f"mal:{mal_id}")
+                    if meta:
+                        meta['type'] = catalog_type
+                        return meta
+                except Exception:
+                    pass
+            return docchi_to_meta(anime_item, catalog_type=catalog_type, catalog_id=catalog_id, transport_url=_get_transport_url(request))
+
+        meta_previews = await asyncio.gather(*[_get_meta(item) for item in response_data])
+        return respond_with({'metas': list(meta_previews)}, cache_time, 900)
     except ValueError as e:
         return respond_with({'metas': [], 'message': str(e)}), 400
     except aiohttp.ClientError as e:

@@ -31,6 +31,16 @@ async def set_cached_meta(mal_id: str, meta: dict):
     }
 
 
+def _fix_video_ids(meta: dict, mal_id: str):
+    """Convert video IDs to mal: format."""
+    if meta.get('videos') and mal_id:
+        for item in meta['videos']:
+            video_id = item.get('id', '')
+            if ':' in video_id:
+                episode = video_id.split(':')[-1]
+                item['id'] = f"mal:{mal_id}:{episode}"
+
+
 async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     """Fetch metadata from Kitsu API (with MAL fallback) and cache it.
     
@@ -76,6 +86,7 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                     from app.routes.meta import kitsu_to_meta
                     meta = kitsu_to_meta(data, f"mal:{mal_id}")
                     if meta.get('name'):
+                        _fix_video_ids(meta, mal_id)
                         await set_cached_meta(mal_id, meta)
                         return meta, mal_id
     except Exception:
@@ -99,6 +110,7 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
             )
             if mal_anime:
                 meta = await mal_to_meta(mal_anime, f"mal:{mal_id}", mal_id)
+                _fix_video_ids(meta, mal_id)
                 await set_cached_meta(mal_id, meta)
                 return meta, mal_id
         except Exception:

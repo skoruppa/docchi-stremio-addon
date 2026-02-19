@@ -54,16 +54,6 @@ async def addon_meta(meta_type: str, meta_id: str):
     meta['id'] = meta_id
     meta['type'] = meta_type
 
-    # Fix video IDs - use MAL ID for video IDs instead of original content_id
-    if 'videos' in meta and meta['videos'] and mal_id:
-        for item in meta['videos']:
-            video_id = item.get("id", "")
-            # Extract episode number from video_id (e.g., "kitsu:5121241:2" -> "2")
-            if ':' in video_id:
-                episode = video_id.split(':')[-1]
-                # Use MAL ID for video (e.g., "mal:241:2")
-                item["id"] = f"mal:{mal_id}:{episode}"
-
     return respond_with({'meta': meta}, 86400, 86400)
 
 
