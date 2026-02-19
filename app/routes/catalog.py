@@ -3,26 +3,18 @@ import asyncio
 import logging
 
 import aiohttp
-from flask import Blueprint, abort, url_for, request, Request
+from flask import Blueprint, abort, request
 from werkzeug.exceptions import abort
 
 from . import docchi_client
 from app.db.db import save_slug_from_mal_id, save_mal_id_from_slug, get_mal_id_from_slug
 from app.utils.stream_utils import cache, respond_with, log_error
-from app.utils.meta_cache import fetch_and_cache_meta
+from app.utils.meta_cache import fetch_and_cache_meta, build_genre_links
 from .manifest import MANIFEST, genres as manifest_genres
 
+from config import Config
+
 catalog_bp = Blueprint('catalog', __name__)
-
-
-def _get_transport_url(req: Request):
-    """
-    Get the transport URL for the user 'user_id'
-    :param req: The request object
-    :return: The transport URL
-    """
-    return urllib.parse.quote_plus(
-        req.root_url[:-1] + url_for('manifest.addon_manifest'))
 
 
 def _is_valid_catalog(catalog_type: str, catalog_id: str):
@@ -92,14 +84,7 @@ def _set_cache_time(catalog_id):
     return cache_time
 
 
-async def _fetch_anime_list(search, catalog_id, genre):
-    """
-    Fetch a list of anime from Docchi API based on the provided parameters
-    :param search: The search query
-    :param catalog_id: The ID of the catalog to return
-    :param genre: The fields to return
-    :return: The list of anime
-    """
+async def _fetch_anime_list(search, catalog_id, genre=None):
     season, season_year = docchi_client.get_current_season()
 
     if search:
@@ -115,8 +100,7 @@ async def _fetch_anime_list(search, catalog_id, genre):
         if search:
             if len(search) < 3:
                 return []
-            filtered_results = list(filter(lambda x: search.lower() in x["title"].lower(), results))
-            return filtered_results
+            return list(filter(lambda x: search.lower() in x["title"].lower(), results))
         return results
     if catalog_id == 'latest':
         latest = await docchi_client.get_latest_episodes(season, season_year)
@@ -143,8 +127,7 @@ async def _fetch_anime_list(search, catalog_id, genre):
 @catalog_bp.route('/catalog/<catalog_type>/<catalog_id>/genre=<genre>.json')
 @catalog_bp.route('/catalog/<catalog_type>/<catalog_id>/genre=<genre>&search=<search>.json')
 @cache.cached()
-async def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None,
-                  search: str = None):
+async def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None, search: str = None):
     """
     Provides a list of anime from MyAnimeList
     :param catalog_type: The type of catalog to return
@@ -159,6 +142,8 @@ async def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None,
 
     cache_time = _set_cache_time(catalog_id)
 
+    is_vip = Config.VIP_PATH in request.path
+
     try:
         response_data = await _fetch_anime_list(search, catalog_id, genre)
 
@@ -166,13 +151,12 @@ async def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None,
             mal_id = anime_item.get('mal_id')
             if mal_id:
                 try:
-                    meta, _ = await fetch_and_cache_meta(f"mal:{mal_id}")
+                    meta, _ = await fetch_and_cache_meta(f"mal:{mal_id}", is_vip)
                     if meta:
-                        meta['type'] = catalog_type
                         return meta
                 except Exception:
                     pass
-            return docchi_to_meta(anime_item, catalog_type=catalog_type, catalog_id=catalog_id, transport_url=_get_transport_url(request))
+            return docchi_to_meta(anime_item, is_vip, catalog_id)
 
         meta_previews = await asyncio.gather(*[_get_meta(item) for item in response_data])
         return respond_with({'metas': list(meta_previews)}, cache_time, 900)
@@ -183,28 +167,12 @@ async def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None,
         return respond_with({'metas': []}, cache_time, 900)
 
 
-def docchi_to_meta(anime_item: dict, catalog_type: str, catalog_id: str, transport_url: str):
-    """
-    Convert MAL anime item to a valid Stremio meta format
-    :param anime_item: The Docchi anime item to convert
-    :param catalog_type: The type of catalog being referenced in the link meta object
-    :param catalog_id: The id of catalog being referenced in the link meta object
-    :param transport_url: The url to the addon's manifest.json
-    :return: Stremio meta format
-    """
-
-    formatted_content_id = None
+def docchi_to_meta(anime_item: dict, is_vip: bool = False, catalog_id: str = 'season'):
     content_id = anime_item.get('mal_id', None)
     save_slug_from_mal_id(content_id, anime_item.get('slug', None))
-    if content_id:
-        formatted_content_id = f"mal:{content_id}"
-
-    title = anime_item.get('title', None)
-    poster = anime_item.get('cover', {})
 
     anime_item_genres = list(anime_item.get('genres', []))
     filtered_genres = list(filter(lambda y: y in manifest_genres, anime_item_genres))
-    genres, links = handle_genres_and_links(filtered_genres, transport_url, catalog_type, catalog_id)
 
     if media_type := anime_item.get('series_type', '').lower():
         if media_type in ['ona', 'ova', 'special', 'tv', 'unknown', 'tv special']:
@@ -212,29 +180,16 @@ def docchi_to_meta(anime_item: dict, catalog_type: str, catalog_id: str, transpo
     if not media_type:
         media_type = 'series'
 
-    return {
+    meta = {
         'cacheMaxAge': 43200,
         'staleRevalidate': 3600,
         'staleError': 3600,
-        'id': formatted_content_id,
-        'name': title,
+        'id': f"mal:{content_id}" if content_id else None,
+        'name': anime_item.get('title', None),
         'type': media_type,
-        'genres': genres,
-        'links': links,
-        'poster': poster,
+        'genres': filtered_genres,
+        'links': [],
+        'poster': anime_item.get('cover', {}),
     }
-
-
-def handle_genres_and_links(genres, transport_url, catalog_type, catalog_id):
-    """
-    Handle the genres and links from Docchi
-    """
-    if not genres:
-        return [], []
-
-    links = [{'name': genre, 'category': 'Genres',
-              'url': f"stremio:///discover/{transport_url}/{catalog_type}/{catalog_id}"
-                     f"?genre={genre}"}
-             for genre in genres]
-
-    return genres, links
+    build_genre_links(meta, is_vip, catalog_id=catalog_id)
+    return meta

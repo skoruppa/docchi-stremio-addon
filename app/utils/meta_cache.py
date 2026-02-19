@@ -41,6 +41,49 @@ def _fix_video_ids(meta: dict, mal_id: str):
                 item['id'] = f"mal:{mal_id}:{episode}"
 
 
+async def _fix_links(meta: dict, mal_id: str):
+    """Fix links: remove Genres (rebuilt dynamically), convert Franchise kitsu IDs to mal, replace imdb with docchi."""
+    import re
+    from app.routes import mapping
+    from app.utils.anime_mapping import get_slug_from_mal_id
+
+    other_links = []
+    for link in meta.get('links', []):
+        if link.get('category') == 'Genres':
+            continue
+        if link.get('category') == 'Franchise':
+            url = link.get('url', '')
+            match = re.search(r'kitsu:(\d+)', url)
+            if match:
+                franchise_mal_id = mapping.get_mal_id_from_kitsu_id(match.group(1))
+                if franchise_mal_id:
+                    link['url'] = url.replace(f'kitsu:{match.group(1)}', f'mal:{franchise_mal_id}')
+                    other_links.append(link)
+            else:
+                other_links.append(link)
+            continue
+        if link.get('category') == 'imdb':
+            slug = await get_slug_from_mal_id(mal_id)
+            if slug:
+                link['url'] = f"https://docchi.pl/production/as/{slug}"
+        other_links.append(link)
+    meta['links'] = other_links
+
+
+def build_genre_links(meta: dict, is_vip: bool = False, catalog_id: str = 'season'):
+    """Build genre links for meta using the correct manifest URL and catalog."""
+    from app.routes.manifest import genres as manifest_genres
+    manifest_path = f"{Config.VIP_PATH}/manifest.json" if is_vip else "manifest.json"
+    import urllib.parse
+    transport_url = urllib.parse.quote(f"{Config.PROTOCOL}://{Config.REDIRECT_URL}/{manifest_path}", safe='')
+    genres = [g for g in meta.get('genres', []) if g in manifest_genres]
+    meta['links'] = meta.get('links', []) + [
+        {'name': genre, 'category': 'Genres',
+         'url': f"stremio:///discover/{transport_url}/anime/{catalog_id}?genre={genre}"}
+        for genre in genres
+    ]
+
+
 async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     """Fetch metadata from Kitsu API (with MAL fallback) and cache it.
     
@@ -69,11 +112,17 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     
     if not mal_id:
         return None, None
-    
+
+    def _with_genre_links(meta):
+        meta = dict(meta)
+        meta['links'] = list(meta.get('links', []))
+        build_genre_links(meta, is_vip)
+        return meta
+
     # Check cache first
     cached = await get_cached_meta(mal_id)
     if cached:
-        return cached, mal_id
+        return _with_genre_links(cached), mal_id
     
     # Try Kitsu API first
     try:
@@ -82,13 +131,13 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=3)) as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    # Extract meta from Kitsu response
                     from app.routes.meta import kitsu_to_meta
                     meta = kitsu_to_meta(data, f"mal:{mal_id}")
                     if meta.get('name'):
                         _fix_video_ids(meta, mal_id)
+                        await _fix_links(meta, mal_id)
                         await set_cached_meta(mal_id, meta)
-                        return meta, mal_id
+                        return _with_genre_links(meta), mal_id
     except Exception:
         pass
     
@@ -106,13 +155,14 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
             mal_anime = await asyncio.to_thread(
                 anime_service.get,
                 int(mal_id),
-                fields='id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,num_episodes,start_season,genres,media_type,studios,pictures,background,average_episode_duration'
+                fields='id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_scoring_users,nsfw,created_at,updated_at,media_type,status,genres,my_list_status,num_episodes,start_season,broadcast,source,average_episode_duration,rating,pictures,background,related_anime,related_manga,recommendations,studios,statistics'
             )
             if mal_anime:
                 meta = await mal_to_meta(mal_anime, f"mal:{mal_id}", mal_id)
                 _fix_video_ids(meta, mal_id)
+                await _fix_links(meta, mal_id)
                 await set_cached_meta(mal_id, meta)
-                return meta, mal_id
+                return _with_genre_links(meta), mal_id
         except Exception:
             pass
     

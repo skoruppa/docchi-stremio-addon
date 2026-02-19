@@ -140,11 +140,11 @@ def get_mal_id_from_imdb_id(imdb_id: str, season: int = None) -> Optional[str]:
     
     return str(items[0].get('mal_id')) if items[0].get('mal_id') else None
 
-def get_slug_from_imdb_id(imdb_id: str, season: int = None) -> Optional[str]:
+async def get_slug_from_imdb_id(imdb_id: str, season: int = None) -> Optional[str]:
     """Get Docchi slug from IMDB ID and optional season (IMDB -> MAL -> slug)"""
     mal_id = get_mal_id_from_imdb_id(imdb_id, season)
     if mal_id:
-        return get_slug_from_mal_id(mal_id)
+        return await get_slug_from_mal_id(mal_id)
     return None
 
 def get_imdb_id_from_mal_id(mal_id: str) -> Optional[str]:
@@ -180,23 +180,27 @@ def _get_item(key_type: str, key_value: str) -> Optional[dict]:
             return db.get_anime_by_kitsu_id(int(key_value))
     return None
 
-def get_slug_from_mal_id(mal_id: str) -> Optional[str]:
-    """Get Docchi slug from MAL ID (Redis + TinyDB + Docchi API)"""
+async def get_slug_from_mal_id(mal_id: str) -> Optional[str]:
+    """Get Docchi slug from MAL ID (Redis or TinyDB, then Docchi API)"""
     if _redis_client:
         slug = _redis_client.get(f"slug:mal:{mal_id}")
         if slug:
             return slug
-    
-    if not _redis_client:
+    else:
         exists, slug = db.get_slug_from_mal_id(int(mal_id))
         if exists and slug:
             return slug
 
-    slug = DocchiAPI.get_slug_from_mal_id(mal_id)
+    slug = None
+    try:
+        from app.routes import docchi_client
+        slug = await docchi_client.get_slug_from_mal_id(mal_id)
+    except Exception:
+        pass
     if slug:
         if _redis_client:
-                _redis_client.setex(f"slug:mal:{mal_id}", 86400 * 90, slug)
-                _redis_client.setex(f"slug:docchi:{slug}", 86400 * 90, str(mal_id))
+            _redis_client.setex(f"slug:mal:{mal_id}", 86400 * 90, slug)
+            _redis_client.setex(f"slug:docchi:{slug}", 86400 * 90, str(mal_id))
         else:
             db.save_slug_from_mal_id(int(mal_id), slug)
     return slug

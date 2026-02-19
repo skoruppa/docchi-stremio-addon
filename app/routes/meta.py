@@ -1,3 +1,4 @@
+import re
 from urllib.parse import unquote
 from flask import Blueprint, abort
 from pyMALv2.auth import Authorization
@@ -50,9 +51,7 @@ async def addon_meta(meta_type: str, meta_id: str):
     if not meta:
         return respond_with({'meta': {}, 'message': 'Could not fetch anime metadata'}), 404
     
-    # Update meta fields
     meta['id'] = meta_id
-    meta['type'] = meta_type
 
     return respond_with({'meta': meta}, 86400, 86400)
 
@@ -82,11 +81,19 @@ async def mal_to_meta(mal_anime, meta_id: str, mal_id: str) -> dict:
     elif poster:
         background = poster
     
-    # Year
+    # Year / releaseInfo
     year = None
+    release_info = None
     if mal_anime.start_date:
         try:
             year = mal_anime.start_date.year
+            end_year = mal_anime.end_date.year if mal_anime.end_date else None
+            if end_year and end_year != year:
+                release_info = f"{year}-{end_year}"
+            elif mal_anime.status == 'currently_airing':
+                release_info = f"{year}-"
+            else:
+                release_info = str(year)
         except (ValueError, AttributeError):
             pass
     
@@ -97,7 +104,26 @@ async def mal_to_meta(mal_anime, meta_id: str, mal_id: str) -> dict:
     
     # Rating
     imdb_rating = mal_anime.mean if mal_anime.mean else None
-    
+
+    # Status
+    status_map = {'finished_airing': 'Ended', 'currently_airing': 'Continuing', 'not_yet_aired': 'Upcoming'}
+    status = status_map.get(mal_anime.status, None) if mal_anime.status else None
+
+    # Links: studios + related anime (franchise)
+    links = []
+    if mal_anime.studios:
+        for studio in mal_anime.studios:
+            links.append({'name': studio.name, 'category': 'Studios', 'url': f"https://myanimelist.net/anime/producer/{studio.id}"})
+    if mal_anime.related_anime:
+        for related in mal_anime.related_anime:
+            rel_type = related.relation_type_formatted or related.relation_type
+            links.append({'name': f"{rel_type}: {related.anime.title}", 'category': 'Franchise',
+                          'url': f"stremio:///detail/series/mal:{related.anime.id}"})
+
+    # Type
+    media_type = mal_anime.media_type
+    content_type = 'movie' if media_type == 'movie' else 'series'
+
     # Runtime (convert from seconds to minutes)
     runtime = None
     if mal_anime.average_episode_duration:
@@ -150,15 +176,18 @@ async def mal_to_meta(mal_anime, meta_id: str, mal_id: str) -> dict:
     
     return {
         'id': meta_id,
+        'type': content_type,
         'name': name,
         'description': description,
         'poster': poster,
         'background': background,
         'genres': genres,
-        'releaseInfo': str(year) if year else None,
+        'releaseInfo': release_info,
         'year': year,
         'imdbRating': imdb_rating,
         'runtime': runtime,
+        'status': status,
+        'links': links,
         'trailers': [],
         'videos': videos
     }
@@ -187,12 +216,13 @@ def kitsu_to_meta(kitsu_meta: dict, meta_id: str) -> dict:
     runtime = meta.get('runtime', None)
     videos = meta.get('videos', [])
     imdb_id = meta.get('imdb_id', None)
+    type = meta.get('type', None)
 
     return {
         'cacheMaxAge': 43200,
         'staleRevalidate': 43200,
         'staleError': 3600,
-
+        'type': type,
         'kitsu_id': kitsu_id,
         'name': name,
         'genres': genres,
