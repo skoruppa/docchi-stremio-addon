@@ -110,7 +110,7 @@ def with_genre_links(meta: dict, is_vip: bool) -> dict:
     build_genre_links(meta, is_vip)
     return meta
 
-(content_id: str, is_vip: bool = False):
+async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     """Fetch metadata from Kitsu API (with MAL fallback) and cache it.
     
     Args:
