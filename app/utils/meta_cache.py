@@ -1,13 +1,27 @@
 """Shared cache for anime metadata."""
 import time
+import json
+import os
 import aiohttp
 import asyncio
 from config import Config
 
-# Shared in-memory cache for anime metadata (keyed by MAL ID)
-# Structure: {mal_id: {'meta': dict, 'timestamp': float}}
 _meta_cache = {}
-CACHE_TTL = 7200  # 2 hours
+CACHE_TTL = 43200  # 12 hours
+_CACHE_FILE = '/tmp/meta_cache.json'
+
+
+def _load_cache_from_file():
+    try:
+        if os.path.exists(_CACHE_FILE):
+            with open(_CACHE_FILE, 'r') as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+
+_meta_cache = _load_cache_from_file()
 
 
 async def get_cached_meta(mal_id: str):
@@ -29,6 +43,11 @@ async def set_cached_meta(mal_id: str, meta: dict):
         'meta': meta,
         'timestamp': time.time()
     }
+    try:
+        with open(_CACHE_FILE, 'w') as f:
+            json.dump(_meta_cache, f)
+    except Exception:
+        pass
 
 
 def _fix_video_ids(meta: dict, mal_id: str):
@@ -84,7 +103,14 @@ def build_genre_links(meta: dict, is_vip: bool = False, catalog_id: str = 'seaso
     ]
 
 
-async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
+def with_genre_links(meta: dict, is_vip: bool) -> dict:
+    """Return a copy of meta with genre links added."""
+    meta = dict(meta)
+    meta['links'] = list(meta.get('links', []))
+    build_genre_links(meta, is_vip)
+    return meta
+
+(content_id: str, is_vip: bool = False):
     """Fetch metadata from Kitsu API (with MAL fallback) and cache it.
     
     Args:

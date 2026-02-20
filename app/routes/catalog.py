@@ -9,7 +9,7 @@ from werkzeug.exceptions import abort
 from . import docchi_client
 from app.db.db import save_slug_from_mal_id, save_mal_id_from_slug, get_mal_id_from_slug
 from app.utils.stream_utils import cache, respond_with, log_error
-from app.utils.meta_cache import fetch_and_cache_meta, build_genre_links
+from app.utils.meta_cache import build_genre_links, get_cached_meta, with_genre_links
 from .manifest import MANIFEST, genres as manifest_genres
 
 from config import Config
@@ -70,13 +70,9 @@ async def _process_latest_anime(results):
 def _set_cache_time(catalog_id):
     if catalog_id == 'search_list':
         cache_time = 3600
-    elif catalog_id == 'newest':
-        cache_time = 60
-    elif catalog_id == 'latest':
-        cache_time = 60
-    elif catalog_id == 'season':
-        cache_time = 86400
-    elif catalog_id == 'trending':
+    elif catalog_id in ('newest', 'latest'):
+        cache_time = 180
+    elif catalog_id in ('season', 'trending'):
         cache_time = 86400
     else:
         cache_time = 0
@@ -150,12 +146,9 @@ async def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None, s
         async def _get_meta(anime_item):
             mal_id = anime_item.get('mal_id')
             if mal_id:
-                try:
-                    meta, _ = await fetch_and_cache_meta(f"mal:{mal_id}", is_vip)
-                    if meta:
-                        return meta
-                except Exception:
-                    pass
+                cached = await get_cached_meta(str(mal_id))
+                if cached:
+                    return with_genre_links(cached, is_vip)
             return docchi_to_meta(anime_item, is_vip, catalog_id)
 
         meta_previews = await asyncio.gather(*[_get_meta(item) for item in response_data])
