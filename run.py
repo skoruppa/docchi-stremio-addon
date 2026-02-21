@@ -14,6 +14,7 @@ from version import __version__
 
 app = Flask(__name__, template_folder='./templates', static_folder='./static')
 app.config.from_object('config.Config')
+app.json.sort_keys = False
 
 _mapping_loaded = False
 

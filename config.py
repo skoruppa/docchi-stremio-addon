@@ -13,6 +13,7 @@ class Config:
     FLASK_PORT = os.getenv('FLASK_RUN_PORT', "5000")
     CACHE_TYPE = 'SimpleCache'
     CACHE_DEFAULT_TIMEOUT = 600
+    JSON_SORT_KEYS = False
     PROXIFY_STREAMS = os.getenv('PROXIFY_STREAMS', True)  # proxify needed streams
     STREAM_PROXY_URL = os.getenv('STREAM_PROXY_URL', "")  # MediaFlow Proxy
     STREAM_PROXY_PASSWORD = os.getenv('STREAM_PROXY_PASSWORD', "")  # MediaFlowProxy API_PASSWORD
