@@ -16,7 +16,7 @@ MANIFEST = {
     'id': 'com.skoruppa.docchi-stremio-addon',
     'version': __version__,
     'name': 'Docchi.pl Addon',
-    'logo': 'https://docchi.pl/static/img/logo.svg',
+    'logo': 'https://stremio.docci.pl/static/logo.png',
     'description': 'Provides users with possibility to watch anime with polish subtitles based on data returned by Docchi.pl',
     'types': ['anime', 'series', 'movie'],
     'contactEmail': 'skoruppa@gmail.com',
