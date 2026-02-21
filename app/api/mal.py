@@ -97,7 +97,7 @@ async def get_anime_meta(mal_id: str) -> dict | None:
             episode_date = None
             if start:
                 try:
-                    episode_date = (start + timedelta(days=(ep_num - 1) * 7)).strftime('%Y-%m-%d')
+                    episode_date = (start + timedelta(days=(ep_num - 1) * 7)).strftime('%Y-%m-%dT00:00:00Z')
                 except Exception:
                     pass
             videos.append({
@@ -119,7 +119,7 @@ async def get_anime_meta(mal_id: str) -> dict | None:
         'genres': genres,
         'releaseInfo': release_info,
         'year': year,
-        'imdbRating': imdb_rating,
+        'imdbRating': str(imdb_rating) if imdb_rating else None,
         'runtime': runtime,
         'status': status,
         'links': links,

@@ -188,7 +188,7 @@ def _build_videos(kitsu_id: str, subtype: str, episodes: list, episode_count: in
             videos.append({
                 "id": vid_id,
                 "title": title,
-                "released": ep_date.isoformat(),
+                "released": ep_date.isoformat() + "Z",
                 "season": 1,
                 "episode": num,
                 "thumbnail": (a.get("thumbnail") or {}).get("original"),
@@ -205,7 +205,7 @@ def _build_videos(kitsu_id: str, subtype: str, episodes: list, episode_count: in
             {
                 "id": f"mal:{mal_id}:{ep}" if mal_id else f"kitsu:{kitsu_id}:{ep}",
                 "title": f"Episode {ep}",
-                "released": (start + timedelta(weeks=ep - 1)).isoformat(),
+                "released": (start + timedelta(weeks=ep - 1)).isoformat() + "Z",
                 "season": 1,
                 "episode": ep,
             }

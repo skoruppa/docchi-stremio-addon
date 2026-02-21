@@ -172,9 +172,6 @@ def docchi_to_meta(anime_item: dict, is_vip: bool = False, catalog_id: str = 'se
         media_type = 'series'
 
     meta = {
-        'cacheMaxAge': 43200,
-        'staleRevalidate': 3600,
-        'staleError': 3600,
         'id': f"mal:{content_id}" if content_id else None,
         'name': anime_item.get('title', None),
         'type': media_type,
