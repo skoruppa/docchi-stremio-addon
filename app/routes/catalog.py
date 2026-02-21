@@ -9,7 +9,7 @@ from werkzeug.exceptions import abort
 from . import docchi_client
 from app.utils.anime_mapping import get_mal_id_from_slug, save_mal_slug_mapping
 from app.utils.stream_utils import cache, respond_with, log_error
-from app.utils.meta_cache import build_genre_links, get_cached_meta, with_genre_links
+from app.utils.meta_cache import build_genre_links, fetch_and_cache_meta, with_genre_links
 from .manifest import MANIFEST, genres as manifest_genres
 
 from config import Config
@@ -52,13 +52,16 @@ async def _process_latest_anime(results):
                 "title_en": anime.get("title_en")
             }
     unique_anime_list = list(unique_anime.values())
-    for u_anime in unique_anime_list:
+
+    async def _resolve_mal_id(u_anime):
         try:
             mal_id = await get_mal_id_from_slug(u_anime['slug'])
             if mal_id:
                 u_anime['mal_id'] = mal_id
         except Exception as e:
             logging.error(f"Failed to get anime details for {u_anime['slug']}: {e}")
+
+    await asyncio.gather(*[_resolve_mal_id(a) for a in unique_anime_list])
     return unique_anime_list
 
 
@@ -141,9 +144,9 @@ async def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None, s
         async def _get_meta(anime_item):
             mal_id = anime_item.get('mal_id')
             if mal_id:
-                cached = await get_cached_meta(str(mal_id))
-                if cached:
-                    return with_genre_links(cached, is_vip)
+                meta, _ = await fetch_and_cache_meta(f"mal:{mal_id}", is_vip)
+                if meta:
+                    return with_genre_links(meta, is_vip)
             return docchi_to_meta(anime_item, is_vip, catalog_id)
 
         meta_previews = await asyncio.gather(*[_get_meta(item) for item in response_data])
