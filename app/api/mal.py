@@ -35,10 +35,7 @@ async def get_anime_meta(mal_id: str) -> dict | None:
     background = None
     if mal_anime.main_picture:
         poster = mal_anime.main_picture.large or mal_anime.main_picture.medium
-    if mal_anime.background:
-        background = mal_anime.background
-    elif poster:
-        background = poster
+    # background = poster
 
     ids = get_ids_from_mal_id(mal_id)
     fanart = await get_fanart_images(**{k: v for k, v in ids.items() if k != 'kitsu_id'})
