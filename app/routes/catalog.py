@@ -71,7 +71,7 @@ def _set_cache_time(catalog_id):
     elif catalog_id in ('newest', 'latest'):
         cache_time = 180
     elif catalog_id in ('season', 'trending'):
-        cache_time = 86400
+        cache_time = 10800
     else:
         cache_time = 0
 
