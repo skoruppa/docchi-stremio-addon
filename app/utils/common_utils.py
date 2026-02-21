@@ -5,8 +5,56 @@ Common utilities shared across the application.
 import re
 import random
 import aiohttp
+from config import Config
 from app.utils import jsunpack
 from async_tls_client import AsyncSession
+
+
+async def get_fanart_images(imdb_id: str = None, tvdb_id: int = None, tmdb_id: int = None) -> dict:
+    """Fetch logo/background/poster from fanart.tv (requires API key) with metahub logo/background fallback."""
+    TIMEOUT = aiohttp.ClientTimeout(total=5)
+    result = {}
+    if Config.FANART_API_KEY and (tvdb_id or tmdb_id or imdb_id):
+        try:
+            async with aiohttp.ClientSession(timeout=TIMEOUT) as session:
+                if tvdb_id:
+                    async with session.get(f"https://webservice.fanart.tv/v3/tv/{tvdb_id}?api_key={Config.FANART_API_KEY}") as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            result["logo"] = _fanart_first(data.get("hdtvlogo") or data.get("clearlogo"))
+                            result["background"] = _fanart_first(data.get("showbackground"))
+                            result["poster"] = _fanart_first(data.get("tvposter"))
+                if not result.get("logo") and tmdb_id:
+                    async with session.get(f"https://webservice.fanart.tv/v3/movies/{tmdb_id}?api_key={Config.FANART_API_KEY}") as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            result["logo"] = result.get("logo") or _fanart_first(data.get("hdmovielogo") or data.get("movielogo"))
+                            result["background"] = result.get("background") or _fanart_first(data.get("moviebackground"))
+                            result["poster"] = result.get("poster") or _fanart_first(data.get("movieposter"))
+        except Exception:
+            pass
+    if imdb_id and not result.get("logo"):
+        try:
+            async with aiohttp.ClientSession(timeout=TIMEOUT) as session:
+                async with session.get(f"https://images.metahub.space/logo/medium/{imdb_id}/img") as r:
+                    if r.status == 200:
+                        result["logo"] = str(r.url)
+                if not result.get("background"):
+                    async with session.get(f"https://images.metahub.space/background/medium/{imdb_id}/img") as r:
+                        if r.status == 200:
+                            result["background"] = str(r.url)
+        except Exception:
+            pass
+    return result
+
+
+def _fanart_first(array: list) -> str | None:
+    if not array:
+        return None
+    preferred = [e for e in array if not e.get("lang") or e.get("lang") in ("en", "00")]
+    entry = (preferred or array)[0]
+    return entry.get("url", "").replace("http://", "https://") or None
+
 
 
 def get_random_agent(browser: str = None):

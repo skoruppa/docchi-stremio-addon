@@ -9,7 +9,6 @@ services:
       - USE_REDIS=false
       - VIP_PATH=vip
       - MAL_CLIENT_ID=your_mal_client_id
-      - KITSU_STREMIO_API_URL=https://anime-kitsu.strem.fun
       - PROXIFY_STREAMS=false
     volumes:
       - ./data:/app/data

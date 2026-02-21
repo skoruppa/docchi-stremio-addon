@@ -101,7 +101,7 @@ Addon will be available at `http://localhost:5000` & `http://localhost:5000/vip`
 
 - `FORCE_VIP_PLAYERS` (default: `false`) - Make VIP-only players (Filemoon, Uqload, Streamtape, VOE) available for all users without VIP path. Useful for self-hosting when you have MediaFlow Proxy configured.
 
-- `MAL_CLIENT_ID` - MyAnimeList Client ID (optional but recommended). The addon uses Kitsu Stremio addon for metadata, which sometimes has issues. MAL API is used as fallback.
+- `MAL_CLIENT_ID` - MyAnimeList Client ID (optional but recommended). Used as fallback when Kitsu API fails to return metadata.
   
   To get your Client ID:
   1. Go to [MyAnimeList API Config](https://myanimelist.net/apiconfig)
@@ -114,9 +114,9 @@ Addon will be available at `http://localhost:5000` & `http://localhost:5000/vip`
 - `PROXIFY_STREAMS` (default: `false`) - Enable stream proxying through [MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy) instance for players with IP bound streams
 - `STREAM_PROXY_URL` - URL to [MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy) instance 
 - `STREAM_PROXY_PASSWORD` - Password to [MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy) instance 
-- `KITSU_STREMIO_API_URL` (default: `https://anime-kitsu.strem.fun`) - URL to [Stremio Kitsu Anime](https://github.com/TheBeastLT/stremio-kitsu-anime) instance.
+- `FANART_API_KEY` (optional) - [fanart.tv](https://fanart.tv/) API key for high-quality logos, posters and backgrounds. Without it, logos and backgrounds are fetched from [metahub.space](https://metahub.space/) (free, no key required). To get your API key, register at [fanart.tv](https://fanart.tv/get-an-api-key/).
 
-## Support
+- `MAL_CLIENT_ID`
 
 If you encounter any issues or have any questions regarding the addon, feel free to [report them here](https://github.com/skoruppa/docchi-stremio-addon/issues).
 

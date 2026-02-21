@@ -7,7 +7,7 @@ from flask import Blueprint, abort, request
 from werkzeug.exceptions import abort
 
 from . import docchi_client
-from app.db.db import save_slug_from_mal_id, save_mal_id_from_slug, get_mal_id_from_slug
+from app.utils.anime_mapping import get_mal_id_from_slug
 from app.utils.stream_utils import cache, respond_with, log_error
 from app.utils.meta_cache import build_genre_links, get_cached_meta, with_genre_links
 from .manifest import MANIFEST, genres as manifest_genres
@@ -53,17 +53,12 @@ async def _process_latest_anime(results):
             }
     unique_anime_list = list(unique_anime.values())
     for u_anime in unique_anime_list:
-        exists, saved_mal_id = get_mal_id_from_slug(u_anime['slug'])
-        if saved_mal_id:
-            u_anime['mal_id'] = saved_mal_id
-        else:
-            try:
-                anime_details = await docchi_client.get_anime_details(u_anime['slug'])
-                u_anime['mal_id'] = anime_details['mal_id']
-                save_mal_id_from_slug(u_anime['slug'], anime_details['mal_id'])
-            except Exception as e:
-                logging.error(f"Failed to get anime details for {u_anime['slug']}: {e}")
-                continue
+        try:
+            mal_id = await get_mal_id_from_slug(u_anime['slug'])
+            if mal_id:
+                u_anime['mal_id'] = mal_id
+        except Exception as e:
+            logging.error(f"Failed to get anime details for {u_anime['slug']}: {e}")
     return unique_anime_list
 
 
@@ -162,7 +157,7 @@ async def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None, s
 
 def docchi_to_meta(anime_item: dict, is_vip: bool = False, catalog_id: str = 'season'):
     content_id = anime_item.get('mal_id', None)
-    save_slug_from_mal_id(content_id, anime_item.get('slug', None))
+    save_mal_slug_mapping(content_id, anime_item.get('slug', None))
 
     anime_item_genres = list(anime_item.get('genres', []))
     filtered_genres = list(filter(lambda y: y in manifest_genres, anime_item_genres))

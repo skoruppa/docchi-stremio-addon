@@ -7,7 +7,7 @@ from .manifest import MANIFEST
 
 from app.routes import docchi_client, mapping
 from app.utils.stream_utils import respond_with
-from app.db.db import get_slug_from_mal_id, save_slug_from_mal_id
+from app.utils.anime_mapping import get_slug_from_mal_id
 from app.utils.player_utils import detect_player, get_player_handler
 
 
@@ -224,10 +224,7 @@ async def addon_stream(content_type: str, content_id: str):
     if prefix != 'mal':
         return respond_with({'streams': []}, 2592000, 2592000)
 
-    exists, slug = get_slug_from_mal_id(prefix_id)
-    if not exists:
-        slug = await docchi_client.get_slug_from_mal_id(prefix_id)
-        save_slug_from_mal_id(prefix_id, slug)
+    slug = await get_slug_from_mal_id(prefix_id)
 
     players = await docchi_client.get_episode_players(slug, episode)
     if players:

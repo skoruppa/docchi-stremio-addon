@@ -70,6 +70,10 @@ def _load_to_redis(data):
             mini['kitsu_id'] = item['kitsu_id']
         if item.get('imdb_id'):
             mini['imdb_id'] = item['imdb_id']
+        if item.get('tvdb_id'):
+            mini['tvdb_id'] = item['tvdb_id']
+        if item.get('themoviedb_id'):
+            mini['themoviedb_id'] = item['themoviedb_id']
         if item.get('season', {}).get('tvdb'):
             mini['season'] = {'tvdb': item['season']['tvdb']}
 
@@ -94,6 +98,10 @@ def _load_to_redis(data):
             mini['kitsu_id'] = item['kitsu_id']
         if item.get('imdb_id'):
             mini['imdb_id'] = item['imdb_id']
+        if item.get('tvdb_id'):
+            mini['tvdb_id'] = item['tvdb_id']
+        if item.get('themoviedb_id'):
+            mini['themoviedb_id'] = item['themoviedb_id']
         if item.get('season', {}).get('tvdb'):
             mini['season'] = {'tvdb': item['season']['tvdb']}
             
@@ -156,6 +164,18 @@ def get_imdb_id_from_mal_id(mal_id: str) -> Optional[str]:
             return str(imdb_id[0]) if isinstance(imdb_id, list) else str(imdb_id)
     return None
 
+
+def get_ids_from_mal_id(mal_id: str) -> dict:
+    """Get kitsu_id, imdb_id, tvdb_id, themoviedb_id for a given MAL ID."""
+    item = _get_item('mal', mal_id) or {}
+    imdb_id = item.get('imdb_id')
+    return {
+        'kitsu_id': str(item['kitsu_id']) if item.get('kitsu_id') else None,
+        'imdb_id': (imdb_id[0] if isinstance(imdb_id, list) else imdb_id) or None,
+        'tvdb_id': item.get('tvdb_id'),
+        'tmdb_id': item.get('themoviedb_id'),
+    }
+
 def _get_imdb_items(imdb_id: str) -> list:
     """Get list of items for IMDB ID (can have multiple seasons)"""
     if _redis_client:
@@ -180,6 +200,39 @@ def _get_item(key_type: str, key_value: str) -> Optional[dict]:
             return db.get_anime_by_kitsu_id(int(key_value))
     return None
 
+async def get_mal_id_from_slug(slug: str) -> Optional[int]:
+    """Get MAL ID from Docchi slug (Redis or TinyDB, then Docchi API)"""
+    if _redis_client:
+        mal_id = _redis_client.get(f"slug:docchi:{slug}")
+        if mal_id:
+            return int(mal_id)
+    else:
+        _, mal_id = db.get_mal_id_from_slug(slug)
+        if mal_id:
+            return mal_id
+
+    try:
+        from app.routes import docchi_client
+        details = await docchi_client.get_anime_details(slug)
+        mal_id = details and details.get('mal_id')
+    except Exception:
+        mal_id = None
+    if mal_id:
+        save_mal_slug_mapping(mal_id, slug)
+    return int(mal_id) if mal_id else None
+
+def save_mal_slug_mapping(mal_id, slug: str):
+    """Save mal_id <-> slug mapping to Redis or TinyDB."""
+    if not mal_id or not slug:
+        return
+    mal_id = int(mal_id)
+    if _redis_client:
+        _redis_client.setex(f"slug:mal:{mal_id}", 86400 * 90, slug)
+        _redis_client.setex(f"slug:docchi:{slug}", 86400 * 90, str(mal_id))
+    else:
+        db.save_slug_from_mal_id(mal_id, slug)
+
+
 async def get_slug_from_mal_id(mal_id: str) -> Optional[str]:
     """Get Docchi slug from MAL ID (Redis or TinyDB, then Docchi API)"""
     if _redis_client:
@@ -198,9 +251,5 @@ async def get_slug_from_mal_id(mal_id: str) -> Optional[str]:
     except Exception:
         pass
     if slug:
-        if _redis_client:
-            _redis_client.setex(f"slug:mal:{mal_id}", 86400 * 90, slug)
-            _redis_client.setex(f"slug:docchi:{slug}", 86400 * 90, str(mal_id))
-        else:
-            db.save_slug_from_mal_id(int(mal_id), slug)
+        save_mal_slug_mapping(mal_id, slug)
     return slug
