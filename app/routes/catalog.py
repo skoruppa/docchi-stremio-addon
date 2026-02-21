@@ -7,7 +7,7 @@ from flask import Blueprint, abort, request
 from werkzeug.exceptions import abort
 
 from . import docchi_client
-from app.utils.anime_mapping import get_mal_id_from_slug
+from app.utils.anime_mapping import get_mal_id_from_slug, save_mal_slug_mapping
 from app.utils.stream_utils import cache, respond_with, log_error
 from app.utils.meta_cache import build_genre_links, get_cached_meta, with_genre_links
 from .manifest import MANIFEST, genres as manifest_genres
