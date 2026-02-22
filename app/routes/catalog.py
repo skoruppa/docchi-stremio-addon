@@ -150,12 +150,12 @@ async def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None, s
             return docchi_to_meta(anime_item, is_vip, catalog_id)
 
         meta_previews = await asyncio.gather(*[_get_meta(item) for item in response_data])
-        return respond_with({'metas': list(meta_previews)}, cache_time, 900)
+        return respond_with({'metas': list(meta_previews)}, cache_time)
     except ValueError as e:
         return respond_with({'metas': [], 'message': str(e)}), 400
     except aiohttp.ClientError as e:
         log_error(e)
-        return respond_with({'metas': []}, cache_time, 900)
+        return respond_with({'metas': []}, cache_time)
 
 
 def docchi_to_meta(anime_item: dict, is_vip: bool = False, catalog_id: str = 'season'):

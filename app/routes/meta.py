@@ -27,4 +27,4 @@ async def addon_meta(meta_type: str, meta_id: str):
         return respond_with({'meta': {}, 'message': 'Could not fetch anime metadata'}), 404
 
     meta['id'] = meta_id
-    return respond_with({'meta': meta}, 86400, 86400)
+    return respond_with({'meta': meta}, 86400)

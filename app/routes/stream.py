@@ -207,7 +207,7 @@ async def addon_stream(content_type: str, content_id: str):
         if prefix_id:
             prefix = 'mal'
         else:
-            return respond_with({'streams': []}, 2592000, 2592000)
+            return respond_with({'streams': []}, 2592000)
     elif prefix == 'kitsu':
         prefix_id = parts[1]
         prefix_id = mapping.get_mal_id_from_kitsu_id(prefix_id)
@@ -222,7 +222,7 @@ async def addon_stream(content_type: str, content_id: str):
         episode = parts[2] if len(parts) > 2 else '1'
 
     if prefix != 'mal':
-        return respond_with({'streams': []}, 2592000, 2592000)
+        return respond_with({'streams': []}, 2592000)
 
     slug = await get_slug_from_mal_id(prefix_id)
 
@@ -238,5 +238,5 @@ async def addon_stream(content_type: str, content_id: str):
                 unique_players.append(player)
         
         streams = await process_players(unique_players, content_id, content_type, is_vip)
-        return respond_with(streams, 600, 300)
+        return respond_with(streams, 600)
     return respond_with({'streams': []})

@@ -66,11 +66,11 @@ def generate_etag(data: dict) -> str:
     return hashlib.md5(data_str.encode()).hexdigest()
 
 
-def respond_with(data: dict, cache_time: int = None, client_cache_time: int = 0) -> Response:
+def respond_with(data: dict, cache_time: int = None) -> Response:
     """Respond with CORS headers to the client"""
     resp = jsonify(data)
     if cache_time:
-        resp.headers['Cache-Control'] = f'public, s-maxage={cache_time}, max-age={client_cache_time}, stale-while-revalidate=60'
+        resp.headers['Cache-Control'] = f'public, s-maxage={cache_time}, max-age={cache_time}, stale-while-revalidate=60'
         resp.headers['CDN-Cache-Control'] = f'public, s-maxage={cache_time}, stale-while-revalidate=60'
         resp.headers['Vercel-CDN-Cache-Control'] = f'public, s-maxage={cache_time}, stale-while-revalidate=60'
         resp.headers['Cloudflare-CDN-Cache-Control'] = f'public, max-age={cache_time}, stale-while-revalidate=60'
