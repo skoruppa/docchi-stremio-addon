@@ -129,7 +129,8 @@ async def get_anime_meta(kitsu_id: str, mal_id: str = None, imdb_id: str = None,
     fanart = await get_fanart_images(imdb_id=imdb_id, tvdb_id=tvdb_id, tmdb_id=tmdb_id)
     logo = fanart.get("logo")
     background = fanart.get("background") or background
-    poster = fanart.get("poster") or poster
+    if not poster:
+        poster = fanart.get("poster") or poster
 
     return {
         "id": f"mal:{mal_id}" if mal_id else f"kitsu:{kitsu_id}",

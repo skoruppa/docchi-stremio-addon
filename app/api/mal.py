@@ -41,7 +41,8 @@ async def get_anime_meta(mal_id: str) -> dict | None:
     fanart = await get_fanart_images(**{k: v for k, v in ids.items() if k != 'kitsu_id'})
     logo = fanart.get('logo')
     background = fanart.get('background') or background
-    poster = fanart.get('poster') or poster
+    if not poster:
+        poster = fanart.get('poster') or poster
     year = None
     release_info = None
     if mal_anime.start_date:
