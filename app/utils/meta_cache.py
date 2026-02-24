@@ -20,10 +20,11 @@ async def get_cached_meta(mal_id: str):
 
 
 async def set_cached_meta(mal_id: str, meta: dict):
-    """Cache metadata by MAL ID with timestamp."""
+    """Cache metadata by MAL ID with timestamp (videos excluded)."""
+    meta_to_cache = {k: v for k, v in meta.items() if k != 'videos'}
     await execute(
         "INSERT OR REPLACE INTO meta_cache (mal_id, meta, timestamp) VALUES (?,?,?)",
-        (mal_id, json.dumps(meta), int(time.time()))
+        (mal_id, json.dumps(meta_to_cache), int(time.time()))
     )
 
 
@@ -94,7 +95,6 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
             meta = await kitsu_get_meta(ids['kitsu_id'], mal_id=mal_id,
                                         imdb_id=ids['imdb_id'], tvdb_id=ids['tvdb_id'], tmdb_id=ids['tmdb_id'])
             if meta and meta.get('name'):
-                await _enrich_thumbnails(meta, mal_id)
                 await set_cached_meta(mal_id, meta)
                 return _with_genre_links(meta), mal_id
     except Exception:
@@ -106,13 +106,35 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
             from app.api.mal import get_anime_meta as mal_get_meta
             meta = await mal_get_meta(mal_id)
             if meta:
-                await _enrich_thumbnails(meta, mal_id)
                 await set_cached_meta(mal_id, meta)
                 return _with_genre_links(meta), mal_id
         except Exception:
             pass
 
     return None, None
+
+
+async def fetch_videos(mal_id: str) -> list:
+    """Fetch fresh videos/episodes for a given MAL ID."""
+    ids = get_ids_from_mal_id(mal_id)
+    videos = []
+    if ids['kitsu_id']:
+        try:
+            from app.api.kitsu import get_anime_meta as kitsu_get_meta
+            meta = await kitsu_get_meta(ids['kitsu_id'], mal_id=mal_id,
+                                        imdb_id=ids['imdb_id'], tvdb_id=ids['tvdb_id'], tmdb_id=ids['tmdb_id'])
+            videos = meta.get('videos', []) if meta else []
+        except Exception:
+            pass
+    if not videos and Config.MAL_CLIENT_ID:
+        try:
+            from app.api.mal import get_anime_meta as mal_get_meta
+            meta = await mal_get_meta(mal_id)
+            videos = meta.get('videos', []) if meta else []
+        except Exception:
+            pass
+    await _enrich_thumbnails({'videos': videos}, mal_id)
+    return videos
 
 
 async def _enrich_thumbnails(meta: dict, mal_id: str):

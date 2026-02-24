@@ -79,12 +79,16 @@ def favicon():
 if __name__ == '__main__':
     import sys
     if '--clear-cache' in sys.argv:
+        import asyncio
         from app.utils.anime_mapping import _redis_client
         if _redis_client:
             _redis_client.flushdb()
             print("Redis cache cleared")
+        from app.db import execute, connection
+        if Config.TURSO_URL and Config.TURSO_TOKEN:
+            asyncio.run(execute("DELETE FROM meta_cache"))
+            print("Turso meta cache cleared")
         else:
-            from app.db import connection
             connection.execute("DELETE FROM meta_cache")
             connection.commit()
             print("SQLite meta cache cleared")
