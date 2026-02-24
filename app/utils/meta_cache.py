@@ -1,55 +1,30 @@
 """Shared cache for anime metadata."""
 import time
 import json
-import os
-import asyncio
 import urllib.parse
 from config import Config
 from app.utils.anime_mapping import get_ids_from_mal_id
+from app.db import execute
 
-_meta_cache = {}
-CACHE_TTL = 43200  # 12 hours
-_CACHE_FILE = '/tmp/meta_cache.json'
-
-
-def _load_cache_from_file():
-    try:
-        if os.path.exists(_CACHE_FILE):
-            with open(_CACHE_FILE, 'r') as f:
-                return json.load(f)
-    except Exception:
-        pass
-    return {}
-
-
-_meta_cache = _load_cache_from_file()
+CACHE_TTL = 2592000  # 1 month
 
 
 async def get_cached_meta(mal_id: str):
     """Get cached metadata by MAL ID."""
-    entry = _meta_cache.get(mal_id)
-    if entry:
-        # Check if cache entry is still valid
-        if time.time() - entry['timestamp'] < CACHE_TTL:
-            return entry['meta']
-        else:
-            # Remove expired entry
-            del _meta_cache[mal_id]
+    rows = await execute("SELECT meta, timestamp FROM meta_cache WHERE mal_id=?", (mal_id,))
+    if rows:
+        if time.time() - rows[0]['timestamp'] < CACHE_TTL:
+            return json.loads(rows[0]['meta'])
+        await execute("DELETE FROM meta_cache WHERE mal_id=?", (mal_id,))
     return None
 
 
 async def set_cached_meta(mal_id: str, meta: dict):
     """Cache metadata by MAL ID with timestamp."""
-    _meta_cache[mal_id] = {
-        'meta': meta,
-        'timestamp': time.time()
-    }
-    try:
-        with open(_CACHE_FILE, 'w') as f:
-            json.dump(_meta_cache, f)
-    except Exception:
-        pass
-
+    await execute(
+        "INSERT OR REPLACE INTO meta_cache (mal_id, meta, timestamp) VALUES (?,?,?)",
+        (mal_id, json.dumps(meta), int(time.time()))
+    )
 
 
 def build_genre_links(meta: dict, is_vip: bool = False, catalog_id: str = 'season'):

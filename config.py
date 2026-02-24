@@ -23,11 +23,15 @@ class Config:
     FANART_API_KEY = os.getenv('FANART_API_KEY', '')  # fanart.tv API key (optional)
 
     DEBUG = os.getenv('FLASK_DEBUG', False)
-    DATABASE = "/tmp/database.json"
+    DATABASE = "/tmp/database.db"
     
     # Redis for anime mapping
     USE_REDIS = os.getenv('USE_REDIS', False)
     REDIS_URL = os.getenv('REDIS_URL', '')
+
+    # Turso for meta cache
+    TURSO_URL = os.getenv('TURSO_URL', '')
+    TURSO_TOKEN = os.getenv('TURSO_TOKEN', '')
 
     # Env dependent configs
     if DEBUG in ["1", True, "True"]:  # Local development

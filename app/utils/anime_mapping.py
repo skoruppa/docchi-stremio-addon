@@ -14,12 +14,12 @@ if Config.USE_REDIS and Config.REDIS_URL:
         _redis_client = redis.from_url(Config.REDIS_URL, decode_responses=True)
         logging.info("Using Redis for anime mapping")
     except ImportError:
-        logging.warning("redis package not installed. Falling back to TinyDB")
+        logging.warning("redis package not installed. Falling back to SQLite")
     except Exception as e:
-        logging.warning(f"Could not connect to Redis: {e}. Falling back to TinyDB")
+        logging.warning(f"Could not connect to Redis: {e}. Falling back to SQLite")
 
 if not _redis_client:
-    logging.info("Using TinyDB for anime mapping")
+    logging.info("Using SQLite/Turso for anime mapping")
 
 MAPPING_FILE = os.path.join(os.path.dirname(__file__), '../../data/anime-lists/anime-list-full.json')
 _loaded = False
@@ -49,8 +49,7 @@ def load_mapping():
                 _redis_client.set('mapping:hash', file_hash)
                 logging.info(f"Loaded anime mapping with hash: {file_hash[:8]}")
         else:
-            _load_to_tinydb(data)
-        
+            _load_to_sqlite(data)
         _loaded = True
     except FileNotFoundError:
         logging.error("anime-list-full.json not found. Run: git submodule update --init")
@@ -118,10 +117,10 @@ def _load_to_redis(data):
     
     logging.info(f"Loaded {len(data)} anime to Redis with {ttl}s TTL")
 
-def _load_to_tinydb(data):
-    """Load data to TinyDB (using existing database)"""
+def _load_to_sqlite(data):
+    """Load data to SQLite (using existing database)"""
     db.load_anime_mapping(data)
-    logging.info(f"Loaded {len(data)} anime to TinyDB")
+    logging.info(f"Loaded {len(data)} anime to SQLite")
 
 def get_mal_id_from_kitsu_id(kitsu_id: str) -> Optional[str]:
     """Get MAL ID from Kitsu ID"""

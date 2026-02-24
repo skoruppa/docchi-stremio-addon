@@ -6,7 +6,6 @@ from app.routes.catalog import catalog_bp
 from app.routes.manifest import manifest_blueprint
 from app.routes.meta import meta_bp
 from app.routes.stream import stream_bp
-from app.db import database
 from app.utils.stream_utils import cache
 from app.utils.anime_mapping import load_mapping
 from config import Config
@@ -78,6 +77,19 @@ def favicon():
     return app.send_static_file('favicon.ico')
 
 if __name__ == '__main__':
+    import sys
+    if '--clear-cache' in sys.argv:
+        from app.utils.anime_mapping import _redis_client
+        if _redis_client:
+            _redis_client.flushdb()
+            print("Redis cache cleared")
+        else:
+            from app.db import connection
+            connection.execute("DELETE FROM meta_cache")
+            connection.commit()
+            print("SQLite meta cache cleared")
+        sys.exit(0)
+
     try:
         from waitress import serve
         import sys
@@ -92,5 +104,5 @@ if __name__ == '__main__':
         
         logging.info(f"Starting Docchi Stremio Addon v{__version__} on http://0.0.0.0:5000")
         serve(app, host='0.0.0.0', port=5000)
-    finally:
-        database.storage.flush()
+    except ImportError:
+        app.run(host='0.0.0.0', port=5000, debug=False)
