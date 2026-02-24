@@ -95,6 +95,7 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
             meta = await kitsu_get_meta(ids['kitsu_id'], mal_id=mal_id,
                                         imdb_id=ids['imdb_id'], tvdb_id=ids['tvdb_id'], tmdb_id=ids['tmdb_id'])
             if meta and meta.get('name'):
+                await _fill_genres_from_docchi(meta, mal_id)
                 await set_cached_meta(mal_id, meta)
                 return _with_genre_links(meta), mal_id
     except Exception:
@@ -106,12 +107,29 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
             from app.api.mal import get_anime_meta as mal_get_meta
             meta = await mal_get_meta(mal_id)
             if meta:
+                await _fill_genres_from_docchi(meta, mal_id)
                 await set_cached_meta(mal_id, meta)
                 return _with_genre_links(meta), mal_id
         except Exception:
             pass
 
     return None, None
+
+
+async def _fill_genres_from_docchi(meta: dict, mal_id: str):
+    if meta.get('genres'):
+        return
+    try:
+        from app.utils.anime_mapping import get_slug_from_mal_id
+        from app.routes import docchi_client
+        slug = await get_slug_from_mal_id(mal_id)
+        if not slug:
+            return
+        details = await docchi_client.get_anime_details(slug)
+        if details and details.get('genres'):
+            meta['genres'] = details['genres']
+    except Exception:
+        pass
 
 
 async def fetch_videos(mal_id: str) -> list:
