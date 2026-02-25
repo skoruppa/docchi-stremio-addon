@@ -265,17 +265,13 @@ async def get_video_from_vk_player(session: aiohttp.ClientSession, url, is_vip: 
         "Sec-Fetch-Site": "none",
     }
 
-    # video_headers = {
-    #     "request": {
-    #         "User-Agent": user_agent,
-    #         "Accept": "video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5",
-    #         "Origin": VK_URL,
-    #         "Referer": f"{VK_URL}/",
-    #         'X-Requested-With': 'XMLHttpRequest',
-    #     }
-    # }
+    video_headers = {
+        "request": {
+            "User-Agent": user_agent
+        }
+    }
 
-    video_headers = None
+    # video_headers = None
 
     video_id = extract_video_id(url)
     if not video_id:
