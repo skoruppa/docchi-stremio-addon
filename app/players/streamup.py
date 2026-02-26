@@ -37,7 +37,7 @@ async def get_video_from_streamup_player(session: aiohttp.ClientSession, player_
     try:
         user_agent = get_random_agent()
         page_headers = {"User-Agent": user_agent}
-        async with session.get(player_url, headers=page_headers, timeout=aiohttp.ClientTimeout(total=10)) as page_response:
+        async with session.get(player_url, headers=page_headers, timeout=aiohttp.ClientTimeout(total=3)) as page_response:
             page_response.raise_for_status()
             page_content = await page_response.text()
 
@@ -68,7 +68,7 @@ async def get_video_from_streamup_player(session: aiohttp.ClientSession, player_
 
                 key_url = f"{base_url_with_scheme}/ajax/stream?session={session_id}"
 
-                async with session.get(key_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as key_response:
+                async with session.get(key_url, headers=headers, timeout=aiohttp.ClientTimeout(total=3)) as key_response:
                     key_response.raise_for_status()
                     key_b64 = await key_response.text()
 
@@ -85,7 +85,7 @@ async def get_video_from_streamup_player(session: aiohttp.ClientSession, player_
             else:
                 s_url = f"{base_url_with_scheme}/ajax/stream?filecode={media_id}"
 
-                async with session.get(s_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as s_response:
+                async with session.get(s_url, headers=headers, timeout=aiohttp.ClientTimeout(total=3)) as s_response:
                     s_response.raise_for_status()
                     response = await s_response.text()
                 stream_info = json.loads(response)

@@ -43,7 +43,7 @@ async def get_video_from_gdrive_player(session: aiohttp.ClientSession, drive_url
     
     quality = 'unknown'
     try:
-        async with session.get(info_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+        async with session.get(info_url, headers=headers, timeout=aiohttp.ClientTimeout(total=3)) as response:
             html = await response.text()
         
         if 'reason=' in html:
@@ -71,7 +71,7 @@ async def get_video_from_gdrive_player(session: aiohttp.ClientSession, drive_url
     }
     
     try:
-        async with session.get(video_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+        async with session.get(video_url, headers=headers, timeout=aiohttp.ClientTimeout(total=3)) as response:
             text = await response.text()
         
         if 'Error 404 (Not Found)' in text:

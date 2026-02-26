@@ -21,7 +21,7 @@ async def get_video_from_earnvid_player(session: aiohttp.ClientSession, player_u
         parsed_url = urlparse(player_url)
         base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
-        async with session.get(player_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+        async with session.get(player_url, headers=headers, timeout=aiohttp.ClientTimeout(total=3)) as response:
             response.raise_for_status()
             html_content = await response.text()
 

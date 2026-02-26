@@ -1,5 +1,5 @@
+import re
 import aiohttp
-from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
 from app.utils.common_utils import get_random_agent
 from config import Config
@@ -26,19 +26,11 @@ async def get_video_from_sibnet_player(session: aiohttp.ClientSession, url: str,
                 return None, None, None
 
             html = await response.text()
-            document = BeautifulSoup(html, "html.parser")
 
-            script = document.select_one("script:-soup-contains('player.src')")
-            if not script or not script.string:
+            match = re.search(r'player\.src\([^)]*src:\s*"([^"]+)"', html)
+            if not match:
                 return None, None, None
-
-            script_data = script.string
-
-            slug = (
-                script_data.split("player.src", 1)[-1]
-                .split("src:", 1)[-1]
-                .split('"', 2)[1]
-            )
+            slug = match.group(1)
 
             video_headers = {
                 "request": {

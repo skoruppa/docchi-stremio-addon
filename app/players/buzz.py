@@ -33,11 +33,11 @@ async def get_video_from_buzz_player(session: aiohttp.ClientSession, player_url:
         if PROXIFY_STREAMS:
             user_agent = headers['User-Agent']
             proxied_url = f'{STREAM_PROXY_URL}/proxy/stream?d={url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
-            async with session.get(proxied_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            async with session.get(proxied_url, timeout=aiohttp.ClientTimeout(total=3)) as response:
                 response.raise_for_status()
                 html_content = await response.text()
         else:
-            async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=3)) as response:
                 response.raise_for_status()
                 html_content = await response.text()
         

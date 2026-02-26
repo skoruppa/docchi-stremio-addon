@@ -25,12 +25,12 @@ async def get_video_from_dailymotion_player(session: aiohttp.ClientSession, url:
         }
         
         # Warm-up session to get cookies
-        async with session.get('https://www.dailymotion.com/', headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as response:
+        async with session.get('https://www.dailymotion.com/', headers=headers, timeout=aiohttp.ClientTimeout(total=3)) as response:
             pass
         
         # Get metadata
         metadata_url = f'https://www.dailymotion.com/player/metadata/video/{media_id}'
-        async with session.get(metadata_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+        async with session.get(metadata_url, headers=headers, timeout=aiohttp.ClientTimeout(total=3)) as response:
             response.raise_for_status()
             js_result = await response.json()
         

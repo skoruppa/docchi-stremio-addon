@@ -71,11 +71,11 @@ async def get_video_from_voe_player(session: aiohttp.ClientSession, player_url: 
         if PROXIFY_STREAMS:
             user_agent = headers['User-Agent']
             proxied_url = f'{STREAM_PROXY_URL}/proxy/stream?d={player_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
-            async with session.get(proxied_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            async with session.get(proxied_url, timeout=aiohttp.ClientTimeout(total=3)) as response:
                 response.raise_for_status()
                 html_content = await response.text()
         else:
-            async with session.get(player_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            async with session.get(player_url, headers=headers, timeout=aiohttp.ClientTimeout(total=3)) as response:
                 response.raise_for_status()
                 html_content = await response.text()
         
@@ -87,11 +87,11 @@ async def get_video_from_voe_player(session: aiohttp.ClientSession, player_url: 
                 if PROXIFY_STREAMS:
                     user_agent = headers['User-Agent']
                     proxied_url = f'{STREAM_PROXY_URL}/proxy/stream?d={player_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
-                    async with session.get(proxied_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    async with session.get(proxied_url, timeout=aiohttp.ClientTimeout(total=3)) as response:
                         response.raise_for_status()
                         html_content = await response.text()
                 else:
-                    async with session.get(player_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    async with session.get(player_url, headers=headers, timeout=aiohttp.ClientTimeout(total=3)) as response:
                         response.raise_for_status()
                         html_content = await response.text()
         
@@ -101,7 +101,7 @@ async def get_video_from_voe_player(session: aiohttp.ClientSession, player_url: 
             encrypted_data = match.group(1)
             script_url = urljoin(player_url, match.group(2))
             
-            async with session.get(script_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            async with session.get(script_url, headers=headers, timeout=aiohttp.ClientTimeout(total=3)) as response:
                 response.raise_for_status()
                 script_content = await response.text()
             

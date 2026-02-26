@@ -3,7 +3,6 @@ import aiohttp
 from aiohttp.client_exceptions import ClientConnectorError, ClientResponseError
 import json
 import urllib.parse
-from bs4 import BeautifulSoup
 
 # Domains handled by this player
 DOMAINS = ['m.cda.pl', 'cda.pl', 'www.cda.pl', 'ebd.cda.pl']
@@ -63,13 +62,15 @@ async def fetch_video_data(session: aiohttp.ClientSession, url: str, video_id: s
         except (ClientConnectorError, ClientResponseError):
             return None
 
-    soup = BeautifulSoup(html, "html.parser")
-    player_div = soup.find("div", id=lambda x: x and x.startswith("mediaplayer"))
-    if not player_div or "player_data" not in player_div.attrs:
+    match = re.search(r'id="mediaplayer[^"]*"[^>]+player_data="([^"]+)"', html)
+    if not match:
+        match = re.search(r'player_data="([^"]+)"', html)
+    if not match:
         return None
-
-    player_data = json.loads(player_div["player_data"])
-    return player_data
+    try:
+        return json.loads(match.group(1).replace('&quot;', '"'))
+    except Exception:
+        return None
 
 
 async def get_video_from_cda_player(session: aiohttp.ClientSession, url: str, is_vip: bool = False) -> tuple:

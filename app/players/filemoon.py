@@ -109,11 +109,11 @@ async def get_video_from_filemoon_player(session: aiohttp.ClientSession, url: st
         if PROXIFY_STREAMS:
             user_agent = headers['User-Agent']
             proxied_url = f'{STREAM_PROXY_URL}/proxy/stream?d={api_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
-            async with session.get(proxied_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            async with session.get(proxied_url, timeout=aiohttp.ClientTimeout(total=3)) as response:
                 response.raise_for_status()
                 data = await response.json()
         else:
-            async with session.get(api_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            async with session.get(api_url, headers=headers, timeout=aiohttp.ClientTimeout(total=3)) as response:
                 response.raise_for_status()
                 data = await response.json()
         
@@ -161,7 +161,7 @@ if __name__ == '__main__':
     from app.players.test import run_tests
 
     urls_to_test = [
-        "https://byseqekaho.com/e/fyzwblxj555r",
+        "https://bysebuho.com/e/xi9znl2vp2bi",
     ]
 
     run_tests(get_video_from_filemoon_player, urls_to_test, True)

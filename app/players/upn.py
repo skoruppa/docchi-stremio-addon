@@ -50,7 +50,7 @@ async def get_video_from_upn_player(session: aiohttp.ClientSession, player_url: 
         video_id = video_id_match.group(1)
         api_url = f"{base_url_with_scheme}/api/v1/video?id={video_id}&w=1920&h=1200&r="
 
-        async with session.get(api_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+        async with session.get(api_url, headers=headers, timeout=aiohttp.ClientTimeout(total=3)) as response:
             response.raise_for_status()
             encrypted_response_hex = await response.text()
 

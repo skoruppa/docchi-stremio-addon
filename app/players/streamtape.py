@@ -45,11 +45,11 @@ async def get_video_from_streamtape_player(session: aiohttp.ClientSession, url: 
         if PROXIFY_STREAMS:
             user_agent = headers['User-Agent']
             proxied_url = f'{STREAM_PROXY_URL}/proxy/stream?d={new_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
-            async with session.get(proxied_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            async with session.get(proxied_url, timeout=aiohttp.ClientTimeout(total=3)) as response:
                 response.raise_for_status()
                 content = await response.text()
         else:
-            async with session.get(new_url, headers=headers, ssl=False, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            async with session.get(new_url, headers=headers, ssl=False, timeout=aiohttp.ClientTimeout(total=3)) as response:
                 response.raise_for_status()
                 content = await response.text()
 

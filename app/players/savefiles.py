@@ -35,7 +35,7 @@ async def get_video_from_savefiles_player(session: aiohttp.ClientSession, fileli
             "Content-Type": "application/x-www-form-urlencoded"
         }
 
-        async with session.post(dl_url, data=post_data, headers=headers_post, timeout=aiohttp.ClientTimeout(total=15)) as response:
+        async with session.post(dl_url, data=post_data, headers=headers_post, timeout=aiohttp.ClientTimeout(total=3)) as response:
             response.raise_for_status()
             player_html_content = await response.text()
 

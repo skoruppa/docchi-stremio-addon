@@ -303,7 +303,7 @@ async def get_video_from_vk_player(session: aiohttp.ClientSession, url, is_vip: 
         html_content = await handle_waf_challenge(session, embed_url, video_id, request_headers)
 
         if not html_content:
-            async with session.get(embed_url, headers=request_headers, timeout=aiohttp.ClientTimeout(total=15)) as response:
+            async with session.get(embed_url, headers=request_headers, timeout=aiohttp.ClientTimeout(total=3)) as response:
                 if response.status != 200:
                     return None, None, None
                 html_content = await response.text()

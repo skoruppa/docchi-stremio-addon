@@ -25,7 +25,7 @@ async def get_video_from_turbovid_player(session: aiohttp.ClientSession, player_
             "Referer": player_url
         }
         
-        async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+        async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=3)) as response:
             response.raise_for_status()
             html_content = await response.text()
         

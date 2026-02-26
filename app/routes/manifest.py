@@ -36,7 +36,7 @@ MANIFEST = {
         {
             'type': 'anime',
             'id': 'search_list',
-            'name': 'Docchi.pl - search',
+            'name': 'Docchi.pl - Szukaj',
             'extra': [
                 {'name': 'search', 'isRequired': True},
                 {'name': 'genre', 'options': genres, 'isRequired': False}

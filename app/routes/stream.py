@@ -85,24 +85,24 @@ def build_binge_group(anime_name, content_id, quality, translator_norm):
 
 async def process_players(players, content_id=None, content_type='series', is_vip=False):
     streams = {'streams': []}
-    
-    # Get anime name from meta
-    anime_name = None
-    episode_num = None
-    if content_id:
-        meta, _ = await fetch_and_cache_meta(content_id, is_vip)
-        anime_name = meta.get('name') if meta else None
-        
-        # Extract episode number from content_id
-        parts = content_id.split(':')
-        if len(parts) > 2:
-            episode_num = parts[-1]  # Last part is always episode
-    
-    timeout = aiohttp.ClientTimeout(total=8, connect=3)
+
+    parts = content_id.split(':') if content_id else []
+    episode_num = parts[-1] if len(parts) > 2 else None
+
+    timeout = aiohttp.ClientTimeout(total=3, connect=2)
     connector = aiohttp.TCPConnector(limit=15, limit_per_host=5, ttl_dns_cache=300, verify_ssl=False)
-    
+
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+        meta_task = asyncio.create_task(fetch_and_cache_meta(content_id, is_vip)) if content_id else None
         tasks = [process_player(session, player, is_vip) for player in players]
+
+        anime_name = None
+        if meta_task:
+            try:
+                meta, _ = await asyncio.wait_for(meta_task, timeout=3)
+                anime_name = meta.get('name') if meta else None
+            except Exception:
+                pass
 
         for task in asyncio.as_completed(tasks):
             stream = await task

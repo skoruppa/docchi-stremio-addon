@@ -24,7 +24,7 @@ async def get_video_from_mp4upload_player(session: aiohttp.ClientSession, player
             "Referer": "https://www.mp4upload.com/"
         }
 
-        async with session.get(embed_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+        async with session.get(embed_url, headers=headers, timeout=aiohttp.ClientTimeout(total=3)) as response:
             response.raise_for_status()
             html_content = await response.text()
 

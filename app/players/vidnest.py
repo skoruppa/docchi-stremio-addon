@@ -19,7 +19,7 @@ async def get_video_from_vidnest_player(session: aiohttp.ClientSession, url: str
             "Referer": "https://vidnest.io/"
         }
 
-        async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+        async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=3)) as response:
             response.raise_for_status()
             html_content = await response.text()
 

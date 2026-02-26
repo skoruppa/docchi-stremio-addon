@@ -150,7 +150,7 @@ async def get_video_from_abyss_player(session: aiohttp.ClientSession, player_url
     try:
         headers = {"User-Agent": get_random_agent(), "Referer": player_url}
 
-        async with session.get(player_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+        async with session.get(player_url, headers=headers, timeout=aiohttp.ClientTimeout(total=3)) as response:
             response.raise_for_status()
             html_content = await response.text()
 
