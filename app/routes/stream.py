@@ -93,61 +93,55 @@ async def process_players(players, content_id=None, content_type='series', is_vi
     connector = aiohttp.TCPConnector(limit=15, limit_per_host=5, ttl_dns_cache=300, verify_ssl=False)
 
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
-        meta_task = asyncio.create_task(fetch_and_cache_meta(content_id, is_vip)) if content_id else None
         tasks = [process_player(session, player, is_vip) for player in players]
+        player_results = await asyncio.gather(*tasks)
+        valid_streams = [s for s in player_results if s and s['url']]
 
         anime_name = None
-        if meta_task:
+        if valid_streams and content_id:
             try:
-                meta, _ = await asyncio.wait_for(meta_task, timeout=3)
+                meta, _ = await asyncio.wait_for(fetch_and_cache_meta(content_id, is_vip), timeout=3)
                 anime_name = meta.get('name') if meta else None
             except Exception:
                 pass
 
-        for task in asyncio.as_completed(tasks):
-            stream = await task
-            if stream:
-                if stream['url']:
-                    translator = stream['translator_title'] or 'unknown'
-                    quality = stream['quality'] or 'unknown'
-                    player = stream['player_hosting']
-                    is_ai = translator.lower() == 'ai'
-                    
-                    # Build filename and bingeGroup
-                    translator_norm = translator.replace(' ', '_').replace('.','_')
-                    filename = build_filename(anime_name, episode_num, content_id, quality, translator_norm)
-                    binge_group = build_binge_group(anime_name, content_id, quality, translator_norm)
-                    
-                    # Build description
-                    translator_flag = f"🇵🇱 {'⚠️ ' if is_ai else ''}{translator}"
-                    description = f"{translator_flag}\n🔗 {player}"
-                    if stream['inverted']:
-                        description += "\n⚠️ Inverted"
-                    
-                    # Build stream data
-                    priority = sort_priority(stream)
-                    
-                    stream_data = {
-                        'name': quality,
-                        'description': description,
-                        'url': stream['url'],
-                        'behaviorHints': {
-                            'filename': filename,
-                            'bingeGroup': binge_group
-                        },
-                        '_priority': priority  
-                    }
-                    
-                    # Add behavior hints
-                    if player == 'uqload' and PROXIFY_STREAMS:
-                        stream_data['behaviorHints']['notWebReady'] = True
-                    if stream.get('headers'):
-                        stream_data['behaviorHints'].update({
-                            'proxyHeaders': stream['headers'],
-                            'notWebReady': True
-                        })
-                    
-                    streams['streams'].append(stream_data)
+        for stream in valid_streams:
+            translator = stream['translator_title'] or 'unknown'
+            quality = stream['quality'] or 'unknown'
+            player = stream['player_hosting']
+            is_ai = translator.lower() == 'ai'
+
+            translator_norm = translator.replace(' ', '_').replace('.','_')
+            filename = build_filename(anime_name, episode_num, content_id, quality, translator_norm)
+            binge_group = build_binge_group(anime_name, content_id, quality, translator_norm)
+
+            translator_flag = f"🇵🇱 {'⚠️ ' if is_ai else ''}{translator}"
+            description = f"{translator_flag}\n🔗 {player}"
+            if stream['inverted']:
+                description += "\n⚠️ Inverted"
+
+            priority = sort_priority(stream)
+
+            stream_data = {
+                'name': quality,
+                'description': description,
+                'url': stream['url'],
+                'behaviorHints': {
+                    'filename': filename,
+                    'bingeGroup': binge_group
+                },
+                '_priority': priority
+            }
+
+            if player == 'uqload' and PROXIFY_STREAMS:
+                stream_data['behaviorHints']['notWebReady'] = True
+            if stream.get('headers'):
+                stream_data['behaviorHints'].update({
+                    'proxyHeaders': stream['headers'],
+                    'notWebReady': True
+                })
+
+            streams['streams'].append(stream_data)
     
     # Sort by priority and remove internal field
     streams['streams'] = sorted(streams['streams'], key=lambda d: d['_priority'])
