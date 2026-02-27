@@ -9,7 +9,7 @@ from werkzeug.exceptions import abort
 from . import docchi_client
 from app.utils.anime_mapping import get_mal_id_from_slug, save_mal_slug_mapping
 from app.utils.stream_utils import cache, respond_with, log_error
-from app.utils.meta_cache import build_genre_links, fetch_and_cache_meta, with_genre_links
+from app.utils.meta_cache import build_genre_links, fetch_and_cache_meta, with_genre_links, batch_fetch_and_cache_meta
 from .manifest import MANIFEST, genres as manifest_genres
 
 from config import Config
@@ -141,15 +141,13 @@ async def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None, s
     try:
         response_data = await _fetch_anime_list(search, catalog_id, genre)
 
-        async def _get_meta(anime_item):
-            mal_id = anime_item.get('mal_id')
-            if mal_id:
-                meta, _ = await fetch_and_cache_meta(f"mal:{mal_id}", is_vip)
-                if meta:
-                    return with_genre_links(meta, is_vip)
-            return docchi_to_meta(anime_item, is_vip, catalog_id)
+        content_ids = [f"mal:{item['mal_id']}" for item in response_data if item.get('mal_id')]
+        batch_results = await batch_fetch_and_cache_meta(content_ids, is_vip)
 
-        meta_previews = await asyncio.gather(*[_get_meta(item) for item in response_data])
+        meta_previews = [
+            batch_results.get(f"mal:{item['mal_id']}") or docchi_to_meta(item, is_vip, catalog_id)
+            for item in response_data
+        ]
         return respond_with({'metas': list(meta_previews)}, cache_time)
     except ValueError as e:
         return respond_with({'metas': [], 'message': str(e)}), 400

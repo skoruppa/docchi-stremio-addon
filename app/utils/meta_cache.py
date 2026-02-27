@@ -1,4 +1,5 @@
 """Shared cache for anime metadata."""
+import asyncio
 import time
 import json
 import urllib.parse
@@ -47,6 +48,51 @@ def with_genre_links(meta: dict, is_vip: bool) -> dict:
     meta['links'] = list(meta.get('links', []))
     build_genre_links(meta, is_vip)
     return meta
+
+async def batch_fetch_and_cache_meta(content_ids: list[str], is_vip: bool = False) -> dict[str, dict | None]:
+    """Batch version of fetch_and_cache_meta. Fetches cache in one query, then resolves misses concurrently.
+
+    Args:
+        content_ids: List of content IDs in format mal:123
+        is_vip: Whether VIP features are enabled
+
+    Returns:
+        dict mapping each content_id to its metadata (or None if not found)
+    """
+    mal_id_map = {}  # mal_id -> content_id
+    for cid in content_ids:
+        parts = cid.split(':')
+        if parts[0] == 'mal' and len(parts) > 1:
+            mal_id_map[parts[1]] = cid
+
+    results = {cid: None for cid in content_ids}
+
+    if not mal_id_map:
+        return results
+
+    placeholders = ','.join('?' * len(mal_id_map))
+    mal_ids = list(mal_id_map.keys())
+    rows = await execute(
+        f"SELECT mal_id, meta, timestamp FROM meta_cache WHERE mal_id IN ({placeholders})",
+        tuple(mal_ids)
+    )
+
+    cached_mal_ids = set()
+    for row in rows:
+        if time.time() - row['timestamp'] < CACHE_TTL:
+            meta = json.loads(row['meta'])
+            cid = mal_id_map[str(row['mal_id'])]
+            results[cid] = with_genre_links(meta, is_vip)
+            cached_mal_ids.add(str(row['mal_id']))
+
+    missing = [mal_id_map[mid] for mid in mal_ids if mid not in cached_mal_ids]
+    if missing:
+        fetched = await asyncio.gather(*[fetch_and_cache_meta(cid, is_vip) for cid in missing])
+        for cid, (meta, _) in zip(missing, fetched):
+            results[cid] = meta
+
+    return results
+
 
 async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     """Fetch metadata from Kitsu API (with MAL fallback) and cache it.
