@@ -8,14 +8,21 @@ from app.utils.anime_mapping import get_ids_from_mal_id
 from app.db import execute
 
 CACHE_TTL = 2592000  # 1 month
+_mem_cache: dict[str, tuple[dict, float]] = {}  # mal_id -> (meta, timestamp)
 
 
 async def get_cached_meta(mal_id: str):
     """Get cached metadata by MAL ID."""
+    if mal_id in _mem_cache:
+        meta, ts = _mem_cache[mal_id]
+        if time.time() - ts < CACHE_TTL:
+            return meta
+        del _mem_cache[mal_id]
     rows = await execute("SELECT meta, timestamp FROM meta_cache WHERE mal_id=?", (mal_id,))
     if rows:
         if time.time() - rows[0]['timestamp'] < CACHE_TTL:
-            return json.loads(rows[0]['meta'])
+            meta = json.loads(rows[0]['meta'])
+            return meta
         await execute("DELETE FROM meta_cache WHERE mal_id=?", (mal_id,))
     return None
 
@@ -82,13 +89,16 @@ async def batch_fetch_and_cache_meta(content_ids: list[str], is_vip: bool = Fals
         if time.time() - row['timestamp'] < CACHE_TTL:
             meta = json.loads(row['meta'])
             cid = mal_id_map[str(row['mal_id'])]
+            _mem_cache[str(row['mal_id'])] = (meta, row['timestamp'])
             results[cid] = with_genre_links(meta, is_vip)
             cached_mal_ids.add(str(row['mal_id']))
 
     missing = [mal_id_map[mid] for mid in mal_ids if mid not in cached_mal_ids]
     if missing:
         fetched = await asyncio.gather(*[fetch_and_cache_meta(cid, is_vip) for cid in missing])
-        for cid, (meta, _) in zip(missing, fetched):
+        for cid, (meta, mal_id) in zip(missing, fetched):
+            if meta and mal_id:
+                _mem_cache[mal_id] = (meta, int(time.time()))
             results[cid] = meta
 
     return results
