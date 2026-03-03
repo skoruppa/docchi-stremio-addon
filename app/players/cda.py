@@ -62,13 +62,14 @@ async def fetch_video_data(session: aiohttp.ClientSession, url: str, video_id: s
         except (ClientConnectorError, ClientResponseError):
             return None
 
-    match = re.search(r'id="mediaplayer[^"]*"[^>]+player_data="([^"]+)"', html)
+    match = re.search(r"player_data='(.*?)'\s+tabindex", html, re.DOTALL)
     if not match:
-        match = re.search(r'player_data="([^"]+)"', html)
+        match = re.search(r'player_data=[\'"]([^\'"]+)[\'"]', html)
     if not match:
         return None
     try:
-        return json.loads(match.group(1).replace('&quot;', '"'))
+        raw = match.group(1).replace('&quot;', '"').replace('&#39;', "'")
+        return json.loads(raw)
     except Exception:
         return None
 
