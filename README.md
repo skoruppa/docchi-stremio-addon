@@ -23,18 +23,21 @@ The addon supports the following video players:
 - **Rumble.com**
 - **Lulustream**
 - **Vidtube.one**
-- **UPNS**
+- **UPnShare** (formerly UPNS)
+- **RPMShare** (formerly RPMHub)
 - **MP4Upload**
 - **EarnVid**
 - **StreamUP**
 - **Vidguard**
 - **Vidnest**
+- **StreamHG** (formerly StreamHLS)
 - **Pixeldrain**
 - **Savefiles**
 - **Turbovid**
 - **Buzzheavier**
+- **Vids.st**
 - **Uqload*** 
-- **Filemoon***
+- **Byse*** (formerly Filemoon)
 - **Streamtape***
 - **VOE***
 
@@ -95,11 +98,11 @@ Addon will be available at `http://localhost:5000` & `http://localhost:5000/vip`
 
 - `VIP_PATH` (default: `vip`) - Path for VIP features. Due to limited resources on the public server and the need to proxy certain players, some features are behind this path:
   - **IMDB ID mapping** - allows Stremio to match content using IMDB IDs
-  - **Full player support** - includes Filemoon, Uqload, and Streamtape (require proxying)
+  - **Full player support** - includes Byse (Filemoon), Uqload, and Streamtape (require proxying)
   
   For self-hosting, all features should work without restrictions (and proxy - if your addon instance will be in same network as Stremio). Install the addon from the VIP path at: `http://localhost:5000/vip`
 
-- `FORCE_VIP_PLAYERS` (default: `false`) - Make VIP-only players (Filemoon, Uqload, Streamtape, VOE) available for all users without VIP path. Useful for self-hosting when you have MediaFlow Proxy configured.
+- `FORCE_VIP_PLAYERS` (default: `false`) - Make VIP-only players (Byse/Filemoon, Uqload, Streamtape, VOE) available for all users without VIP path. Useful for self-hosting when you have MediaFlow Proxy configured.
 
 - `MAL_CLIENT_ID` - MyAnimeList Client ID (optional but recommended). Used as fallback when Kitsu API fails to return metadata.
   

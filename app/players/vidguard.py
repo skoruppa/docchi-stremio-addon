@@ -10,7 +10,7 @@ from py_mini_racer import MiniRacer
 from app.utils.common_utils import get_random_agent
 from app.utils.common_utils import fetch_resolution_from_m3u8
 
-# NOTE: Disabled - seems to be down right now
+# NOTE: Disabled - Vidguard is dead
 DOMAINS = ['listeamed.net', 'vidguard.to', 'vgfplay.com']
 NAMES = ['vidguard']
 ENABLED = False

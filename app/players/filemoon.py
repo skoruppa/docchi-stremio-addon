@@ -22,7 +22,7 @@ DOMAINS = ['f16px.com', 'bysesayeveum.com', 'bysetayico.com', 'bysevepoin.com', 
     'kerapoxy.cc', 'furher.in', '1azayf9w.xyz', '81u6xl9d.xyz', 'smdfs40r.skin', 'c1z39.com',
     'bf0skv.org', 'z1ekv717.fun', 'l1afav.net', '222i8x.lol', '8mhlloqo.fun', 'f51rm.com',
     'xcoic.com', 'boosteradx.online', 'byseqekaho.com']
-NAMES = ['filemoon']
+NAMES = ['filemoon', 'byse']
 
 
 # NOTE: Enabled only for VIP, as whole stream needs to go through proxy 
