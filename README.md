@@ -35,6 +35,7 @@ The addon supports the following video players:
 - **Savefiles**
 - **Turbovid**
 - **Buzzheavier**
+- **Vidara**
 - **Vids.st**
 - **Uqload*** 
 - **Byse*** (formerly Filemoon)
