@@ -141,4 +141,4 @@ Please refer to these API references for detailed information on how to interact
 
 ## Support 🤝
 
-If you want to thank me for the addon, you can [buy me a coffe](https://buymeacoffee.com/skoruppa) 
+If you want to thank me for the addon, you can [buy me a coffe](https://ko-fi.com/skoruppa) 
