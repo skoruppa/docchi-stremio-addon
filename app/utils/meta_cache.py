@@ -143,7 +143,19 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     if cached:
         return _with_genre_links(cached), mal_id
     
-    # Try Kitsu API directly
+    # Try MAL API first (highest priority)
+    if Config.MAL_CLIENT_ID:
+        try:
+            from app.api.mal import get_anime_meta as mal_get_meta
+            meta = await mal_get_meta(mal_id)
+            if meta:
+                await _fill_genres_from_docchi(meta, mal_id)
+                await set_cached_meta(mal_id, meta)
+                return _with_genre_links(meta), mal_id
+        except Exception:
+            pass
+
+    # Fallback to Kitsu API if MAL fails
     try:
         from app.api.kitsu import get_anime_meta as kitsu_get_meta
         ids = get_ids_from_mal_id(mal_id)
@@ -156,18 +168,6 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                 return _with_genre_links(meta), mal_id
     except Exception:
         pass
-
-    # Fallback to MAL API if Kitsu fails and MAL_CLIENT_ID is configured
-    if Config.MAL_CLIENT_ID:
-        try:
-            from app.api.mal import get_anime_meta as mal_get_meta
-            meta = await mal_get_meta(mal_id)
-            if meta:
-                await _fill_genres_from_docchi(meta, mal_id)
-                await set_cached_meta(mal_id, meta)
-                return _with_genre_links(meta), mal_id
-        except Exception:
-            pass
 
     return None, None
 
@@ -192,18 +192,18 @@ async def fetch_videos(mal_id: str) -> list:
     """Fetch fresh videos/episodes for a given MAL ID."""
     ids = get_ids_from_mal_id(mal_id)
     videos = []
-    if ids['kitsu_id']:
+    if Config.MAL_CLIENT_ID:
+        try:
+            from app.api.mal import get_anime_meta as mal_get_meta
+            meta = await mal_get_meta(mal_id)
+            videos = meta.get('videos', []) if meta else []
+        except Exception:
+            pass
+    if not videos and ids['kitsu_id']:
         try:
             from app.api.kitsu import get_anime_meta as kitsu_get_meta
             meta = await kitsu_get_meta(ids['kitsu_id'], mal_id=mal_id,
                                         imdb_id=ids['imdb_id'], tvdb_id=ids['tvdb_id'], tmdb_id=ids['tmdb_id'])
-            videos = meta.get('videos', []) if meta else []
-        except Exception:
-            pass
-    if not videos and Config.MAL_CLIENT_ID:
-        try:
-            from app.api.mal import get_anime_meta as mal_get_meta
-            meta = await mal_get_meta(mal_id)
             videos = meta.get('videos', []) if meta else []
         except Exception:
             pass
