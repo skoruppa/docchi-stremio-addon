@@ -3,10 +3,10 @@ import aiohttp
 import base64
 import json
 from bs4 import BeautifulSoup
-from app.utils.common_utils import get_random_agent
 from aiocache import cached
 from aiocache.serializers import PickleSerializer
 from app.players.rumble import get_video_from_rumble_player
+from app.utils.common_utils import get_random_agent
 from config import Config
 
 # Domains handled by this player
@@ -33,6 +33,8 @@ async def check_url_status(session, url):
             return resp.status
     except Exception:
         return None
+
+_compat_ua = "Mozilla/5.0 (Windows; U; MSIE 5.01; Windows NT 4.0; Netscape6/6.2; Gecko/20010726)"
 
 
 @cached(ttl=50, serializer=PickleSerializer())
@@ -94,7 +96,7 @@ async def get_video_from_lycoris_player(session: aiohttp.ClientSession, url: str
 
         # Get encoded video link
         video_link_url = f"https://www.lycoris.cafe/api/watch/getVideoLink?id={episode_id}"
-        async with session.get(video_link_url, headers=headers) as link_response:
+        async with session.get(video_link_url, headers={"User-Agent": _compat_ua}) as link_response:
             link_response.raise_for_status()
             encrypted_text = await link_response.text()
 
@@ -102,7 +104,7 @@ async def get_video_from_lycoris_player(session: aiohttp.ClientSession, url: str
 
         decrypt_url = "https://www.lycoris.cafe/api/watch/decryptVideoLink"
         decrypt_headers = {
-            "User-Agent": user_agent,
+            "User-Agent": _compat_ua,
             "x-api-key": DECRYPT_API_KEY,
             "Content-Type": "application/json"
         }
