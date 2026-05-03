@@ -150,22 +150,39 @@ async def process_players(players, content_id=None, content_type='series', is_vi
     return streams
 
 
-def sort_priority(stream):
-    if 'lycoris' in stream['player_hosting']:
+def _quality_bonus(quality: str) -> float:
+    """Lower value = higher priority. Subtract bonus for better quality."""
+    q = (quality or '').lower().replace('p', '')
+    try:
+        res = int(q)
+    except ValueError:
         return 0
+    if res >= 1080:
+        return -1.5
+    if res >= 720:
+        return -1.0
+    if res >= 480:
+        return -0.5
+    return 0
+
+
+def sort_priority(stream):
+    base = 4
+    if 'lycoris' in stream['player_hosting']:
+        base = 0
     elif stream['player_hosting'] == 'rumble':
-        return 1
+        base = 1
     elif stream['player_hosting'] == 'gdrive':
-        return 2
+        base = 2
     elif stream['player_hosting'] == 'cda':
-        return 3
+        base = 3
     elif stream['player_hosting'] == 'uqload':
-        return 5
+        base = 5
     elif stream['player_hosting'] == 'streamtape':
-        return 6
+        base = 6
     elif stream['translator_title'].lower() == 'ai':
-        return 9
-    return 4
+        base = 9
+    return base + _quality_bonus(stream.get('quality'))
 
 
 @stream_bp.route('/stream/<content_type>/<content_id>.json')
