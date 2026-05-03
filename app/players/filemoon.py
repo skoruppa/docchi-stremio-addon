@@ -13,7 +13,7 @@ from app.utils.common_utils import get_random_agent, fetch_resolution_from_m3u8
 from app.utils.proxy_utils import generate_proxy_url
 from config import Config
 
-PROXIFY_STREAMS = False
+PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 STREAM_PROXY_URL = Config.STREAM_PROXY_URL
 STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 
@@ -33,7 +33,7 @@ REDIRECT_DOMAINS = ['boosteradx.online', 'byse.sx']
 
 
 # NOTE: Enabled only for VIP, as whole stream needs to go through proxy 
-ENABLED = True
+ENABLED = False
 
 
 def ft(e: str) -> bytes:
