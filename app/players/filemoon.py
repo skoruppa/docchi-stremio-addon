@@ -2,13 +2,18 @@ import re
 import json
 import base64
 import aiohttp
+from binascii import hexlify
+from hashlib import sha256
+from os import urandom
+from time import time
+from random import uniform
 from urllib.parse import urljoin, urlparse, quote
 from Crypto.Cipher import AES
 from app.utils.common_utils import get_random_agent, fetch_resolution_from_m3u8
 from app.utils.proxy_utils import generate_proxy_url
 from config import Config
 
-PROXIFY_STREAMS = Config.PROXIFY_STREAMS
+PROXIFY_STREAMS = False
 STREAM_PROXY_URL = Config.STREAM_PROXY_URL
 STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 
@@ -17,12 +22,14 @@ STREAM_PROXY_PASSWORD = Config.STREAM_PROXY_PASSWORD
 # Domains handled by this player
 DOMAINS = ['f16px.com', 'bysesayeveum.com', 'bysetayico.com', 'bysevepoin.com', 'bysezejataos.com',
     'bysekoze.com', 'bysesukior.com', 'bysejikuar.com', 'bysefujedu.com', 'bysedikamoum.com',
-    'bysebuho.com', 'filemoon.sx', 'filemoon.to', 'filemoon.in', 'filemoon.link', 'filemoon.nl',
+    'bysebuho.com', 'byse.sx', 'filemoon.sx', 'filemoon.to', 'filemoon.in', 'filemoon.link', 'filemoon.nl',
     'filemoon.wf', 'cinegrab.com', 'filemoon.eu', 'filemoon.art', 'moonmov.pro', '96ar.com',
     'kerapoxy.cc', 'furher.in', '1azayf9w.xyz', '81u6xl9d.xyz', 'smdfs40r.skin', 'c1z39.com',
     'bf0skv.org', 'z1ekv717.fun', 'l1afav.net', '222i8x.lol', '8mhlloqo.fun', 'f51rm.com',
-    'xcoic.com', 'boosteradx.online', 'byseqekaho.com']
+    'xcoic.com', 'boosteradx.online', 'streamlyplayer.online', 'bysewihe.com', 'byseqekaho.com']
 NAMES = ['filemoon', 'byse']
+
+REDIRECT_DOMAINS = ['boosteradx.online', 'byse.sx']
 
 
 # NOTE: Enabled only for VIP, as whole stream needs to go through proxy 
@@ -41,6 +48,37 @@ def xn(e: list) -> bytes:
     """Join multiple base64 decoded parts"""
     t = [ft(part) for part in e]
     return b''.join(t)
+
+
+def _b64urlencode(data, strip=True):
+    """Base64 URL-safe encode."""
+    if isinstance(data, str):
+        data = data.encode()
+    encoded = base64.urlsafe_b64encode(data).decode()
+    if strip:
+        encoded = encoded.rstrip('=')
+    return encoded
+
+
+def fp(x=16, y=0.6, z=0.9):
+    """Generate fingerprint payload for API auth."""
+    v_id = hexlify(urandom(x)).decode()
+    d_id = hexlify(urandom(x)).decode()
+    ctime = int(time())
+    t_data = {
+        'viewer_id': v_id,
+        'device_id': d_id,
+        'confidence': round(uniform(y, z), 2),
+        'iat': ctime,
+        'exp': ctime + 600
+    }
+    t_bdata = _b64urlencode(json.dumps(t_data))
+    t_sig = _b64urlencode(sha256(t_bdata.encode()).digest())
+    token = f'{t_bdata}.{t_sig}'
+    t_data.update({'token': token})
+    t_data.pop('iat')
+    t_data.pop('exp')
+    return {'fingerprint': t_data}
 
 
 
@@ -82,8 +120,8 @@ async def get_video_from_filemoon_player(session: aiohttp.ClientSession, url: st
     
     try:
         # Extract media_id from URL
-        # Pattern: /e/MEDIA_ID or /d/MEDIA_ID
-        pattern = r'/(?:e|d)/([0-9a-zA-Z]+)'
+        # Pattern: /e/MEDIA_ID or /d/MEDIA_ID or /download/MEDIA_ID
+        pattern = r'/(?:e|d|download)/([0-9a-zA-Z]+)'
         match = re.search(pattern, url)
         
         if not match:
@@ -94,26 +132,31 @@ async def get_video_from_filemoon_player(session: aiohttp.ClientSession, url: st
         parsed = urlparse(url)
         host = parsed.netloc
 
-        if host == 'filemoon.to':
-            host = 'bysesukior.com'
+        # Redirect domains
+        if host in REDIRECT_DOMAINS or host == 'filemoon.to':
+            host = 'streamlyplayer.online'
         
         # Build API URL
-        api_url = f"https://{host}/api/videos/{media_id}/embed/playback"
+        ref = f"https://{host}/"
+        api_url = f"https://{host}/api/videos/{media_id}/playback"
         
         headers = {
             "User-Agent": get_random_agent(),
-            "Referer": urljoin(url, '/')
+            "Referer": ref,
+            "Origin": ref.rstrip('/')
         }
+        
+        form_data = fp()
         
         # Use proxy if configured
         if PROXIFY_STREAMS:
             user_agent = headers['User-Agent']
-            proxied_url = f'{STREAM_PROXY_URL}/proxy/stream?d={api_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
-            async with session.get(proxied_url, timeout=aiohttp.ClientTimeout(total=3)) as response:
+            proxied_url = f'{STREAM_PROXY_URL}/proxy/stream?d={api_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}&h_referer={ref}&h_origin={ref.rstrip("/")}'
+            async with session.post(proxied_url, json=form_data, timeout=aiohttp.ClientTimeout(total=5)) as response:
                 response.raise_for_status()
                 data = await response.json()
         else:
-            async with session.get(api_url, headers=headers, timeout=aiohttp.ClientTimeout(total=3)) as response:
+            async with session.post(api_url, headers=headers, json=form_data, timeout=aiohttp.ClientTimeout(total=5)) as response:
                 response.raise_for_status()
                 data = await response.json()
         
@@ -138,7 +181,7 @@ async def get_video_from_filemoon_player(session: aiohttp.ClientSession, url: st
                 # Decrypt using AES-GCM
                 cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
                 decrypted = cipher.decrypt_and_verify(ciphertext, tag)
-                ct = json.loads(decrypted.decode('utf-8'))
+                ct = json.loads(decrypted.decode('latin-1'))
                 sources = ct.get('sources')
             except Exception as e:
                 print(f"Filemoon Decryption Error: {e}")
@@ -147,6 +190,15 @@ async def get_video_from_filemoon_player(session: aiohttp.ClientSession, url: st
             sources_list = [x.get('url') for x in sources if x.get('url')]
             if sources_list:
                 stream_url = sources_list[0]
+                # Handle relative URLs
+                if stream_url.startswith('/'):
+                    stream_url = urljoin(api_url, stream_url)
+                # Follow redirect to get final URL
+                try:
+                    async with session.get(stream_url, headers=headers, allow_redirects=True, timeout=aiohttp.ClientTimeout(total=5)) as redir_resp:
+                        stream_url = str(redir_resp.url)
+                except Exception:
+                    pass
                 return await process_stream_url(session, stream_url, headers, url)
         
         print("Filemoon Player Error: No video sources found")
@@ -161,7 +213,7 @@ if __name__ == '__main__':
     from app.players.test import run_tests
 
     urls_to_test = [
-        "https://bysebuho.com/e/xi9znl2vp2bi",
+        "https://bysesukior.com/e/byapvkkwb35y",
     ]
 
     run_tests(get_video_from_filemoon_player, urls_to_test, True)
