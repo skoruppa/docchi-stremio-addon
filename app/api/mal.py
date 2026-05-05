@@ -106,6 +106,10 @@ async def get_anime_meta(mal_id: str) -> dict | None:
                 "released": episode_date,
             })
 
+    trailers = []
+    if ids.get('kitsu_id'):
+        trailers = await _fetch_trailer_from_kitsu(ids['kitsu_id'])
+
     return {
         'id': f"mal:{mal_id}",
         'type': content_type,
@@ -121,6 +125,24 @@ async def get_anime_meta(mal_id: str) -> dict | None:
         'background': background,
         'logo': logo,
         'videos': videos,
-        'trailers': [],
+        'trailers': trailers,
         'links': links,
     }
+
+
+async def _fetch_trailer_from_kitsu(kitsu_id: str) -> list:
+    """Fetch YouTube trailer ID from Kitsu API."""
+    import aiohttp
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
+            async with session.get(f"https://kitsu.io/api/edge/anime/{kitsu_id}",
+                                   params={"fields[anime]": "youtubeVideoId"}) as resp:
+                if resp.status != 200:
+                    return []
+                data = await resp.json()
+                yt_id = data.get("data", {}).get("attributes", {}).get("youtubeVideoId")
+                if yt_id:
+                    return [{"source": yt_id, "type": "Trailer"}]
+    except Exception:
+        pass
+    return []
