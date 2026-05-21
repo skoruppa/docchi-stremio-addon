@@ -26,14 +26,14 @@ DOMAINS = ['f16px.com', 'bysesayeveum.com', 'bysetayico.com', 'bysevepoin.com', 
     'filemoon.wf', 'cinegrab.com', 'filemoon.eu', 'filemoon.art', 'moonmov.pro', '96ar.com',
     'kerapoxy.cc', 'furher.in', '1azayf9w.xyz', '81u6xl9d.xyz', 'smdfs40r.skin', 'c1z39.com',
     'bf0skv.org', 'z1ekv717.fun', 'l1afav.net', '222i8x.lol', '8mhlloqo.fun', 'f51rm.com',
-    'xcoic.com', 'boosteradx.online', 'streamlyplayer.online', 'bysewihe.com', 'byseqekaho.com']
+    'xcoic.com', 'boosteradx.online', 'streamlyplayer.online', 'bysewihe.com', 'byselapuix.com', 'byseqekaho.com']
 NAMES = ['filemoon', 'byse']
 
 REDIRECT_DOMAINS = ['boosteradx.online', 'byse.sx']
 
 
-# NOTE: Enabled only for VIP, as whole stream needs to go through proxy 
-ENABLED = False
+# NOTE: Requires proxy for IP-bound extraction and stream playback
+ENABLED = True
 
 
 def ft(e: str) -> bytes:
@@ -148,11 +148,11 @@ async def get_video_from_filemoon_player(session: aiohttp.ClientSession, url: st
         
         form_data = fp()
         
-        # Use proxy if configured
+        # Use /proxy/forward for extraction (supports POST, preserves IP binding)
         if PROXIFY_STREAMS:
             user_agent = headers['User-Agent']
-            proxied_url = f'{STREAM_PROXY_URL}/proxy/stream?d={api_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}&h_referer={ref}&h_origin={ref.rstrip("/")}'
-            async with session.post(proxied_url, json=form_data, timeout=aiohttp.ClientTimeout(total=5)) as response:
+            forward_url = f'{STREAM_PROXY_URL}/proxy/forward?d={api_url}&api_password={STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}&h_referer={ref}&h_origin={ref.rstrip("/")}&h_content-type=application/json'
+            async with session.post(forward_url, json=form_data, timeout=aiohttp.ClientTimeout(total=5)) as response:
                 response.raise_for_status()
                 data = await response.json()
         else:
@@ -193,12 +193,6 @@ async def get_video_from_filemoon_player(session: aiohttp.ClientSession, url: st
                 # Handle relative URLs
                 if stream_url.startswith('/'):
                     stream_url = urljoin(api_url, stream_url)
-                # Follow redirect to get final URL
-                try:
-                    async with session.get(stream_url, headers=headers, allow_redirects=True, timeout=aiohttp.ClientTimeout(total=5)) as redir_resp:
-                        stream_url = str(redir_resp.url)
-                except Exception:
-                    pass
                 return await process_stream_url(session, stream_url, headers, url)
         
         print("Filemoon Player Error: No video sources found")
