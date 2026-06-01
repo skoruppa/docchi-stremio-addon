@@ -27,7 +27,7 @@ DOMAINS = ['f16px.com', 'bysesayeveum.com', 'bysetayico.com', 'bysevepoin.com', 
     'kerapoxy.cc', 'furher.in', '1azayf9w.xyz', '81u6xl9d.xyz', 'smdfs40r.skin', 'c1z39.com',
     'bf0skv.org', 'z1ekv717.fun', 'l1afav.net', '222i8x.lol', '8mhlloqo.fun', 'f51rm.com',
     'xcoic.com', 'boosteradx.online', 'streamlyplayer.online', 'bysewihe.com', 'byselapuix.com', 'byseqekaho.com',
-    'rupertisdivingintoocean.com']
+    'embedplaybyse.top', 'rupertisdivingintoocean.com']
 NAMES = ['filemoon', 'byse']
 
 REDIRECT_DOMAINS = ['boosteradx.online', 'byse.sx']
@@ -45,8 +45,11 @@ def ft(e: str) -> bytes:
     return base64.b64decode(n)
 
 
-def xn(e: list) -> bytes:
-    """Join multiple base64 decoded parts"""
+def xn(e: list, version=None) -> bytes:
+    """Select and join base64 decoded key parts based on version."""
+    if version:
+        v = int(version)
+        e = [e[v - 1], e[len(e) - v]]
     t = [ft(part) for part in e]
     return b''.join(t)
 
@@ -172,7 +175,7 @@ async def get_video_from_filemoon_player(session: aiohttp.ClientSession, url: st
             pd = data.get('playback')
             try:
                 iv = ft(pd.get('iv'))
-                key = xn(pd.get('key_parts'))
+                key = xn(pd.get('key_parts'), pd.get('version'))
                 payload = ft(pd.get('payload'))
                 
                 # AES-GCM: last 16 bytes are the authentication tag
@@ -208,7 +211,7 @@ if __name__ == '__main__':
     from app.players.test import run_tests
 
     urls_to_test = [
-        "https://bysesukior.com/e/byapvkkwb35y",
+        "https://rupertisdivingintoocean.com/eyi/qgdk9knxn0d3",
     ]
 
     run_tests(get_video_from_filemoon_player, urls_to_test, True)
