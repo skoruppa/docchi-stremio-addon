@@ -1,5 +1,5 @@
 # Docchi Stremio Addon
-![Version](https://img.shields.io/badge/version-0.2.3-blue.svg)
+![Version](https://img.shields.io/badge/version-0.2.4-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Status](https://img.shields.io/badge/status-Active-brightgreen.svg)
 
@@ -37,6 +37,7 @@ The addon supports the following video players:
 - **Buzzheavier**
 - **Vidara**
 - **Vids.st**
+- **Abyss** (HydraX)
 - **Uqload*** 
 - **Byse*** (formerly Filemoon)
 - **Streamtape***

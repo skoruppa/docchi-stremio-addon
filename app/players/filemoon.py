@@ -26,7 +26,8 @@ DOMAINS = ['f16px.com', 'bysesayeveum.com', 'bysetayico.com', 'bysevepoin.com', 
     'filemoon.wf', 'cinegrab.com', 'filemoon.eu', 'filemoon.art', 'moonmov.pro', '96ar.com',
     'kerapoxy.cc', 'furher.in', '1azayf9w.xyz', '81u6xl9d.xyz', 'smdfs40r.skin', 'c1z39.com',
     'bf0skv.org', 'z1ekv717.fun', 'l1afav.net', '222i8x.lol', '8mhlloqo.fun', 'f51rm.com',
-    'xcoic.com', 'boosteradx.online', 'streamlyplayer.online', 'bysewihe.com', 'byselapuix.com', 'byseqekaho.com']
+    'xcoic.com', 'boosteradx.online', 'streamlyplayer.online', 'bysewihe.com', 'byselapuix.com', 'byseqekaho.com',
+    'rupertisdivingintoocean.com']
 NAMES = ['filemoon', 'byse']
 
 REDIRECT_DOMAINS = ['boosteradx.online', 'byse.sx']
@@ -121,7 +122,7 @@ async def get_video_from_filemoon_player(session: aiohttp.ClientSession, url: st
     try:
         # Extract media_id from URL
         # Pattern: /e/MEDIA_ID or /d/MEDIA_ID or /download/MEDIA_ID
-        pattern = r'/(?:e|d|download)/([0-9a-zA-Z]+)'
+        pattern = r'/(?:e|eyi|d|download)/([0-9a-zA-Z]+)'
         match = re.search(pattern, url)
         
         if not match:
