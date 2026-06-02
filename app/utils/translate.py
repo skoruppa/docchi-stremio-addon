@@ -12,8 +12,9 @@ import aiohttp
 from config import Config
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-TIMEOUT = aiohttp.ClientTimeout(total=30)
-MODEL = "openrouter/free"
+TIMEOUT = aiohttp.ClientTimeout(total=60)
+MODEL = "openai/gpt-oss-120b:free"
+FALLBACK_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"
 
 TRANSLATE_PROMPT = (
     "Translate the following anime synopsis/episode description from English to Polish. "
@@ -49,7 +50,7 @@ def _acquire_rate_slot():
 
 
 async def _openrouter_request(prompt_text: str) -> str | None:
-    """Make a single rate-limited request to OpenRouter API."""
+    """Make a single rate-limited request to OpenRouter API with fallback model."""
     if not Config.OPENROUTER_API_KEY:
         return None
 
@@ -62,30 +63,37 @@ async def _openrouter_request(prompt_text: str) -> str | None:
         "Authorization": f"Bearer {Config.OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
     }
-    payload = {
-        "model": MODEL,
-        "messages": [{"role": "user", "content": prompt_text}],
-        "temperature": 0.1,
-        "max_tokens": 4096,
-    }
 
-    try:
-        async with aiohttp.ClientSession(timeout=TIMEOUT) as session:
-            async with session.post(OPENROUTER_URL, json=payload, headers=headers) as resp:
-                if resp.status == 429:
-                    logging.warning("OpenRouter translation rate limited (429)")
-                    return None
-                if resp.status != 200:
-                    logging.warning(f"OpenRouter translation failed: HTTP {resp.status}")
-                    return None
-                data = await resp.json()
-                choices = data.get("choices", [])
-                if choices:
-                    return choices[0].get("message", {}).get("content", "").strip()
-                return None
-    except Exception as e:
-        logging.error(f"OpenRouter translation error: {e}")
-        return None
+    for model in [MODEL, FALLBACK_MODEL]:
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt_text}],
+            "temperature": 0.1,
+            "max_tokens": 4096,
+        }
+
+        try:
+            async with aiohttp.ClientSession(timeout=TIMEOUT) as session:
+                async with session.post(OPENROUTER_URL, json=payload, headers=headers) as resp:
+                    if resp.status == 429:
+                        logging.warning(f"OpenRouter translation rate limited (429) on {model}")
+                        continue
+                    if resp.status != 200:
+                        logging.warning(f"OpenRouter translation failed: HTTP {resp.status} on {model}")
+                        continue
+                    data = await resp.json()
+                    choices = data.get("choices", [])
+                    if choices:
+                        content = choices[0].get("message", {}).get("content", "")
+                        if content and content.strip():
+                            return content.strip()
+                    # Empty response, try fallback
+                    continue
+        except Exception as e:
+            logging.error(f"OpenRouter translation error ({model}): {type(e).__name__}: {e}")
+            continue
+
+    return None
 
 
 async def translate_to_polish(text: str) -> str | None:

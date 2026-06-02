@@ -95,7 +95,7 @@ async def get_series_episodes(tvdb_id: int, season_number: int = None, lang: str
     
     Uses /series/{id}/episodes/default/{lang} endpoint.
     If season_number is provided, filters to only that season.
-    Falls back to English data + AI translation for missing Polish translations.
+    Falls back to English data for missing Polish fields (translation runs in background).
     Returns list of episode dicts.
     """
     episodes = await _fetch_episodes_for_lang(tvdb_id, season_number, lang)
@@ -104,64 +104,33 @@ async def get_series_episodes(tvdb_id: int, season_number: int = None, lang: str
     if not episodes and lang != "eng":
         episodes = await _fetch_episodes_for_lang(tvdb_id, season_number, "eng")
 
-    # If we got episodes but some lack translations, enrich from English + AI
+    # If we got episodes but some lack overview, fill from English (no AI blocking)
     if episodes and lang != "eng":
-        translation_complete = await _translate_missing_episode_fields(episodes, tvdb_id, season_number)
-        # Mark episodes with translation status
-        if not translation_complete:
-            for ep in episodes:
-                ep["_untranslated"] = True
+        await _fill_english_fallback(episodes, tvdb_id, season_number)
 
     return episodes
 
 
-async def _translate_missing_episode_fields(episodes: list, tvdb_id: int, season_number: int = None) -> bool:
-    """For episodes missing Polish name/overview, fetch English and translate via AI.
-    
-    Returns True if all translations succeeded (or nothing needed), False if any failed.
-    """
-    import asyncio
+async def _fill_english_fallback(episodes: list, tvdb_id: int, season_number: int = None):
+    """Fill missing overview/name from English episodes. Marks as _untranslated."""
+    missing = [ep for ep in episodes if not ep.get("overview") and ep.get("number", 0) > 0]
+    if not missing:
+        return
 
-    # Find episodes missing name or overview
-    missing_overview = [ep for ep in episodes if not ep.get("overview") and ep.get("number", 0) > 0]
-    if not missing_overview:
-        return True
-
-    # Fetch English episodes to get source text
     eng_episodes = await _fetch_episodes_for_lang(tvdb_id, season_number, "eng")
     if not eng_episodes:
-        return False
+        return
 
     eng_map = {ep.get("number"): ep for ep in eng_episodes if ep.get("number")}
 
-    # Collect texts to translate
-    to_translate = []
-    ep_indices = []
-    for ep in missing_overview:
+    for ep in missing:
         eng_ep = eng_map.get(ep.get("number"))
-        if eng_ep and eng_ep.get("overview"):
-            to_translate.append(eng_ep["overview"])
-            ep_indices.append(ep)
-            # Also fill name from English if missing
+        if eng_ep:
+            if eng_ep.get("overview"):
+                ep["overview"] = eng_ep["overview"]
+                ep["_untranslated"] = True
             if not ep.get("name") and eng_ep.get("name"):
                 ep["name"] = eng_ep["name"]
-
-    if not to_translate:
-        return True
-
-    # Batch translate overviews in a single API call
-    from app.utils.translate import batch_translate_to_polish
-    all_succeeded = True
-    translations = await batch_translate_to_polish(to_translate[:30])
-    for ep, eng_text, translated in zip(ep_indices[:30], to_translate[:30], translations):
-        if translated:
-            ep["overview"] = translated
-        else:
-            # Use English fallback
-            ep["overview"] = eng_text
-            all_succeeded = False
-
-    return all_succeeded
 
 
 async def _fetch_episodes_for_lang(tvdb_id: int, season_number: int = None, lang: str = "pol") -> list:
