@@ -705,6 +705,19 @@ async def fetch_videos(mal_id: str) -> list:
 
             if videos:
                 await _enrich_thumbnails({'videos': videos}, mal_id)
+                # Backdrop fallback for episodes still without thumbnail
+                missing_thumbs = [v for v in videos if not v.get('thumbnail')]
+                if missing_thumbs:
+                    # Get backdrop from cached meta or series image
+                    backdrop = None
+                    cached_meta = await get_cached_meta(mal_id)
+                    if cached_meta:
+                        backdrop = cached_meta.get('background')
+                    if not backdrop and series_ext:
+                        backdrop = (series_ext or {}).get("image")
+                    if backdrop:
+                        for v in missing_thumbs:
+                            v['thumbnail'] = backdrop
                 # Check if any episodes have untranslated content
                 has_untranslated = any(v.get("_untranslated") for v in videos)
                 logging.info(f"[TVDB] has_untranslated={has_untranslated}, total_videos={len(videos)}")

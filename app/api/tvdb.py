@@ -82,9 +82,14 @@ async def get_series_translation(tvdb_id: int, lang: str = "pol") -> dict | None
     return None
 
 
-async def get_series_extended(tvdb_id: int) -> dict | None:
-    """Get series extended record (seasons, genres, artworks, etc.)."""
-    data = await _api_get(f"/series/{tvdb_id}/extended", params={"short": "true"})
+async def get_series_extended(tvdb_id: int, short: bool = True) -> dict | None:
+    """Get series extended record (seasons, genres, artworks, etc.).
+    
+    Args:
+        short: If True, returns minimal data (faster). If False, includes characters/artworks.
+    """
+    params = {"short": "true"} if short else {}
+    data = await _api_get(f"/series/{tvdb_id}/extended", params=params)
     if data and data.get("data"):
         return data["data"]
     return None
@@ -199,9 +204,9 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
     if not Config.TVDB_API_KEY:
         return None
 
-    # Fetch series extended info and Polish translation in parallel
+    # Fetch series extended info (with characters) and Polish translation in parallel
     import asyncio
-    series_ext_task = get_series_extended(tvdb_id)
+    series_ext_task = get_series_extended(tvdb_id, short=False)
     translation_task = get_series_translation(tvdb_id, "pol")
     episodes_task = get_series_episodes(tvdb_id, season_number=season_number, lang="pol")
 
@@ -212,13 +217,32 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
     if not series_ext:
         return None
 
-    # Fetch trailer from Kitsu (fast, separate call)
+    # Fetch trailer, poster and rating from Kitsu in one call (per-season unique images)
     trailers = []
+    poster = None
+    background = None
+    imdb_rating = None
+    kitsu_id = None
     if mal_id:
         from app.utils.anime_mapping import get_kitsu_from_mal_id
         kitsu_id = get_kitsu_from_mal_id(mal_id)
         if kitsu_id:
-            trailers = await _fetch_trailer_from_kitsu(kitsu_id)
+            try:
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+                    async with session.get(f"https://kitsu.io/api/edge/anime/{kitsu_id}",
+                                           params={"fields[anime]": "posterImage,coverImage,youtubeVideoId,averageRating"}) as resp:
+                        if resp.status == 200:
+                            kdata = (await resp.json()).get("data", {}).get("attributes", {})
+                            poster = (kdata.get("posterImage") or {}).get("large") or (kdata.get("posterImage") or {}).get("medium")
+                            background = (kdata.get("coverImage") or {}).get("original")
+                            yt_id = kdata.get("youtubeVideoId")
+                            if yt_id:
+                                trailers = [{"source": yt_id, "type": "Trailer"}]
+                            avg_rating = kdata.get("averageRating")
+                            if avg_rating:
+                                imdb_rating = str(round(float(avg_rating) / 10, 1))
+            except Exception:
+                pass
 
     # Series name: prefer Polish translation, then English, fallback to original
     name = series_ext.get("name", "")
@@ -266,35 +290,97 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
         else:
             release_info = year
 
-    # Artwork
-    poster = series_ext.get("image")
-    background = None
+    # Artwork - runtime from TVDB
     runtime = series_ext.get("averageRuntime")
 
-    # Fanart
+    # Docchi fallback for poster if Kitsu failed
+    if not poster and mal_id:
+        try:
+            from app.utils.anime_mapping import get_slug_from_mal_id
+            from app.routes import docchi_client
+            slug = await get_slug_from_mal_id(mal_id)
+            if slug:
+                details = await docchi_client.get_anime_details(slug)
+                if details and details.get('cover'):
+                    poster = details['cover']
+        except Exception:
+            pass
+
+    # Fanart for logo, background (series-level)
     fanart = await get_fanart_images(imdb_id=imdb_id, tvdb_id=tvdb_id, tmdb_id=tmdb_id)
     logo = fanart.get("logo")
     background = fanart.get("background") or background
+    # Only use fanart poster as absolute last resort (it's series-level, not season-specific)
     if not poster:
-        poster = fanart.get("poster") or poster
+        poster = fanart.get("poster") or series_ext.get("image")
 
-    # Kitsu fallback for missing background/poster
-    if (not background or not poster) and mal_id:
-        from app.utils.anime_mapping import get_kitsu_from_mal_id
-        kitsu_id = get_kitsu_from_mal_id(mal_id)
-        if kitsu_id:
-            try:
-                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
-                    async with session.get(f"https://kitsu.io/api/edge/anime/{kitsu_id}",
-                                           params={"fields[anime]": "posterImage,coverImage"}) as resp:
-                        if resp.status == 200:
-                            kdata = (await resp.json()).get("data", {}).get("attributes", {})
-                            if not background:
-                                background = (kdata.get("coverImage") or {}).get("original")
-                            if not poster:
-                                poster = (kdata.get("posterImage") or {}).get("large") or (kdata.get("posterImage") or {}).get("medium")
-            except Exception:
-                pass
+    # Cast links from TVDB characters
+    cast_links = []
+    characters = series_ext.get("characters") or []
+    for char in characters:
+        if char.get("type") == "Actor" or char.get("peopleType") == "Actor":
+            person_name = char.get("personName")
+            if person_name:
+                cast_links.append({
+                    "name": person_name,
+                    "category": "Cast",
+                    "url": f"stremio:///search?search={person_name.replace(' ', '%20')}"
+                })
+        if len(cast_links) >= 10:
+            break
+
+    # Certification from TVDB contentRatings
+    certification = None
+    content_ratings = series_ext.get("contentRatings") or []
+    # Prefer "jpn" rating, then "usa", then first available
+    for preferred_country in ["jpn", "usa"]:
+        for cr in content_ratings:
+            if cr.get("country") == preferred_country and cr.get("name"):
+                certification = cr["name"]
+                break
+        if certification:
+            break
+    if not certification and content_ratings:
+        certification = content_ratings[0].get("name")
+
+    # Season posters from Kitsu for all seasons sharing this TVDB ID
+    season_posters = []
+    if mal_id:
+        from app.utils.anime_mapping import get_all_seasons_for_tvdb_id
+        all_seasons = get_all_seasons_for_tvdb_id(tvdb_id)
+        if all_seasons and len(all_seasons) > 1:
+            from app.utils.anime_mapping import get_kitsu_from_mal_id as _get_kitsu
+            kitsu_ids_for_posters = []
+            for season_entry in all_seasons:
+                entry_mal_id = str(season_entry.get('mal_id', ''))
+                entry_kitsu_id = _get_kitsu(entry_mal_id) if entry_mal_id else None
+                if entry_kitsu_id:
+                    kitsu_ids_for_posters.append(entry_kitsu_id)
+            
+            if kitsu_ids_for_posters:
+                try:
+                    # Batch fetch posters from Kitsu (max ~10 seasons)
+                    ids_param = ",".join(kitsu_ids_for_posters[:15])
+                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8)) as session:
+                        async with session.get(f"https://kitsu.io/api/edge/anime",
+                                               params={"filter[id]": ids_param,
+                                                       "fields[anime]": "posterImage"}) as resp:
+                            if resp.status == 200:
+                                kdata = (await resp.json()).get("data", [])
+                                # Build map id -> poster
+                                poster_map = {}
+                                for item in kdata:
+                                    kid = item.get("id")
+                                    p_img = (item.get("attributes", {}).get("posterImage") or {})
+                                    p_url = p_img.get("large") or p_img.get("medium")
+                                    if kid and p_url:
+                                        poster_map[kid] = p_url
+                                # Ordered by season
+                                for kid in kitsu_ids_for_posters:
+                                    if kid in poster_map:
+                                        season_posters.append(poster_map[kid])
+                except Exception:
+                    pass
 
     # Content type
     content_type = "series"
@@ -302,25 +388,47 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
     # Build videos from episodes
     airs_time = series_ext.get("airsTime") or "00:00"
     original_country = series_ext.get("originalCountry") or ""
-    videos = _build_videos_from_episodes(episodes, mal_id, season_number, airs_time, original_country)
+    videos = _build_videos_from_episodes(episodes, mal_id, season_number, airs_time, original_country, backdrop=background)
+
+    # Released date (series premiere)
+    released = f"{first_aired}T00:00:00.000Z" if first_aired else None
+
+    # Rating link (imdb or kitsu/docchi fallback)
+    rating_link = None
+    if imdb_rating:
+        if imdb_id:
+            rating_link = {"name": imdb_rating, "category": "imdb", "url": f"https://imdb.com/title/{imdb_id}"}
+        else:
+            rating_link = {"name": imdb_rating, "category": "imdb", "url": f"https://kitsu.io/anime/{kitsu_id}" if kitsu_id else ""}
+    
+    links = []
+    if rating_link:
+        links.append(rating_link)
+    links.extend(cast_links)
 
     result = {
         "id": f"mal:{mal_id}" if mal_id else f"tvdb:{tvdb_id}",
         "type": content_type,
         "name": name,
+        "country": original_country or None,
         "genres": genres,
         "description": description,
         "year": year,
         "releaseInfo": release_info,
-        "runtime": f"{runtime} min" if isinstance(runtime, int) else None,
+        "released": released,
+        "runtime": f"{runtime}min" if isinstance(runtime, int) else None,
+        "imdbRating": imdb_rating,
         "status": status,
+        "certification": certification,
         "poster": poster,
         "background": background,
         "logo": logo,
         "videos": videos,
         "trailers": trailers,
-        "links": [],
+        "links": links,
     }
+    if season_posters:
+        result["seasonPosters"] = season_posters
     if _description_untranslated:
         result["_untranslated"] = True
     return result
@@ -361,13 +469,14 @@ def _airs_time_to_utc(airs_time: str, original_country: str) -> str:
     return f"{utc_hour:02d}:{minute:02d}:00"
 
 
-def _build_videos_from_episodes(episodes: list, mal_id: str = None, season_number: int = None, airs_time: str = "00:00", original_country: str = "", skip_season_filter: bool = False) -> list:
+def _build_videos_from_episodes(episodes: list, mal_id: str = None, season_number: int = None, airs_time: str = "00:00", original_country: str = "", skip_season_filter: bool = False, backdrop: str = None) -> list:
     """Build Stremio video objects from TVDB episode data.
     
     Episodes are numbered sequentially within the season (1, 2, 3, ...).
     airs_time is the series broadcast time in local timezone.
     original_country is used to determine timezone offset (jpn=UTC+9, usa=UTC-5 EST).
     skip_season_filter: if True, skip filtering by seasonNumber (already pre-filtered).
+    backdrop: fallback thumbnail URL for episodes without their own image.
     """
     if not episodes:
         return []
@@ -382,6 +491,9 @@ def _build_videos_from_episodes(episodes: list, mal_id: str = None, season_numbe
     # Calculate UTC offset based on country
     utc_released = _airs_time_to_utc(airs_time, original_country)
 
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+
     videos = []
     for ep in episodes:
         ep_num = ep.get("number", 0)
@@ -391,6 +503,18 @@ def _build_videos_from_episodes(episodes: list, mal_id: str = None, season_numbe
         aired = ep.get("aired")
         released = f"{aired}T{utc_released}Z" if aired else None
 
+        # Determine availability based on release date
+        available = True
+        if released:
+            try:
+                ep_date = datetime.fromisoformat(released.replace('Z', '+00:00'))
+                available = ep_date <= now
+            except (ValueError, TypeError):
+                available = True
+        elif not aired:
+            # No air date at all = future/unknown
+            available = False
+
         title = ep.get("name") or f"Episode {ep_num}"
         overview = ep.get("overview")
         thumbnail = ep.get("image")
@@ -399,15 +523,22 @@ def _build_videos_from_episodes(episodes: list, mal_id: str = None, season_numbe
 
         vid_id = f"mal:{mal_id}:{ep_num}" if mal_id else f"tvdb:{ep_num}"
 
+        # Episode runtime from TVDB
+        ep_runtime = ep.get("runtime")
+        runtime_str = f"{ep_runtime}min" if ep_runtime else None
+
         video = {
             "id": vid_id,
             "title": title,
             "released": released,
+            "available": available,
             "season": 1,
             "episode": ep_num,
             "thumbnail": thumbnail,
             "overview": overview,
         }
+        if runtime_str:
+            video["runtime"] = runtime_str
         if ep.get("_untranslated"):
             video["_untranslated"] = True
         videos.append(video)
