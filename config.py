@@ -22,7 +22,7 @@ class Config:
     MAL_CLIENT_ID = os.getenv('MAL_CLIENT_ID', '')  # MyAnimeList API Client ID
     FANART_API_KEY = os.getenv('FANART_API_KEY', '')  # fanart.tv API key (optional)
     TVDB_API_KEY = os.getenv('TVDB_API_KEY', '')  # TheTVDB API key (v4)
-    GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')  # Google Gemini API key (for AI translation)
+    OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '')  # OpenRouter API key (for AI translation, free tier)
 
     DEBUG = os.getenv('FLASK_DEBUG', False)
     DATABASE = "/tmp/database.db"
