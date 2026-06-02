@@ -150,7 +150,7 @@ async def batch_fetch_and_cache_meta(content_ids: list[str], is_vip: bool = Fals
     if missing:
         fetched = await asyncio.gather(*[fetch_and_cache_meta(cid, is_vip) for cid in missing])
         
-        # Collect untranslated descriptions for background batch translation
+        # Collect untranslated descriptions for batch translation
         untranslated_entries = []
         for i, (cid, (meta, mal_id)) in enumerate(zip(missing, fetched)):
             if meta and mal_id:
@@ -158,13 +158,16 @@ async def batch_fetch_and_cache_meta(content_ids: list[str], is_vip: bool = Fals
                 if meta.get('_untranslated'):
                     meta.pop('_untranslated', None)
                     untranslated_entries.append((mal_id, meta))
-                    # Short cache for untranslated
-                    _mem_cache[mal_id] = (meta, int(time.time()) - CACHE_TTL + VIDEOS_TTL_UNTRANSLATED)
             results[cid] = meta
 
-        # Fire-and-forget batch translation in background
+        # Inline batch translation with timeout (don't block too long)
         if untranslated_entries:
-            asyncio.ensure_future(_translate_batch_and_cache(untranslated_entries))
+            try:
+                await asyncio.wait_for(
+                    _translate_batch_and_cache(untranslated_entries), timeout=15
+                )
+            except asyncio.TimeoutError:
+                pass
 
     return results
 
@@ -225,16 +228,29 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                     is_untranslated = meta.pop('_untranslated', False)
                     await _fill_genres_from_docchi(meta, mal_id)
                     if is_untranslated:
-                        # Serve English immediately, translate in background
-                        _mem_cache[mal_id] = (meta, int(time.time()) - CACHE_TTL + VIDEOS_TTL_UNTRANSLATED)
-                        asyncio.ensure_future(_translate_and_cache_meta(mal_id, meta))
+                        # Try quick inline translation (10s timeout)
+                        import logging
+                        from app.utils.translate import translate_to_polish
+                        logging.info(f"[Translate] Inline translation for mal:{mal_id}")
+                        try:
+                            translated = await asyncio.wait_for(
+                                translate_to_polish(meta.get('description', '')), timeout=10
+                            )
+                            if translated:
+                                meta['description'] = translated
+                                logging.info(f"[Translate] Success for mal:{mal_id}")
+                            else:
+                                logging.warning(f"[Translate] Got None for mal:{mal_id}")
+                        except asyncio.TimeoutError:
+                            logging.warning(f"[Translate] Timeout for mal:{mal_id}")
+                        await set_cached_meta(mal_id, meta)
                     else:
                         await set_cached_meta(mal_id, meta)
                     return _with_genre_links(meta), mal_id
-        except Exception:
+        except Exception as e:
+            import logging
+            logging.error(f"[TVDB meta] Exception for mal:{mal_id}: {type(e).__name__}: {e}")
             pass
-    
-    # Fallback to Kitsu API
     try:
         from app.api.kitsu import get_anime_meta as kitsu_get_meta
         ids = get_ids_from_mal_id(mal_id)
@@ -281,18 +297,24 @@ async def _fill_genres_from_docchi(meta: dict, mal_id: str):
 
 async def _translate_and_cache_meta(mal_id: str, meta: dict):
     """Background task: translate description and update cache."""
+    import logging
     if mal_id in _translating_in_progress:
         return
     _translating_in_progress.add(mal_id)
     try:
         from app.utils.translate import translate_to_polish
-        translated = await translate_to_polish(meta.get('description', ''))
+        desc = meta.get('description', '')
+        logging.info(f"[Translate] Starting translation for mal:{mal_id} ({len(desc)} chars)")
+        translated = await translate_to_polish(desc)
         if translated:
             meta['description'] = translated
             await set_cached_meta(mal_id, meta)
             _mem_cache[mal_id] = (meta, int(time.time()))
-    except Exception:
-        pass
+            logging.info(f"[Translate] Success for mal:{mal_id}")
+        else:
+            logging.warning(f"[Translate] Failed for mal:{mal_id} - got None")
+    except Exception as e:
+        logging.error(f"[Translate] Exception for mal:{mal_id}: {e}")
     finally:
         _translating_in_progress.discard(mal_id)
 
@@ -450,11 +472,23 @@ async def fetch_videos(mal_id: str) -> list:
                 # Strip internal flags before serving
                 for v in videos:
                     v.pop("_untranslated", None)
+                
+                if has_untranslated:
+                    # Try inline translation with timeout
+                    try:
+                        await asyncio.wait_for(
+                            _translate_videos_background(mal_id, tvdb_id, all_seasons, airs_time, original_country),
+                            timeout=15
+                        )
+                        # Reload from cache if translation succeeded
+                        translated_videos = await get_cached_videos(mal_id)
+                        if translated_videos:
+                            return translated_videos
+                    except asyncio.TimeoutError:
+                        pass
+                
                 cache_ttl = VIDEOS_TTL_UNTRANSLATED if has_untranslated else 0
                 await set_cached_videos(mal_id, videos, ttl_override=cache_ttl)
-                # Fire-and-forget background translation for untranslated episodes
-                if has_untranslated:
-                    asyncio.ensure_future(_translate_videos_background(mal_id, tvdb_id, all_seasons, airs_time, original_country))
                 return videos
         except Exception as e:
             logging.error(f"[TVDB] fetch_videos error: {e}", exc_info=True)
