@@ -260,6 +260,24 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
     if not poster:
         poster = fanart.get("poster") or poster
 
+    # Kitsu fallback for missing background/poster
+    if (not background or not poster) and mal_id:
+        from app.utils.anime_mapping import get_kitsu_from_mal_id
+        kitsu_id = get_kitsu_from_mal_id(mal_id)
+        if kitsu_id:
+            try:
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+                    async with session.get(f"https://kitsu.io/api/edge/anime/{kitsu_id}",
+                                           params={"fields[anime]": "posterImage,coverImage"}) as resp:
+                        if resp.status == 200:
+                            kdata = (await resp.json()).get("data", {}).get("attributes", {})
+                            if not background:
+                                background = (kdata.get("coverImage") or {}).get("original")
+                            if not poster:
+                                poster = (kdata.get("posterImage") or {}).get("large") or (kdata.get("posterImage") or {}).get("medium")
+            except Exception:
+                pass
+
     # Content type
     content_type = "series"
 

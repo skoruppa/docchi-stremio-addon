@@ -32,6 +32,14 @@ async def get_cached_meta(mal_id: str):
     return None
 
 
+async def _get_expired_meta(mal_id: str) -> dict | None:
+    """Get expired cached meta (for reusing old translations). Does not delete."""
+    rows = await execute("SELECT meta FROM meta_cache WHERE mal_id=?", (mal_id,))
+    if rows:
+        return orjson.loads(rows[0]['meta'])
+    return None
+
+
 async def set_cached_meta(mal_id: str, meta: dict):
     """Cache metadata by MAL ID with timestamp (videos excluded)."""
     meta_to_cache = {k: v for k, v in meta.items() if k != 'videos'}
@@ -211,6 +219,9 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     if cached:
         return _with_genre_links(cached), mal_id
 
+    # Check for expired cache to reuse translations
+    expired_meta = await _get_expired_meta(mal_id)
+
     # Try TVDB API first (primary source)
     if Config.TVDB_API_KEY:
         try:
@@ -228,24 +239,26 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                     is_untranslated = meta.pop('_untranslated', False)
                     await _fill_genres_from_docchi(meta, mal_id)
                     if is_untranslated:
-                        # Try quick inline translation (10s timeout)
-                        import logging
-                        from app.utils.translate import translate_to_polish
-                        logging.info(f"[Translate] Inline translation for mal:{mal_id}")
-                        try:
-                            translated = await asyncio.wait_for(
-                                translate_to_polish(meta.get('description', '')), timeout=10
-                            )
-                            if translated:
-                                meta['description'] = translated
-                                logging.info(f"[Translate] Success for mal:{mal_id}")
-                            else:
-                                logging.warning(f"[Translate] Got None for mal:{mal_id}")
-                        except asyncio.TimeoutError:
-                            logging.warning(f"[Translate] Timeout for mal:{mal_id}")
-                        await set_cached_meta(mal_id, meta)
-                    else:
-                        await set_cached_meta(mal_id, meta)
+                        # Reuse old translation if available
+                        if expired_meta and expired_meta.get('description'):
+                            meta['description'] = expired_meta['description']
+                        else:
+                            # Try quick inline translation (10s timeout)
+                            import logging
+                            from app.utils.translate import translate_to_polish
+                            logging.info(f"[Translate] Inline translation for mal:{mal_id}")
+                            try:
+                                translated = await asyncio.wait_for(
+                                    translate_to_polish(meta.get('description', '')), timeout=10
+                                )
+                                if translated:
+                                    meta['description'] = translated
+                                    logging.info(f"[Translate] Success for mal:{mal_id}")
+                                else:
+                                    logging.warning(f"[Translate] Got None for mal:{mal_id}")
+                            except asyncio.TimeoutError:
+                                logging.warning(f"[Translate] Timeout for mal:{mal_id}")
+                    await set_cached_meta(mal_id, meta)
                     return _with_genre_links(meta), mal_id
         except Exception as e:
             import logging
