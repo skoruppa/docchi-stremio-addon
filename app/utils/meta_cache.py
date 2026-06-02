@@ -279,6 +279,33 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     return None, None
 
 
+async def _get_episode_counts(mal_ids: list[str]) -> list[int]:
+    """Get episode count for each MAL ID from Kitsu API.
+    
+    Returns list of episode counts in same order as input.
+    Falls back to 0 if unavailable (will use remaining episodes).
+    """
+    import aiohttp as _aiohttp
+    counts = []
+    for mid in mal_ids:
+        try:
+            from app.utils.anime_mapping import get_kitsu_from_mal_id
+            kitsu_id = get_kitsu_from_mal_id(mid)
+            if kitsu_id:
+                async with _aiohttp.ClientSession(timeout=_aiohttp.ClientTimeout(total=5)) as session:
+                    async with session.get(f"https://kitsu.io/api/edge/anime/{kitsu_id}",
+                                           params={"fields[anime]": "episodeCount"}) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            ep_count = data.get("data", {}).get("attributes", {}).get("episodeCount") or 0
+                            counts.append(int(ep_count))
+                            continue
+        except Exception:
+            pass
+        counts.append(0)
+    return counts
+
+
 async def _fill_genres_from_docchi(meta: dict, mal_id: str):
     if meta.get('genres'):
         return
@@ -614,21 +641,40 @@ async def fetch_videos(mal_id: str) -> list:
                     v['season'] = v.get('season', 1)
                 videos.extend(season_videos)
             else:
+                # Group MAL entries by TVDB season
+                from collections import defaultdict
+                season_groups = defaultdict(list)  # tvdb_season -> list of mal_ids
                 for season_entry in all_seasons:
-                    entry_mal_id = str(season_entry.get('mal_id', mal_id))
                     tvdb_season = season_entry.get('season', {}).get('tvdb')
-                    if tvdb_season is None:
-                        continue
+                    if tvdb_season is not None:
+                        season_groups[int(tvdb_season)].append(str(season_entry.get('mal_id', mal_id)))
 
-                    episodes = await get_series_episodes(tvdb_id, season_number=int(tvdb_season), lang="pol")
-                    logging.info(f"[TVDB] Season {tvdb_season} (mal:{entry_mal_id}): got {len(episodes)} episodes")
-                    season_videos = _build_videos_from_episodes(episodes, entry_mal_id, int(tvdb_season), airs_time, original_country)
+                for tvdb_season, mal_ids_for_season in sorted(season_groups.items()):
+                    episodes = await get_series_episodes(tvdb_id, season_number=tvdb_season, lang="pol")
+                    logging.info(f"[TVDB] Season {tvdb_season} (mal_ids={mal_ids_for_season}): got {len(episodes)} episodes")
 
-                    # Set the season number to the TVDB season for proper multi-season display
-                    for v in season_videos:
-                        v['season'] = int(tvdb_season)
-
-                    videos.extend(season_videos)
+                    if len(mal_ids_for_season) == 1:
+                        # Simple case: one MAL entry per season
+                        season_videos = _build_videos_from_episodes(episodes, mal_ids_for_season[0], tvdb_season, airs_time, original_country)
+                        for v in season_videos:
+                            v['season'] = tvdb_season
+                        videos.extend(season_videos)
+                    else:
+                        # Multiple MAL entries share same TVDB season (e.g. Part 1 + Part 2)
+                        # Get episode counts from Kitsu/mapping to split correctly
+                        ep_counts = await _get_episode_counts(mal_ids_for_season)
+                        offset = 0
+                        for entry_mal_id, ep_count in zip(mal_ids_for_season, ep_counts):
+                            # Slice episodes for this MAL entry
+                            entry_episodes = episodes[offset:offset + ep_count] if ep_count else episodes[offset:]
+                            season_videos = _build_videos_from_episodes(entry_episodes, entry_mal_id, tvdb_season, airs_time, original_country)
+                            # Renumber episodes starting from 1
+                            for i, v in enumerate(season_videos):
+                                v['episode'] = i + 1
+                                v['id'] = f"mal:{entry_mal_id}:{i + 1}"
+                                v['season'] = tvdb_season
+                            videos.extend(season_videos)
+                            offset += ep_count if ep_count else len(entry_episodes)
 
             if videos:
                 await _enrich_thumbnails({'videos': videos}, mal_id)
