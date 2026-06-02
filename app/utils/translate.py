@@ -13,7 +13,7 @@ from config import Config
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 TIMEOUT = aiohttp.ClientTimeout(total=30)
-MODEL = "google/gemma-4-31b-it:free"
+MODEL = "openrouter/free"
 
 TRANSLATE_PROMPT = (
     "Translate the following anime synopsis/episode description from English to Polish. "
