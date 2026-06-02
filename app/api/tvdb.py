@@ -144,7 +144,11 @@ async def _fill_english_fallback(episodes: list, tvdb_id: int, season_number: in
 
 
 async def _fetch_episodes_for_lang(tvdb_id: int, season_number: int = None, lang: str = "pol") -> list:
-    """Internal: fetch episodes for a specific language."""
+    """Internal: fetch episodes for a specific language.
+    
+    Note: TVDB API v4 'season' query param may not reliably filter episodes server-side,
+    so we always filter client-side by seasonNumber after fetching.
+    """
     all_episodes = []
     page = 0
 
@@ -170,6 +174,10 @@ async def _fetch_episodes_for_lang(tvdb_id: int, season_number: int = None, lang
             page += 1
         else:
             break
+
+    # Client-side season filter — TVDB API may return all episodes regardless of 'season' param
+    if season_number is not None:
+        all_episodes = [ep for ep in all_episodes if ep.get("seasonNumber") == season_number]
 
     return all_episodes
 
@@ -353,18 +361,19 @@ def _airs_time_to_utc(airs_time: str, original_country: str) -> str:
     return f"{utc_hour:02d}:{minute:02d}:00"
 
 
-def _build_videos_from_episodes(episodes: list, mal_id: str = None, season_number: int = None, airs_time: str = "00:00", original_country: str = "") -> list:
+def _build_videos_from_episodes(episodes: list, mal_id: str = None, season_number: int = None, airs_time: str = "00:00", original_country: str = "", skip_season_filter: bool = False) -> list:
     """Build Stremio video objects from TVDB episode data.
     
     Episodes are numbered sequentially within the season (1, 2, 3, ...).
     airs_time is the series broadcast time in local timezone.
     original_country is used to determine timezone offset (jpn=UTC+9, usa=UTC-5 EST).
+    skip_season_filter: if True, skip filtering by seasonNumber (already pre-filtered).
     """
     if not episodes:
         return []
 
     # Filter episodes by season if needed (API should already do this, but be safe)
-    if season_number is not None:
+    if season_number is not None and not skip_season_filter:
         episodes = [ep for ep in episodes if ep.get("seasonNumber") == season_number]
 
     # Sort by episode number

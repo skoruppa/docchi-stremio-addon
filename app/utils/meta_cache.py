@@ -663,18 +663,45 @@ async def fetch_videos(mal_id: str) -> list:
                         # Multiple MAL entries share same TVDB season (e.g. Part 1 + Part 2)
                         # Get episode counts from Kitsu/mapping to split correctly
                         ep_counts = await _get_episode_counts(mal_ids_for_season)
+                        logging.info(f"[TVDB] Multi-split season {tvdb_season}: mal_ids={mal_ids_for_season}, ep_counts={ep_counts}, total_episodes={len(episodes)}")
+                        
+                        # Sort episodes by number (already filtered to this season by get_series_episodes)
+                        episodes.sort(key=lambda e: e.get("number", 0))
+                        # Filter out specials (number <= 0)
+                        episodes = [ep for ep in episodes if ep.get("number", 0) > 0]
+                        
+                        # If all ep_counts are 0, try to split evenly
+                        total_known = sum(ep_counts)
+                        if total_known == 0:
+                            # Fallback: split evenly among all MAL entries
+                            per_entry = len(episodes) // len(mal_ids_for_season)
+                            ep_counts = [per_entry] * len(mal_ids_for_season)
+                            # Give remainder to last entry
+                            ep_counts[-1] = len(episodes) - per_entry * (len(mal_ids_for_season) - 1)
+                            logging.info(f"[TVDB] No ep_counts available, splitting evenly: {ep_counts}")
+                        elif total_known < len(episodes):
+                            # Last entry with 0 count gets the remainder
+                            for i in range(len(ep_counts) - 1, -1, -1):
+                                if ep_counts[i] == 0:
+                                    ep_counts[i] = len(episodes) - total_known
+                                    break
+                        
                         offset = 0
                         for entry_mal_id, ep_count in zip(mal_ids_for_season, ep_counts):
+                            if offset >= len(episodes):
+                                break
                             # Slice episodes for this MAL entry
-                            entry_episodes = episodes[offset:offset + ep_count] if ep_count else episodes[offset:]
-                            season_videos = _build_videos_from_episodes(entry_episodes, entry_mal_id, tvdb_season, airs_time, original_country)
+                            entry_episodes = episodes[offset:offset + ep_count]
+                            # Use skip_season_filter=True since episodes are already filtered
+                            season_videos = _build_videos_from_episodes(entry_episodes, entry_mal_id, tvdb_season, airs_time, original_country, skip_season_filter=True)
                             # Renumber episodes starting from 1
                             for i, v in enumerate(season_videos):
                                 v['episode'] = i + 1
                                 v['id'] = f"mal:{entry_mal_id}:{i + 1}"
                                 v['season'] = tvdb_season
                             videos.extend(season_videos)
-                            offset += ep_count if ep_count else len(entry_episodes)
+                            offset += ep_count
+                            logging.info(f"[TVDB] Split: mal:{entry_mal_id} got {len(season_videos)} episodes (offset was {offset - ep_count})")
 
             if videos:
                 await _enrich_thumbnails({'videos': videos}, mal_id)
