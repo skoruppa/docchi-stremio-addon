@@ -223,11 +223,12 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
         try:
             from app.api.tvdb import get_anime_meta as tvdb_get_meta
             ids = get_ids_from_mal_id(mal_id)
-            if ids.get('tvdb_id') and ids.get('tvdb_season') is not None:
+            if ids.get('tvdb_id'):
+                tvdb_season = int(ids['tvdb_season']) if ids.get('tvdb_season') is not None else 1
                 meta = await tvdb_get_meta(
                     tvdb_id=ids['tvdb_id'],
                     mal_id=mal_id,
-                    season_number=int(ids['tvdb_season']),
+                    season_number=tvdb_season,
                     imdb_id=ids.get('imdb_id'),
                     tmdb_id=ids.get('tmdb_id'),
                 )
@@ -445,10 +446,13 @@ async def _do_translate_videos(mal_id: str, videos: list):
             chunk = to_translate_ov[chunk_start:chunk_start + 10]
             texts = [t for _, t in chunk]
             translations = await batch_translate_to_polish(texts)
+            chunk_ok = 0
             for (idx, _), translated in zip(chunk, translations):
                 if translated:
                     videos[idx]["overview"] = translated
                     translated_count += 1
+                    chunk_ok += 1
+            logging.info(f"[Translate BG] mal:{mal_id} overviews chunk {chunk_start//10+1}: {chunk_ok}/{len(chunk)}")
             # Save progress after each chunk
             await set_cached_videos(mal_id, videos)
         
@@ -457,10 +461,13 @@ async def _do_translate_videos(mal_id: str, videos: list):
             chunk = to_translate_ti[chunk_start:chunk_start + 10]
             texts = [t for _, t in chunk]
             translations = await batch_translate_to_polish(texts)
+            chunk_ok = 0
             for (idx, _), translated in zip(chunk, translations):
                 if translated:
                     videos[idx]["title"] = translated
                     translated_count += 1
+                    chunk_ok += 1
+            logging.info(f"[Translate BG] mal:{mal_id} titles chunk {chunk_start//10+1}: {chunk_ok}/{len(chunk)}")
             # Save progress after each chunk
             await set_cached_videos(mal_id, videos)
         
@@ -580,7 +587,7 @@ async def fetch_videos(mal_id: str) -> list:
     videos = []
 
     # Try TVDB first with multi-season support
-    if Config.TVDB_API_KEY and ids.get('tvdb_id') and ids.get('tvdb_season') is not None:
+    if Config.TVDB_API_KEY and ids.get('tvdb_id'):
         try:
             from app.api.tvdb import get_series_episodes, _build_videos_from_episodes, get_series_extended
             tvdb_id = ids['tvdb_id']
@@ -593,25 +600,35 @@ async def fetch_videos(mal_id: str) -> list:
             # Get all seasons that share the same tvdb_id
             all_seasons = get_all_seasons_for_tvdb_id(tvdb_id)
             logging.info(f"[TVDB] mal_id={mal_id}, tvdb_id={tvdb_id}, all_seasons={all_seasons}")
-            if not all_seasons:
-                # Fallback: just fetch for the current season
-                all_seasons = [{'mal_id': int(mal_id), 'season': {'tvdb': ids['tvdb_season']}}]
-
-            for season_entry in all_seasons:
-                entry_mal_id = str(season_entry.get('mal_id', mal_id))
-                tvdb_season = season_entry.get('season', {}).get('tvdb')
-                if tvdb_season is None:
-                    continue
-
-                episodes = await get_series_episodes(tvdb_id, season_number=int(tvdb_season), lang="pol")
-                logging.info(f"[TVDB] Season {tvdb_season} (mal:{entry_mal_id}): got {len(episodes)} episodes")
-                season_videos = _build_videos_from_episodes(episodes, entry_mal_id, int(tvdb_season), airs_time, original_country)
-
-                # Set the season number to the TVDB season for proper multi-season display
+            
+            # Check if any entry has season info
+            has_season_info = any(s.get('season', {}).get('tvdb') for s in all_seasons)
+            
+            if not all_seasons or not has_season_info:
+                # No season mapping — fetch all episodes for current mal_id only
+                tvdb_season_num = int(ids['tvdb_season']) if ids.get('tvdb_season') else None
+                episodes = await get_series_episodes(tvdb_id, season_number=tvdb_season_num, lang="pol")
+                logging.info(f"[TVDB] All episodes (mal:{mal_id}): got {len(episodes)} episodes")
+                season_videos = _build_videos_from_episodes(episodes, mal_id, tvdb_season_num, airs_time, original_country)
                 for v in season_videos:
-                    v['season'] = int(tvdb_season)
-
+                    v['season'] = v.get('season', 1)
                 videos.extend(season_videos)
+            else:
+                for season_entry in all_seasons:
+                    entry_mal_id = str(season_entry.get('mal_id', mal_id))
+                    tvdb_season = season_entry.get('season', {}).get('tvdb')
+                    if tvdb_season is None:
+                        continue
+
+                    episodes = await get_series_episodes(tvdb_id, season_number=int(tvdb_season), lang="pol")
+                    logging.info(f"[TVDB] Season {tvdb_season} (mal:{entry_mal_id}): got {len(episodes)} episodes")
+                    season_videos = _build_videos_from_episodes(episodes, entry_mal_id, int(tvdb_season), airs_time, original_country)
+
+                    # Set the season number to the TVDB season for proper multi-season display
+                    for v in season_videos:
+                        v['season'] = int(tvdb_season)
+
+                    videos.extend(season_videos)
 
             if videos:
                 await _enrich_thumbnails({'videos': videos}, mal_id)
