@@ -148,10 +148,27 @@ async def batch_fetch_and_cache_meta(content_ids: list[str], is_vip: bool = Fals
     missing = [mal_id_map[mid] for mid in mal_ids if mid not in cached_mal_ids]
     if missing:
         fetched = await asyncio.gather(*[fetch_and_cache_meta(cid, is_vip) for cid in missing])
-        for cid, (meta, mal_id) in zip(missing, fetched):
+        
+        # Collect untranslated descriptions for batch translation
+        untranslated_entries = []  # list of (index, meta, mal_id)
+        for i, (cid, (meta, mal_id)) in enumerate(zip(missing, fetched)):
             if meta and mal_id:
                 _mem_cache[mal_id] = (meta, int(time.time()))
+                if meta.get('_untranslated'):
+                    untranslated_entries.append((i, meta, mal_id))
             results[cid] = meta
+
+        # Batch translate untranslated descriptions in one Gemini call
+        if untranslated_entries:
+            from app.utils.translate import batch_translate_to_polish
+            texts = [entry[1].get('description', '') for entry in untranslated_entries]
+            translations = await batch_translate_to_polish(texts)
+            for (idx, meta, mal_id), translated in zip(untranslated_entries, translations):
+                if translated:
+                    meta.pop('_untranslated', None)
+                    meta['description'] = translated
+                    await set_cached_meta(mal_id, meta)
+                    _mem_cache[mal_id] = (meta, int(time.time()))
 
     return results
 

@@ -1,11 +1,18 @@
 """Translation utility using Gemini 2.5 Flash-Lite for English→Polish translation.
+
+Free tier: 15 RPM, 1000 RPD, never expires.
+On failure (429/error), returns None — caller should serve English text and cache briefly.
+
+Strategy: batch multiple texts into single API calls to minimize RPM usage.
 """
+import asyncio
 import logging
+import time
 import aiohttp
 from config import Config
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
-TIMEOUT = aiohttp.ClientTimeout(total=15)
+TIMEOUT = aiohttp.ClientTimeout(total=30)
 
 TRANSLATE_PROMPT = (
     "Translate the following anime synopsis/episode description from English to Polish. "
@@ -14,22 +21,47 @@ TRANSLATE_PROMPT = (
     "Use natural Polish that fits anime/manga context.\n\n"
 )
 
+BATCH_TRANSLATE_PROMPT = (
+    "Below are multiple anime series/episode descriptions in English, each separated by |||NEXT|||.\n"
+    "Translate each one independently from English to Polish.\n"
+    "Keep proper nouns (character names, place names, attack names) unchanged.\n"
+    "Use natural Polish that fits anime/manga context.\n"
+    "Return translations in the same order, separated by the EXACT delimiter: |||NEXT|||\n"
+    "Do NOT add numbering, labels, or any extra text — just the translations separated by |||NEXT|||\n\n"
+)
 
-async def translate_to_polish(text: str) -> str | None:
-    """Translate text from English to Polish using Gemini.
-    
-    Returns translated text or None if translation fails/not configured.
-    None signals the caller to use English fallback with short cache TTL.
-    """
-    if not text or not Config.GEMINI_API_KEY:
+# Rate limiter: sliding window, max 12 requests per 60 seconds (under 15 RPM limit)
+_request_times: list[float] = []
+_rate_lock = asyncio.Lock()
+_MAX_RPM = 12
+_WINDOW = 60.0  # seconds
+
+
+async def _gemini_request(prompt_text: str) -> str | None:
+    """Make a single rate-limited request to Gemini API."""
+    if not Config.GEMINI_API_KEY:
         return None
 
+    # Sliding window rate limit — acquire slot then release lock before HTTP call
+    async with _rate_lock:
+        now = time.time()
+        # Remove requests older than window
+        while _request_times and _request_times[0] < now - _WINDOW:
+            _request_times.pop(0)
+        # If at limit, wait until oldest request exits the window
+        if len(_request_times) >= _MAX_RPM:
+            wait = _request_times[0] + _WINDOW - now + 0.1
+            await asyncio.sleep(wait)
+            _request_times.pop(0)
+        _request_times.append(time.time())
+
+    # Actual HTTP request runs outside the lock (allows parallel requests)
     params = {"key": Config.GEMINI_API_KEY}
     payload = {
-        "contents": [{"parts": [{"text": f"{TRANSLATE_PROMPT}{text}"}]}],
+        "contents": [{"parts": [{"text": prompt_text}]}],
         "generationConfig": {
             "temperature": 0.1,
-            "maxOutputTokens": 1024,
+            "maxOutputTokens": 4096,
         },
     }
 
@@ -54,9 +86,44 @@ async def translate_to_polish(text: str) -> str | None:
         return None
 
 
+async def translate_to_polish(text: str) -> str | None:
+    """Translate a single text from English to Polish using Gemini."""
+    if not text or not Config.GEMINI_API_KEY:
+        return None
+    return await _gemini_request(f"{TRANSLATE_PROMPT}{text}")
+
+
 async def batch_translate_to_polish(texts: list[str]) -> list[str | None]:
-    """Translate multiple texts concurrently. Returns list of translations (None for failures)."""
-    import asyncio
-    if not Config.GEMINI_API_KEY:
+    """Translate multiple texts in a single Gemini call using delimiter-based batching.
+    
+    Sends all texts in one request, separated by numbered markers.
+    Parses response by delimiter. Falls back to None for unparseable entries.
+    Uses 1 API call for up to ~20 texts instead of 20 separate calls.
+    """
+    if not Config.GEMINI_API_KEY or not texts:
         return [None] * len(texts)
-    return await asyncio.gather(*[translate_to_polish(t) for t in texts])
+
+    # For single text, use simple translation
+    if len(texts) == 1:
+        result = await translate_to_polish(texts[0])
+        return [result]
+
+    # Build batch prompt
+    numbered_texts = "\n|||NEXT|||\n".join(texts)
+    prompt = f"{BATCH_TRANSLATE_PROMPT}{numbered_texts}"
+
+    result = await _gemini_request(prompt)
+    if not result:
+        return [None] * len(texts)
+
+    # Parse response by delimiter
+    parts = result.split("|||NEXT|||")
+    translations = []
+    for i, text in enumerate(texts):
+        if i < len(parts):
+            translated = parts[i].strip()
+            translations.append(translated if translated else None)
+        else:
+            translations.append(None)
+
+    return translations

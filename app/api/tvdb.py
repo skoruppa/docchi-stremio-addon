@@ -120,7 +120,6 @@ async def _translate_missing_episode_fields(episodes: list, tvdb_id: int, season
     
     Returns True if all translations succeeded (or nothing needed), False if any failed.
     """
-    from app.utils.translate import translate_to_polish
     import asyncio
 
     # Find episodes missing name or overview
@@ -150,11 +149,10 @@ async def _translate_missing_episode_fields(episodes: list, tvdb_id: int, season
     if not to_translate:
         return True
 
-    # Batch translate overviews (limit to avoid excessive API calls)
+    # Batch translate overviews in a single API call
+    from app.utils.translate import batch_translate_to_polish
     all_succeeded = True
-    translations = await asyncio.gather(
-        *[translate_to_polish(t) for t in to_translate[:30]]  # cap at 30 per request
-    )
+    translations = await batch_translate_to_polish(to_translate[:30])
     for ep, eng_text, translated in zip(ep_indices[:30], to_translate[:30], translations):
         if translated:
             ep["overview"] = translated
