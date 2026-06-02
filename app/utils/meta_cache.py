@@ -228,11 +228,19 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                 if meta and meta.get('name'):
                     is_untranslated = meta.pop('_untranslated', False)
                     await _fill_genres_from_docchi(meta, mal_id)
-                    if not is_untranslated:
-                        await set_cached_meta(mal_id, meta)
+                    if is_untranslated:
+                        # Try AI translation for single meta fetch
+                        from app.utils.translate import translate_to_polish
+                        translated = await translate_to_polish(meta.get('description', ''))
+                        if translated:
+                            meta['description'] = translated
+                            await set_cached_meta(mal_id, meta)
+                        else:
+                            # Cache untranslated for 2 minutes only
+                            meta['_untranslated'] = True
+                            _mem_cache[mal_id] = (meta, int(time.time()) - CACHE_TTL + VIDEOS_TTL_UNTRANSLATED)
                     else:
-                        # Cache untranslated meta for only 2 minutes
-                        _mem_cache[mal_id] = (meta, int(time.time()) - CACHE_TTL + VIDEOS_TTL_UNTRANSLATED)
+                        await set_cached_meta(mal_id, meta)
                     return _with_genre_links(meta), mal_id
         except Exception:
             pass

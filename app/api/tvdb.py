@@ -247,18 +247,14 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
         if eng_translation and eng_translation.get("name"):
             name = eng_translation["name"]
 
-    # If no Polish description, try AI translation from English
+    # If no Polish description, use English and mark for batch translation later
     _description_untranslated = False
     if not description:
         if not eng_translation:
             eng_translation = await get_series_translation(tvdb_id, "eng")
         if eng_translation and eng_translation.get("overview"):
-            from app.utils.translate import translate_to_polish
-            description = await translate_to_polish(eng_translation["overview"])
-            # Fallback to raw English if translation fails
-            if not description:
-                description = eng_translation["overview"]
-                _description_untranslated = True
+            description = eng_translation["overview"]
+            _description_untranslated = True
 
     # Genres
     genres = [g.get("name") for g in series_ext.get("genres", []) if g.get("name")]
