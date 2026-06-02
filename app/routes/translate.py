@@ -140,3 +140,90 @@ async def translate_batch_meta():
 
     logging.info(f"[TranslateEP] Batch meta done - {len(results)}/{len(items)} translated")
     return {'status': 'ok', 'results': results}, 200
+
+
+@translate_bp.route('/internal/cron/translate', methods=['GET'])
+async def cron_translate():
+    """Cron job: translate untranslated meta descriptions and video episodes.
+    
+    Called by Vercel Cron every minute. Processes a few items per run.
+    Vercel cron sends Authorization header automatically.
+    """
+    import time
+    import orjson as _orjson
+    from app.db import execute
+
+    CACHE_TTL = 2592000  # 1 month
+    now = int(time.time())
+    translated_meta = 0
+    translated_videos = 0
+
+    # 1. Find meta entries with short TTL (untranslated - timestamp is manipulated)
+    # These have timestamp far in the past (now - CACHE_TTL + 120)
+    # So their age is close to CACHE_TTL. Find entries expiring within 5 minutes.
+    cutoff_min = now - CACHE_TTL
+    cutoff_max = now - CACHE_TTL + 300  # entries that expire within 5 min
+    rows = await execute(
+        "SELECT mal_id, meta FROM meta_cache WHERE timestamp > ? AND timestamp < ? LIMIT 5",
+        (cutoff_min, cutoff_max)
+    )
+
+    if rows:
+        texts = []
+        metas = []
+        for row in rows:
+            meta = _orjson.loads(row['meta'])
+            desc = meta.get('description', '')
+            if desc:
+                texts.append(desc)
+                metas.append((row['mal_id'], meta))
+
+        if texts:
+            translations = await batch_translate_to_polish(texts)
+            for (mal_id, meta), translated in zip(metas, translations):
+                if translated:
+                    meta['description'] = translated
+                    await set_cached_meta(str(mal_id), meta)
+                    _mem_cache[str(mal_id)] = (meta, now)
+                    translated_meta += 1
+
+    # 2. Find video entries with short TTL (untranslated)
+    vid_rows = await execute(
+        "SELECT mal_id, videos FROM videos_cache WHERE timestamp > ? AND timestamp < ? LIMIT 3",
+        (cutoff_min, cutoff_max)
+    )
+
+    if vid_rows:
+        for row in vid_rows:
+            videos = _orjson.loads(row['videos'])
+            mal_id = str(row['mal_id'])
+
+            # Collect untranslated overviews (first 10)
+            to_translate = [(i, v["overview"]) for i, v in enumerate(videos)
+                           if v.get("overview") and not any(c > '\u007f' for c in v["overview"][:20])][:10]
+
+            if to_translate:
+                texts = [t for _, t in to_translate]
+                translations = await batch_translate_to_polish(texts)
+                for (idx, _), translated in zip(to_translate, translations):
+                    if translated:
+                        videos[idx]["overview"] = translated
+                        translated_videos += 1
+
+                # Check if all are now translated
+                still_untranslated = any(
+                    v.get("overview") and not any(c > '\u007f' for c in v["overview"][:20])
+                    for v in videos
+                )
+                if still_untranslated:
+                    # Still more to do - keep short TTL
+                    await execute(
+                        "INSERT OR REPLACE INTO videos_cache (mal_id, videos, timestamp) VALUES (?,?,?)",
+                        (mal_id, _orjson.dumps(videos).decode(), cutoff_max)
+                    )
+                else:
+                    # All done - full TTL
+                    await set_cached_videos(mal_id, videos)
+
+    logging.info(f"[Cron] Translated {translated_meta} meta + {translated_videos} video descriptions")
+    return {'status': 'ok', 'meta': translated_meta, 'videos': translated_videos}, 200

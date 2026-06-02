@@ -11,5 +11,11 @@
             "src": "/(.*)",
             "dest": "run.py"
         }
+    ],
+    "crons": [
+        {
+            "path": "/internal/cron/translate",
+            "schedule": "* * * * *"
+        }
     ]
 }
