@@ -235,10 +235,16 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                     is_untranslated = meta.pop('_untranslated', False)
                     await _fill_genres_from_docchi(meta, mal_id)
                     if is_untranslated:
-                        # Fire background translation thread
-                        import threading
+                        # Save to DB with short TTL (2min) - background will overwrite with full TTL after translation
+                        short_ts = int(time.time()) - CACHE_TTL + VIDEOS_TTL_UNTRANSLATED
+                        await execute(
+                            "INSERT OR REPLACE INTO meta_cache (mal_id, meta, timestamp) VALUES (?,?,?)",
+                            (mal_id, orjson.dumps({k: v for k, v in meta.items() if k != 'videos'}).decode(), short_ts)
+                        )
+                        _mem_cache[mal_id] = (meta, short_ts)
                         _start_background_meta_translation(mal_id, meta.get('description', ''))
-                    await set_cached_meta(mal_id, meta)
+                    else:
+                        await set_cached_meta(mal_id, meta)
                     return _with_genre_links(meta), mal_id
         except Exception as e:
             import logging
@@ -289,7 +295,11 @@ async def _fill_genres_from_docchi(meta: dict, mal_id: str):
 
 
 async def _translate_and_cache_meta(mal_id: str, meta: dict):
-    """Background task: translate description and update cache."""
+    """Background task: translate description and update cache.
+    
+    `meta` here is a minimal dict with 'description' key.
+    We need to get full meta from _mem_cache to persist.
+    """
     import logging
     if mal_id in _translating_in_progress:
         return
@@ -300,17 +310,22 @@ async def _translate_and_cache_meta(mal_id: str, meta: dict):
         logging.info(f"[Translate] Starting translation for mal:{mal_id} ({len(desc)} chars)")
         translated = await translate_to_polish(desc)
         if translated:
-            # Fetch full meta from cache and update only description
-            cached = await get_cached_meta(mal_id)
-            if cached:
-                cached['description'] = translated
-                await set_cached_meta(mal_id, cached)
-                _mem_cache[mal_id] = (cached, int(time.time()))
+            # Get full meta from mem_cache (it's there with short TTL)
+            full_meta = None
+            if mal_id in _mem_cache:
+                full_meta = _mem_cache[mal_id][0]
+            if not full_meta:
+                full_meta = await _get_expired_meta(mal_id)
+            if full_meta:
+                full_meta = dict(full_meta)
+                full_meta['description'] = translated
             else:
-                # No cached meta yet, just update what we have
-                meta['description'] = translated
-                await set_cached_meta(mal_id, meta)
-                _mem_cache[mal_id] = (meta, int(time.time()))
+                # Shouldn't happen, but fallback
+                full_meta = meta
+                full_meta['description'] = translated
+            
+            await set_cached_meta(mal_id, full_meta)
+            _mem_cache[mal_id] = (full_meta, int(time.time()))
             logging.info(f"[Translate] Success for mal:{mal_id}")
         else:
             logging.warning(f"[Translate] Failed for mal:{mal_id} - got None")
@@ -434,6 +449,8 @@ async def _do_translate_videos(mal_id: str, videos: list):
                 if translated:
                     videos[idx]["overview"] = translated
                     translated_count += 1
+            # Save progress after each chunk
+            await set_cached_videos(mal_id, videos)
         
         # Titles in chunks of 10
         for chunk_start in range(0, len(to_translate_ti), 10):
@@ -444,8 +461,9 @@ async def _do_translate_videos(mal_id: str, videos: list):
                 if translated:
                     videos[idx]["title"] = translated
                     translated_count += 1
+            # Save progress after each chunk
+            await set_cached_videos(mal_id, videos)
         
-        await set_cached_videos(mal_id, videos)
         logging.info(f"[Translate BG] Videos done mal:{mal_id} - {translated_count} translations")
     except Exception as e:
         logging.error(f"[Translate BG] Videos exception mal:{mal_id}: {e}")
