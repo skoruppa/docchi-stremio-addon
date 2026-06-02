@@ -13,7 +13,7 @@ VIDEOS_TTL_FINISHED = 2592000  # 1 month for finished series
 VIDEOS_TTL_UNTRANSLATED = 120  # 2 minutes for fallback (untranslated) content
 _mem_cache: dict[str, tuple[dict, float]] = {}  # mal_id -> (meta, timestamp)
 _videos_mem_cache: dict[str, tuple[list, float, int]] = {}  # mal_id -> (videos, timestamp, ttl_override)
-_translating_in_progress: set[str] = {}  # mal_ids currently being translated (dedup)
+_translating_in_progress: set[str] = set()  # mal_ids currently being translated (dedup)
 
 
 async def get_cached_meta(mal_id: str):
