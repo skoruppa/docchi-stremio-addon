@@ -33,12 +33,13 @@ async def get_fanart_images(imdb_id: str = None, tvdb_id: int = None, tmdb_id: i
                             result["poster"] = result.get("poster") or _fanart_first(data.get("movieposter"))
         except Exception:
             pass
-    if imdb_id and not result.get("logo"):
+    if imdb_id and (not result.get("logo") or not result.get("background")):
         try:
             async with aiohttp.ClientSession(timeout=TIMEOUT) as session:
-                async with session.get(f"https://images.metahub.space/logo/medium/{imdb_id}/img") as r:
-                    if r.status == 200:
-                        result["logo"] = str(r.url)
+                if not result.get("logo"):
+                    async with session.get(f"https://images.metahub.space/logo/medium/{imdb_id}/img") as r:
+                        if r.status == 200:
+                            result["logo"] = str(r.url)
                 if not result.get("background"):
                     async with session.get(f"https://images.metahub.space/background/medium/{imdb_id}/img") as r:
                         if r.status == 200:
