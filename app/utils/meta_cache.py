@@ -300,9 +300,17 @@ async def _translate_and_cache_meta(mal_id: str, meta: dict):
         logging.info(f"[Translate] Starting translation for mal:{mal_id} ({len(desc)} chars)")
         translated = await translate_to_polish(desc)
         if translated:
-            meta['description'] = translated
-            await set_cached_meta(mal_id, meta)
-            _mem_cache[mal_id] = (meta, int(time.time()))
+            # Fetch full meta from cache and update only description
+            cached = await get_cached_meta(mal_id)
+            if cached:
+                cached['description'] = translated
+                await set_cached_meta(mal_id, cached)
+                _mem_cache[mal_id] = (cached, int(time.time()))
+            else:
+                # No cached meta yet, just update what we have
+                meta['description'] = translated
+                await set_cached_meta(mal_id, meta)
+                _mem_cache[mal_id] = (meta, int(time.time()))
             logging.info(f"[Translate] Success for mal:{mal_id}")
         else:
             logging.warning(f"[Translate] Failed for mal:{mal_id} - got None")
