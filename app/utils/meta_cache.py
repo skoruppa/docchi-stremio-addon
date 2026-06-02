@@ -455,7 +455,7 @@ def _start_background_meta_translation(mal_id: str, description: str):
 
 
 async def _do_translate_videos(mal_id: str, videos: list):
-    """Translate all video overviews and titles, save to cache."""
+    """Translate all video overviews and titles that are untranslated, save to cache."""
     import logging
     key = f"videos:{mal_id}"
     if key in _translating_in_progress:
@@ -464,8 +464,17 @@ async def _do_translate_videos(mal_id: str, videos: list):
     try:
         from app.utils.translate import batch_translate_to_polish
         
-        to_translate_ov = [(i, v["overview"]) for i, v in enumerate(videos) if v.get("overview")]
-        to_translate_ti = [(i, v["title"]) for i, v in enumerate(videos) if v.get("title") and not v["title"].startswith("Episode ")]
+        # Only translate items that were flagged as untranslated (or still have English text)
+        # We keep _untranslated_title and _untranslated_overview flags on videos
+        to_translate_ov = [(i, v["overview"]) for i, v in enumerate(videos) 
+                          if v.get("overview") and v.get("_untranslated_overview")]
+        to_translate_ti = [(i, v["title"]) for i, v in enumerate(videos) 
+                          if v.get("title") and v.get("_untranslated_title")]
+        
+        # Fallback: if no flags set (old path), translate all non-"Episode N" titles and all overviews
+        if not to_translate_ov and not to_translate_ti:
+            to_translate_ov = [(i, v["overview"]) for i, v in enumerate(videos) if v.get("overview")]
+            to_translate_ti = [(i, v["title"]) for i, v in enumerate(videos) if v.get("title") and not v["title"].startswith("Episode ")]
         
         translated_count = 0
         # Overviews in chunks of 10
@@ -477,6 +486,7 @@ async def _do_translate_videos(mal_id: str, videos: list):
             for (idx, _), translated in zip(chunk, translations):
                 if translated:
                     videos[idx]["overview"] = translated
+                    videos[idx].pop("_untranslated_overview", None)
                     translated_count += 1
                     chunk_ok += 1
             logging.info(f"[Translate BG] mal:{mal_id} overviews chunk {chunk_start//10+1}: {chunk_ok}/{len(chunk)}")
@@ -492,6 +502,7 @@ async def _do_translate_videos(mal_id: str, videos: list):
             for (idx, _), translated in zip(chunk, translations):
                 if translated:
                     videos[idx]["title"] = translated
+                    videos[idx].pop("_untranslated_title", None)
                     translated_count += 1
                     chunk_ok += 1
             logging.info(f"[Translate BG] mal:{mal_id} titles chunk {chunk_start//10+1}: {chunk_ok}/{len(chunk)}")
@@ -554,21 +565,27 @@ async def _translate_videos_background(mal_id: str, tvdb_id: int, all_seasons: l
                 pol_ep = pol_map.get(num, {})
                 
                 # Overview
-                if pol_ep.get("overview"):
-                    ep["overview"] = pol_ep["overview"]
+                pol_overview = pol_ep.get("overview")
+                eng_overview = ep.get("overview")
+                if pol_overview and pol_overview != eng_overview:
+                    # Genuine Polish translation exists
+                    ep["overview"] = pol_overview
                 elif vid_id in prev_overview_map:
                     ep["overview"] = prev_overview_map[vid_id]
-                elif ep.get("overview"):
-                    to_translate_overviews.append(ep["overview"])
+                elif eng_overview:
+                    to_translate_overviews.append(eng_overview)
                     overview_refs.append(ep)
                 
                 # Title
-                if pol_ep.get("name"):
-                    ep["name"] = pol_ep["name"]
+                pol_name = pol_ep.get("name")
+                eng_name = ep.get("name")
+                if pol_name and pol_name != eng_name:
+                    # Genuine Polish translation exists
+                    ep["name"] = pol_name
                 elif f"{vid_id}:title" in prev_overview_map:
                     ep["name"] = prev_overview_map[f"{vid_id}:title"]
-                elif ep.get("name") and ep["name"] != f"Episode {num}":
-                    to_translate_titles.append(ep["name"])
+                elif eng_name and eng_name != f"Episode {num}":
+                    to_translate_titles.append(eng_name)
                     title_refs.append(ep)
 
             # Batch translate overviews and titles together

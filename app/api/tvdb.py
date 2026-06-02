@@ -137,15 +137,20 @@ async def _fill_english_fallback(episodes: list, tvdb_id: int, season_number: in
         # If overview matches English exactly, it's not translated
         if ep.get("overview") and eng_ep.get("overview") and ep["overview"] == eng_ep["overview"]:
             ep["_untranslated"] = True
+            ep["_untranslated_overview"] = True
         elif not ep.get("overview") and eng_ep.get("overview"):
             ep["overview"] = eng_ep["overview"]
             ep["_untranslated"] = True
+            ep["_untranslated_overview"] = True
         
-        # If name matches English or is missing, fill from English
+        # If name matches English or is missing, fill from English and mark
         if not ep.get("name") and eng_ep.get("name"):
             ep["name"] = eng_ep["name"]
+            ep["_untranslated"] = True
+            ep["_untranslated_title"] = True
         elif ep.get("name") and eng_ep.get("name") and ep["name"] == eng_ep["name"]:
             ep["_untranslated"] = True
+            ep["_untranslated_title"] = True
 
 
 async def _fetch_episodes_for_lang(tvdb_id: int, season_number: int = None, lang: str = "pol") -> list:
@@ -314,18 +319,31 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
     if not poster:
         poster = fanart.get("poster") or series_ext.get("image")
 
-    # Cast links from TVDB characters
+    # Cast from TVDB characters (for links and app_extras)
     cast_links = []
+    cast_extras = []
     characters = series_ext.get("characters") or []
     for char in characters:
         if char.get("type") == "Actor" or char.get("peopleType") == "Actor":
             person_name = char.get("personName")
-            if person_name:
-                cast_links.append({
-                    "name": person_name,
-                    "category": "Cast",
-                    "url": f"stremio:///search?search={person_name.replace(' ', '%20')}"
-                })
+            if not person_name:
+                continue
+            # Cast link for Stremio search
+            cast_links.append({
+                "name": person_name,
+                "category": "Cast",
+                "url": f"stremio:///search?search={person_name.replace(' ', '%20')}"
+            })
+            # Cast extras with character name and photo
+            char_name = char.get("name") or ""
+            photo = char.get("image") or char.get("personImgURL") or ""
+            if photo and not photo.startswith("http"):
+                photo = f"https://artworks.thetvdb.com{photo}"
+            cast_extras.append({
+                "name": person_name,
+                "character": char_name,
+                "photo": photo or None,
+            })
         if len(cast_links) >= 10:
             break
 
@@ -429,6 +447,16 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
     }
     if season_posters:
         result["seasonPosters"] = season_posters
+    # app_extras with cast, certification, seasonPosters
+    app_extras = {}
+    if cast_extras:
+        app_extras["cast"] = cast_extras
+    if certification:
+        app_extras["certification"] = certification
+    if season_posters:
+        app_extras["seasonPosters"] = season_posters
+    if app_extras:
+        result["app_extras"] = app_extras
     if _description_untranslated:
         result["_untranslated"] = True
     return result
@@ -541,6 +569,10 @@ def _build_videos_from_episodes(episodes: list, mal_id: str = None, season_numbe
             video["runtime"] = runtime_str
         if ep.get("_untranslated"):
             video["_untranslated"] = True
+        if ep.get("_untranslated_title"):
+            video["_untranslated_title"] = True
+        if ep.get("_untranslated_overview"):
+            video["_untranslated_overview"] = True
         videos.append(video)
 
     return videos
