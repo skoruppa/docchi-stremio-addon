@@ -6,6 +6,7 @@ from app.routes.catalog import catalog_bp
 from app.routes.manifest import manifest_blueprint
 from app.routes.meta import meta_bp
 from app.routes.stream import stream_bp
+from app.routes.translate import translate_bp
 from app.utils.stream_utils import cache
 from app.utils.anime_mapping import load_mapping
 from config import Config
@@ -29,6 +30,7 @@ app.register_blueprint(manifest_blueprint)
 app.register_blueprint(catalog_bp)
 app.register_blueprint(meta_bp)
 app.register_blueprint(stream_bp)
+app.register_blueprint(translate_bp)
 
 # Register blueprints with VIP prefix
 app.register_blueprint(manifest_blueprint, name='manifest_vip', url_prefix=f'/{Config.VIP_PATH}')

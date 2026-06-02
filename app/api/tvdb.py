@@ -112,25 +112,35 @@ async def get_series_episodes(tvdb_id: int, season_number: int = None, lang: str
 
 
 async def _fill_english_fallback(episodes: list, tvdb_id: int, season_number: int = None):
-    """Fill missing overview/name from English episodes. Marks as _untranslated."""
-    missing = [ep for ep in episodes if not ep.get("overview") and ep.get("number", 0) > 0]
-    if not missing:
+    """Detect untranslated episodes by comparing with English. Marks as _untranslated."""
+    if not episodes:
         return
 
+    # Fetch English episodes to compare
     eng_episodes = await _fetch_episodes_for_lang(tvdb_id, season_number, "eng")
     if not eng_episodes:
         return
 
     eng_map = {ep.get("number"): ep for ep in eng_episodes if ep.get("number")}
 
-    for ep in missing:
-        eng_ep = eng_map.get(ep.get("number"))
-        if eng_ep:
-            if eng_ep.get("overview"):
-                ep["overview"] = eng_ep["overview"]
-                ep["_untranslated"] = True
-            if not ep.get("name") and eng_ep.get("name"):
-                ep["name"] = eng_ep["name"]
+    for ep in episodes:
+        num = ep.get("number", 0)
+        if num <= 0:
+            continue
+        eng_ep = eng_map.get(num, {})
+        
+        # If overview matches English exactly, it's not translated
+        if ep.get("overview") and eng_ep.get("overview") and ep["overview"] == eng_ep["overview"]:
+            ep["_untranslated"] = True
+        elif not ep.get("overview") and eng_ep.get("overview"):
+            ep["overview"] = eng_ep["overview"]
+            ep["_untranslated"] = True
+        
+        # If name matches English or is missing, fill from English
+        if not ep.get("name") and eng_ep.get("name"):
+            ep["name"] = eng_ep["name"]
+        elif ep.get("name") and eng_ep.get("name") and ep["name"] == eng_ep["name"]:
+            ep["_untranslated"] = True
 
 
 async def _fetch_episodes_for_lang(tvdb_id: int, season_number: int = None, lang: str = "pol") -> list:
@@ -380,7 +390,7 @@ def _build_videos_from_episodes(episodes: list, mal_id: str = None, season_numbe
 
         vid_id = f"mal:{mal_id}:{ep_num}" if mal_id else f"tvdb:{ep_num}"
 
-        videos.append({
+        video = {
             "id": vid_id,
             "title": title,
             "released": released,
@@ -388,7 +398,10 @@ def _build_videos_from_episodes(episodes: list, mal_id: str = None, season_numbe
             "episode": ep_num,
             "thumbnail": thumbnail,
             "overview": overview,
-        })
+        }
+        if ep.get("_untranslated"):
+            video["_untranslated"] = True
+        videos.append(video)
 
     return videos
 
