@@ -284,8 +284,13 @@ async def fetch_videos(mal_id: str) -> list:
     # Try TVDB first with multi-season support
     if Config.TVDB_API_KEY and ids.get('tvdb_id') and ids.get('tvdb_season') is not None:
         try:
-            from app.api.tvdb import get_series_episodes, _build_videos_from_episodes
+            from app.api.tvdb import get_series_episodes, _build_videos_from_episodes, get_series_extended
             tvdb_id = ids['tvdb_id']
+
+            # Get airs time and country from series record
+            series_ext = await get_series_extended(tvdb_id)
+            airs_time = (series_ext or {}).get("airsTime") or "00:00"
+            original_country = (series_ext or {}).get("originalCountry") or ""
 
             # Get all seasons that share the same tvdb_id
             all_seasons = get_all_seasons_for_tvdb_id(tvdb_id)
@@ -302,7 +307,7 @@ async def fetch_videos(mal_id: str) -> list:
 
                 episodes = await get_series_episodes(tvdb_id, season_number=int(tvdb_season), lang="pol")
                 logging.info(f"[TVDB] Season {tvdb_season} (mal:{entry_mal_id}): got {len(episodes)} episodes")
-                season_videos = _build_videos_from_episodes(episodes, entry_mal_id, int(tvdb_season))
+                season_videos = _build_videos_from_episodes(episodes, entry_mal_id, int(tvdb_season), airs_time, original_country)
 
                 # Set the season number to the TVDB season for proper multi-season display
                 for v in season_videos:

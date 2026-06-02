@@ -12,6 +12,14 @@ _token: str | None = None
 _token_expires: float = 0
 
 
+def _is_non_latin(text: str) -> bool:
+    """Check if text contains mostly non-Latin characters (Japanese, Chinese, Korean, etc.)."""
+    if not text:
+        return True
+    latin_count = sum(1 for c in text if c.isascii() and c.isalpha())
+    return latin_count < len(text.replace(" ", "")) * 0.5
+
+
 async def _get_token() -> str | None:
     """Authenticate with TVDB API and return bearer token (cached for 25 days)."""
     global _token, _token_expires
@@ -219,17 +227,33 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
     if not series_ext:
         return None
 
-    # Series name: prefer Polish translation, fallback to original
+    # Fetch trailer from Kitsu (fast, separate call)
+    trailers = []
+    if mal_id:
+        from app.utils.anime_mapping import get_kitsu_from_mal_id
+        kitsu_id = get_kitsu_from_mal_id(mal_id)
+        if kitsu_id:
+            trailers = await _fetch_trailer_from_kitsu(kitsu_id)
+
+    # Series name: prefer Polish translation, then English, fallback to original
     name = series_ext.get("name", "")
     description = None
     if translation:
         name = translation.get("name") or name
         description = translation.get("overview")
 
+    # If name is still non-Latin (e.g. Japanese), get English name
+    eng_translation = None
+    if not name or _is_non_latin(name):
+        eng_translation = await get_series_translation(tvdb_id, "eng")
+        if eng_translation and eng_translation.get("name"):
+            name = eng_translation["name"]
+
     # If no Polish description, try AI translation from English
     _description_untranslated = False
     if not description:
-        eng_translation = await get_series_translation(tvdb_id, "eng")
+        if not eng_translation:
+            eng_translation = await get_series_translation(tvdb_id, "eng")
         if eng_translation and eng_translation.get("overview"):
             from app.utils.translate import translate_to_polish
             description = await translate_to_polish(eng_translation["overview"])
@@ -277,7 +301,9 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
     content_type = "series"
 
     # Build videos from episodes
-    videos = _build_videos_from_episodes(episodes, mal_id, season_number)
+    airs_time = series_ext.get("airsTime") or "00:00"
+    original_country = series_ext.get("originalCountry") or ""
+    videos = _build_videos_from_episodes(episodes, mal_id, season_number, airs_time, original_country)
 
     result = {
         "id": f"mal:{mal_id}" if mal_id else f"tvdb:{tvdb_id}",
@@ -293,7 +319,7 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
         "background": background,
         "logo": logo,
         "videos": videos,
-        "trailers": [],
+        "trailers": trailers,
         "links": [],
     }
     if _description_untranslated:
@@ -301,10 +327,47 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
     return result
 
 
-def _build_videos_from_episodes(episodes: list, mal_id: str = None, season_number: int = None) -> list:
+def _airs_time_to_utc(airs_time: str, original_country: str) -> str:
+    """Convert local airs_time to UTC time string (HH:MM:SS).
+    
+    TVDB airsTime is local to the country of origin:
+    - jpn: JST (UTC+9)
+    - usa/can: EST (UTC-5)
+    - kor: KST (UTC+9)
+    - gbr: GMT (UTC+0)
+    - Others: assume UTC
+    """
+    # Country -> UTC offset in hours
+    OFFSETS = {
+        "jpn": 9,
+        "kor": 9,
+        "chn": 8,
+        "usa": -5,
+        "can": -5,
+        "gbr": 0,
+        "fra": 1,
+        "deu": 1,
+        "aus": 10,
+    }
+
+    try:
+        parts = airs_time.split(":")
+        hour = int(parts[0])
+        minute = int(parts[1]) if len(parts) > 1 else 0
+    except (ValueError, IndexError):
+        return "00:00:00"
+
+    offset = OFFSETS.get(original_country.lower(), 0)
+    utc_hour = (hour - offset) % 24
+    return f"{utc_hour:02d}:{minute:02d}:00"
+
+
+def _build_videos_from_episodes(episodes: list, mal_id: str = None, season_number: int = None, airs_time: str = "00:00", original_country: str = "") -> list:
     """Build Stremio video objects from TVDB episode data.
     
     Episodes are numbered sequentially within the season (1, 2, 3, ...).
+    airs_time is the series broadcast time in local timezone.
+    original_country is used to determine timezone offset (jpn=UTC+9, usa=UTC-5 EST).
     """
     if not episodes:
         return []
@@ -316,6 +379,9 @@ def _build_videos_from_episodes(episodes: list, mal_id: str = None, season_numbe
     # Sort by episode number
     episodes.sort(key=lambda e: e.get("number", 0))
 
+    # Calculate UTC offset based on country
+    utc_released = _airs_time_to_utc(airs_time, original_country)
+
     videos = []
     for ep in episodes:
         ep_num = ep.get("number", 0)
@@ -323,7 +389,7 @@ def _build_videos_from_episodes(episodes: list, mal_id: str = None, season_numbe
             continue
 
         aired = ep.get("aired")
-        released = f"{aired}T00:00:00Z" if aired else None
+        released = f"{aired}T{utc_released}Z" if aired else None
 
         title = ep.get("name") or f"Episode {ep_num}"
         overview = ep.get("overview")
@@ -344,3 +410,20 @@ def _build_videos_from_episodes(episodes: list, mal_id: str = None, season_numbe
         })
 
     return videos
+
+
+async def _fetch_trailer_from_kitsu(kitsu_id: str) -> list:
+    """Fetch YouTube trailer ID from Kitsu API."""
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
+            async with session.get(f"https://kitsu.io/api/edge/anime/{kitsu_id}",
+                                   params={"fields[anime]": "youtubeVideoId"}) as resp:
+                if resp.status != 200:
+                    return []
+                data = await resp.json()
+                yt_id = data.get("data", {}).get("attributes", {}).get("youtubeVideoId")
+                if yt_id:
+                    return [{"source": yt_id, "type": "Trailer"}]
+    except Exception:
+        pass
+    return []
