@@ -50,6 +50,11 @@ def get_anime_by_imdb_id(imdb_id: str) -> list:
     return [_row_to_dict(r) for r in rows]
 
 
+def get_anime_by_tvdb_id(tvdb_id: int) -> list:
+    rows = connection.execute("SELECT * FROM anime_mapping WHERE tvdb_id=?", (tvdb_id,)).fetchall()
+    return [_row_to_dict(r) for r in rows]
+
+
 def get_slug_from_mal_id(mal_id) -> tuple:
     row = connection.execute("SELECT slug FROM slug_mapping WHERE mal_id=?", (int(mal_id),)).fetchone()
     return (True, row['slug']) if row else (False, None)

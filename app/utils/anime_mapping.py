@@ -34,10 +34,11 @@ def load_mapping():
         with open(MAPPING_FILE, 'r') as f:
             data = json.load(f)
         
-        # Use hash of file content to detect changes
+        # Use hash of file content + schema version to detect changes
         import hashlib
+        MAPPING_SCHEMA_VERSION = "2"  # bump when _load_to_redis changes structure
         file_content = json.dumps(data, sort_keys=True)
-        file_hash = hashlib.md5(file_content.encode()).hexdigest()
+        file_hash = hashlib.md5((file_content + MAPPING_SCHEMA_VERSION).encode()).hexdigest()
             
         if _redis_client:
             # Check if Redis has same version
@@ -114,6 +115,35 @@ def _load_to_redis(data):
     for iid, items in imdb_map.items():
         pipe.setex(f"imdb:{iid}", ttl, json.dumps(items))
     pipe.execute()
+
+    # Build TVDB map (tvdb_id -> list of seasons)
+    tvdb_map = {}
+    for item in data:
+        tvdb_id = item.get('tvdb_id')
+        if not tvdb_id:
+            continue
+        mini = {}
+        if item.get('mal_id'):
+            mini['mal_id'] = item['mal_id']
+        if item.get('kitsu_id'):
+            mini['kitsu_id'] = item['kitsu_id']
+        if item.get('imdb_id'):
+            mini['imdb_id'] = item['imdb_id']
+        if item.get('tvdb_id'):
+            mini['tvdb_id'] = item['tvdb_id']
+        if item.get('themoviedb_id'):
+            mini['themoviedb_id'] = item['themoviedb_id']
+        if item.get('season', {}).get('tvdb'):
+            mini['season'] = {'tvdb': item['season']['tvdb']}
+        tvdb_key = str(tvdb_id)
+        if tvdb_key not in tvdb_map:
+            tvdb_map[tvdb_key] = []
+        tvdb_map[tvdb_key].append(mini)
+
+    pipe = _redis_client.pipeline()
+    for tid, items in tvdb_map.items():
+        pipe.setex(f"tvdb:{tid}", ttl, json.dumps(items))
+    pipe.execute()
     
     logging.info(f"Loaded {len(data)} anime to Redis with {ttl}s TTL")
 
@@ -173,6 +203,7 @@ def get_ids_from_mal_id(mal_id: str) -> dict:
         'imdb_id': (imdb_id[0] if isinstance(imdb_id, list) else imdb_id) or None,
         'tvdb_id': item.get('tvdb_id'),
         'tmdb_id': item.get('themoviedb_id'),
+        'tvdb_season': item.get('season', {}).get('tvdb') if item.get('season') else None,
     }
 
 def _get_imdb_items(imdb_id: str) -> list:
@@ -184,6 +215,24 @@ def _get_imdb_items(imdb_id: str) -> list:
             return items if isinstance(items, list) else [items]
     else:
         return db.get_anime_by_imdb_id(imdb_id)
+    return []
+
+
+def get_all_seasons_for_tvdb_id(tvdb_id: int) -> list[dict]:
+    """Get all MAL entries that share the same TVDB ID (multi-season series).
+    
+    Returns list of dicts with keys: mal_id, kitsu_id, tvdb_season, sorted by tvdb_season.
+    """
+    if _redis_client:
+        data = _redis_client.get(f"tvdb:{tvdb_id}")
+        if data:
+            items = json.loads(data)
+            items = items if isinstance(items, list) else [items]
+            return sorted(items, key=lambda x: int(x.get('season', {}).get('tvdb', 0) if isinstance(x.get('season'), dict) else 0))
+    else:
+        items = db.get_anime_by_tvdb_id(int(tvdb_id))
+        if items:
+            return sorted(items, key=lambda x: int(x.get('season', {}).get('tvdb', 0) if isinstance(x.get('season'), dict) else 0))
     return []
 
 def _get_item(key_type: str, key_value: str) -> Optional[dict]:

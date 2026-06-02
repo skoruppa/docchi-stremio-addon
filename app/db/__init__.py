@@ -16,6 +16,7 @@ connection.executescript("""
     CREATE INDEX IF NOT EXISTS idx_mal ON anime_mapping(mal_id);
     CREATE INDEX IF NOT EXISTS idx_kitsu ON anime_mapping(kitsu_id);
     CREATE INDEX IF NOT EXISTS idx_imdb ON anime_mapping(imdb_id);
+    CREATE INDEX IF NOT EXISTS idx_tvdb ON anime_mapping(tvdb_id);
     CREATE TABLE IF NOT EXISTS slug_mapping (
         mal_id INTEGER PRIMARY KEY,
         slug TEXT UNIQUE
@@ -23,6 +24,11 @@ connection.executescript("""
     CREATE TABLE IF NOT EXISTS meta_cache (
         mal_id TEXT PRIMARY KEY,
         meta TEXT,
+        timestamp INTEGER
+    );
+    CREATE TABLE IF NOT EXISTS videos_cache (
+        mal_id TEXT PRIMARY KEY,
+        videos TEXT,
         timestamp INTEGER
     );
 """)
@@ -37,13 +43,22 @@ class _Row(dict):
         return super().__getitem__(key)
 
 
+# Pre-import libsql_client at module level if Turso is configured
+_libsql_client = None
+_turso_url = None
+if Config.TURSO_URL and Config.TURSO_TOKEN:
+    try:
+        import libsql_client as _libsql_client
+        _turso_url = Config.TURSO_URL.replace('libsql://', 'https://')
+    except ImportError:
+        _libsql_client = None
+
+
 async def execute(sql: str, params=()) -> list:
     """Unified async execute for Turso or SQLite. Returns list of _Row."""
-    if Config.TURSO_URL and Config.TURSO_TOKEN:
+    if _libsql_client and _turso_url:
         try:
-            import libsql_client
-            url = Config.TURSO_URL.replace('libsql://', 'https://')
-            async with libsql_client.create_client(url=url, auth_token=Config.TURSO_TOKEN) as client:
+            async with _libsql_client.create_client(url=_turso_url, auth_token=Config.TURSO_TOKEN) as client:
                 rs = await client.execute(sql, list(params))
                 cols = list(rs.columns)
                 return [_Row(zip(cols, row)) for row in rs.rows]
