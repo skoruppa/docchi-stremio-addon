@@ -146,9 +146,14 @@ async def translate_batch_meta():
 async def cron_translate():
     """Cron job: translate untranslated meta descriptions and video episodes.
     
-    Called by Vercel Cron every minute. Processes a few items per run.
-    Vercel cron sends Authorization header automatically.
+    Called by Vercel Cron or GitHub Actions. Processes a few items per run.
     """
+    # Auth: accept X-Internal-Key header or Vercel's built-in cron auth
+    if request.headers.get('X-Internal-Key') != Config.VIP_PATH:
+        # Vercel cron sends Authorization: Bearer <CRON_SECRET>
+        if not request.headers.get('Authorization', '').startswith('Bearer'):
+            abort(403)
+
     import time
     import orjson as _orjson
     from app.db import execute

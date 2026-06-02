@@ -15,7 +15,7 @@
     "crons": [
         {
             "path": "/internal/cron/translate",
-            "schedule": "* * * * *"
+            "schedule": "0 3 * * *"
         }
     ]
 }

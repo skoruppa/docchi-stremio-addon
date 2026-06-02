@@ -1,0 +1,16 @@
+name: Translate Cron
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # every 5 minutes
+  workflow_dispatch:  # manual trigger
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger translation cron
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" \
+            -H "X-Internal-Key: ${{ secrets.VIP_PATH }}" \
+            "${{ secrets.APP_URL }}/internal/cron/translate"
