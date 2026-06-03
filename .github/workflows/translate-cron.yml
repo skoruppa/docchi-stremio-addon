@@ -11,6 +11,13 @@ jobs:
     steps:
       - name: Trigger translation cron
         run: |
-          curl -s -o /dev/null -w "%{http_code}" \
+          response=$(curl -s -w "\n%{http_code}" \
             -H "X-Internal-Key: ${{ secrets.VIP_PATH }}" \
-            "${{ secrets.APP_URL }}/internal/cron/translate"
+            "${{ secrets.APP_URL }}/internal/cron/translate")
+          http_code=$(echo "$response" | tail -1)
+          body=$(echo "$response" | head -n -1)
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+          if [ "$http_code" != "200" ]; then
+            echo "::warning::Translation cron returned $http_code"
+          fi
