@@ -320,18 +320,41 @@ async def _fill_genres_from_docchi(meta: dict, mal_id: str):
 async def fetch_videos(mal_id: str) -> list:
     """Fetch videos/episodes for a given MAL ID with caching.
     
-    Cache TTL: 12h for airing series (has future episode dates), 1 month for finished.
+    Cache TTL: 3h for airing series (has future episode dates), 1 month for finished.
     When TVDB is configured, fetches episodes for ALL seasons sharing the same tvdb_id.
     """
     import logging
+    import time as _time
 
     # Check cache first
     cached = await get_cached_videos(mal_id)
     if cached is not None:
         return cached
 
+    _t0 = _time.time()
     ids = get_ids_from_mal_id(mal_id)
     videos = []
+
+    # Load expired cache to preserve previous translations
+    prev_translations = {}  # vid_id -> {"title": ..., "overview": ...}
+    rows = await execute("SELECT videos FROM videos_cache WHERE mal_id=?", (mal_id,))
+    if rows:
+        import orjson as _orjson
+        prev_videos = _orjson.loads(rows[0]['videos'])
+        for v in prev_videos:
+            vid_id = v.get("id")
+            if not vid_id:
+                continue
+            # Only keep if it was actually translated (no _untranslated flags)
+            entry = {}
+            if v.get("title") and not v.get("_untranslated_title"):
+                entry["title"] = v["title"]
+            if v.get("overview") and not v.get("_untranslated_overview"):
+                entry["overview"] = v["overview"]
+            if entry:
+                prev_translations[vid_id] = entry
+        # Delete expired entry
+        await execute("DELETE FROM videos_cache WHERE mal_id=?", (mal_id,))
 
     # Try TVDB first with multi-season support
     if Config.TVDB_API_KEY and ids.get('tvdb_id'):
@@ -340,7 +363,9 @@ async def fetch_videos(mal_id: str) -> list:
             tvdb_id = ids['tvdb_id']
 
             # Get airs time and country from series record
+            _t1 = _time.time()
             series_ext = await get_series_extended(tvdb_id)
+            logging.info(f"[TVDB timing] get_series_extended: {_time.time()-_t1:.2f}s")
             airs_time = (series_ext or {}).get("airsTime") or "00:00"
             original_country = (series_ext or {}).get("originalCountry") or ""
 
@@ -354,8 +379,9 @@ async def fetch_videos(mal_id: str) -> list:
             if not all_seasons or not has_season_info:
                 # No season mapping — fetch all episodes for current mal_id only
                 tvdb_season_num = int(ids['tvdb_season']) if ids.get('tvdb_season') else None
+                _t1 = _time.time()
                 episodes = await get_series_episodes(tvdb_id, season_number=tvdb_season_num, lang="pol")
-                logging.info(f"[TVDB] All episodes (mal:{mal_id}): got {len(episodes)} episodes")
+                logging.info(f"[TVDB timing] get_series_episodes: {_time.time()-_t1:.2f}s, got {len(episodes)} eps")
                 season_videos = _build_videos_from_episodes(episodes, mal_id, tvdb_season_num, airs_time, original_country)
                 for v in season_videos:
                     v['season'] = v.get('season', 1)
@@ -363,15 +389,16 @@ async def fetch_videos(mal_id: str) -> list:
             else:
                 # Group MAL entries by TVDB season
                 from collections import defaultdict
-                season_groups = defaultdict(list)  # tvdb_season -> list of mal_ids
+                season_groups = defaultdict(list)
                 for season_entry in all_seasons:
                     tvdb_season = season_entry.get('season', {}).get('tvdb')
                     if tvdb_season is not None:
                         season_groups[int(tvdb_season)].append(str(season_entry.get('mal_id', mal_id)))
 
                 for tvdb_season, mal_ids_for_season in sorted(season_groups.items()):
+                    _t1 = _time.time()
                     episodes = await get_series_episodes(tvdb_id, season_number=tvdb_season, lang="pol")
-                    logging.info(f"[TVDB] Season {tvdb_season} (mal_ids={mal_ids_for_season}): got {len(episodes)} episodes")
+                    logging.info(f"[TVDB timing] get_series_episodes s{tvdb_season}: {_time.time()-_t1:.2f}s, got {len(episodes)} eps")
 
                     if len(mal_ids_for_season) == 1:
                         # Simple case: one MAL entry per season
@@ -426,23 +453,46 @@ async def fetch_videos(mal_id: str) -> list:
                             logging.info(f"[TVDB] Split: mal:{entry_mal_id} got {len(season_videos)} episodes (offset was {offset - ep_count})")
 
             if videos:
-                await _enrich_thumbnails({'videos': videos}, mal_id)
-                # Backdrop fallback for episodes still without thumbnail
-                missing_thumbs = [v for v in videos if not v.get('thumbnail')]
-                if missing_thumbs:
-                    # Get backdrop from cached meta or series image
-                    backdrop = None
-                    cached_meta = await get_cached_meta(mal_id)
-                    if cached_meta:
-                        backdrop = cached_meta.get('background')
-                    if not backdrop and series_ext:
-                        backdrop = (series_ext or {}).get("image")
-                    if backdrop:
-                        for v in missing_thumbs:
+                # Backdrop fallback for future episodes without thumbnail (no external call needed)
+                backdrop = None
+                cached_meta = await get_cached_meta(mal_id)
+                if cached_meta:
+                    backdrop = cached_meta.get('background')
+                if not backdrop and series_ext:
+                    backdrop = (series_ext or {}).get("image")
+                if backdrop:
+                    for v in videos:
+                        if not v.get('thumbnail'):
                             v['thumbnail'] = backdrop
+                
+                # Enrich thumbnails from Docchi only if AIRED episodes are missing thumbnails
+                aired_missing = [v for v in videos if v.get('available') and not v.get('thumbnail')]
+                if aired_missing:
+                    _t1 = _time.time()
+                    await _enrich_thumbnails({'videos': videos}, mal_id)
+                    logging.info(f"[TVDB timing] _enrich_thumbnails: {_time.time()-_t1:.2f}s")
+                
                 # Check if any episodes have untranslated content
                 has_untranslated = any(v.get("_untranslated") for v in videos)
-                logging.info(f"[TVDB] has_untranslated={has_untranslated}, total_videos={len(videos)}")
+                
+                # Restore previous translations for episodes that were already translated
+                if prev_translations:
+                    for v in videos:
+                        vid_id = v.get("id")
+                        if vid_id and vid_id in prev_translations:
+                            prev = prev_translations[vid_id]
+                            if prev.get("title") and v.get("_untranslated_title"):
+                                v["title"] = prev["title"]
+                                v.pop("_untranslated_title", None)
+                                v.pop("_untranslated", None)
+                            if prev.get("overview") and v.get("_untranslated_overview"):
+                                v["overview"] = prev["overview"]
+                                v.pop("_untranslated_overview", None)
+                                v.pop("_untranslated", None)
+                    # Recount after merge
+                    has_untranslated = any(v.get("_untranslated") for v in videos)
+                
+                logging.info(f"[TVDB] has_untranslated={has_untranslated}, total_videos={len(videos)}, total_time={_time.time()-_t0:.2f}s")
                 # Strip general _untranslated flag (keep granular _untranslated_title/_untranslated_overview for cron job)
                 for v in videos:
                     v.pop("_untranslated", None)
