@@ -27,4 +27,38 @@ async def addon_meta(meta_type: str, meta_id: str):
 
     meta['id'] = meta_id
     meta['videos'] = await fetch_videos(mal_id)
-    return respond_with({'meta': meta}, 3600)
+
+    # Dynamic cache TTL:
+    # - Short (5min) if has untranslated content (cron will translate soon)
+    # - Airing: min(1h, seconds until next episode premiere)
+    # - Finished and fully translated: 12h
+    has_untranslated = (
+        meta.get('_untranslated_description') or
+        any(v.get('_untranslated_title') or v.get('_untranslated_overview') for v in meta.get('videos', []))
+    )
+    if has_untranslated:
+        cache_time = 300  # 5 min — wait for cron translation
+    elif any(not v.get('available', True) for v in meta.get('videos', [])):
+        # Airing — cap at time until next episode
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        next_premiere = None
+        for v in meta.get('videos', []):
+            released = v.get('released')
+            if not released:
+                continue
+            try:
+                ep_date = datetime.fromisoformat(released.replace('Z', '+00:00'))
+                if ep_date > now and (next_premiere is None or ep_date < next_premiere):
+                    next_premiere = ep_date
+            except (ValueError, TypeError):
+                continue
+        if next_premiere:
+            seconds_until = int((next_premiere - now).total_seconds())
+            cache_time = max(60, min(10800, seconds_until))
+        else:
+            cache_time = 10800
+    else:
+        cache_time = 43200  # 12h — finished, fully translated
+
+    return respond_with({'meta': meta}, cache_time)

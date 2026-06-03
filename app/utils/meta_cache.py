@@ -8,12 +8,10 @@ from app.utils.anime_mapping import get_ids_from_mal_id, get_all_seasons_for_tvd
 from app.db import execute
 
 CACHE_TTL = 2592000  # 1 month
-VIDEOS_TTL_AIRING = 43200  # 12 hours for airing series
+VIDEOS_TTL_AIRING = 10800  # 3 hours for airing series
 VIDEOS_TTL_FINISHED = 2592000  # 1 month for finished series
-VIDEOS_TTL_UNTRANSLATED = 120  # 2 minutes for fallback (untranslated) content
 _mem_cache: dict[str, tuple[dict, float]] = {}  # mal_id -> (meta, timestamp)
 _videos_mem_cache: dict[str, tuple[list, float, int]] = {}  # mal_id -> (videos, timestamp, ttl_override)
-_translating_in_progress: set[str] = set()  # mal_ids currently being translated (dedup)
 
 
 async def get_cached_meta(mal_id: str):
@@ -171,20 +169,10 @@ async def batch_fetch_and_cache_meta(content_ids: list[str], is_vip: bool = Fals
     if missing:
         fetched = await asyncio.gather(*[fetch_and_cache_meta(cid, is_vip) for cid in missing])
         
-        # Collect untranslated descriptions for batch translation
-        untranslated_entries = []
         for i, (cid, (meta, mal_id)) in enumerate(zip(missing, fetched)):
             if meta and mal_id:
                 _mem_cache[mal_id] = (meta, int(time.time()))
-                if meta.get('_untranslated'):
-                    meta.pop('_untranslated', None)
-                    untranslated_entries.append((mal_id, meta))
             results[cid] = meta
-
-        # Fire internal translate endpoint for untranslated descriptions
-        if untranslated_entries:
-            import threading
-            _start_background_batch_meta(untranslated_entries)
 
     return results
 
@@ -249,16 +237,9 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                     is_untranslated = meta.pop('_untranslated', False)
                     await _fill_genres_from_docchi(meta, mal_id)
                     if is_untranslated:
-                        # Save to DB with short TTL (2min) - background will overwrite with full TTL after translation
-                        short_ts = int(time.time()) - CACHE_TTL + VIDEOS_TTL_UNTRANSLATED
-                        await execute(
-                            "INSERT OR REPLACE INTO meta_cache (mal_id, meta, timestamp) VALUES (?,?,?)",
-                            (mal_id, orjson.dumps({k: v for k, v in meta.items() if k != 'videos'}).decode(), short_ts)
-                        )
-                        _mem_cache[mal_id] = (meta, short_ts)
-                        _start_background_meta_translation(mal_id, meta.get('description', ''))
-                    else:
-                        await set_cached_meta(mal_id, meta)
+                        # Mark description as needing translation — cron job will handle it
+                        meta['_untranslated_description'] = True
+                    await set_cached_meta(mal_id, meta)
                     return _with_genre_links(meta), mal_id
         except Exception as e:
             import logging
@@ -307,6 +288,7 @@ async def _get_episode_counts(mal_ids: list[str]) -> list[int]:
             if kitsu_id:
                 async with _aiohttp.ClientSession(timeout=_aiohttp.ClientTimeout(total=5)) as session:
                     async with session.get(f"https://kitsu.io/api/edge/anime/{kitsu_id}",
+                                           headers={"Accept": "application/vnd.api+json", "User-Agent": "Mozilla/5.0"},
                                            params={"fields[anime]": "episodeCount"}) as resp:
                         if resp.status == 200:
                             data = await resp.json()
@@ -333,314 +315,6 @@ async def _fill_genres_from_docchi(meta: dict, mal_id: str):
             meta['genres'] = details['genres']
     except Exception:
         pass
-
-
-async def _translate_and_cache_meta(mal_id: str, meta: dict):
-    """Background task: translate description and update cache.
-    
-    `meta` here is a minimal dict with 'description' key.
-    We need to get full meta from _mem_cache to persist.
-    """
-    import logging
-    if mal_id in _translating_in_progress:
-        return
-    _translating_in_progress.add(mal_id)
-    try:
-        from app.utils.translate import translate_to_polish
-        desc = meta.get('description', '')
-        logging.info(f"[Translate] Starting translation for mal:{mal_id} ({len(desc)} chars)")
-        translated = await translate_to_polish(desc)
-        if translated:
-            # Get full meta from mem_cache (it's there with short TTL)
-            full_meta = None
-            if mal_id in _mem_cache:
-                full_meta = _mem_cache[mal_id][0]
-            if not full_meta:
-                full_meta = await _get_expired_meta(mal_id)
-            if full_meta:
-                full_meta = dict(full_meta)
-                full_meta['description'] = translated
-            else:
-                # Shouldn't happen, but fallback
-                full_meta = meta
-                full_meta['description'] = translated
-            
-            await set_cached_meta(mal_id, full_meta)
-            _mem_cache[mal_id] = (full_meta, int(time.time()))
-            logging.info(f"[Translate] Success for mal:{mal_id}")
-        else:
-            logging.warning(f"[Translate] Failed for mal:{mal_id} - got None")
-    except Exception as e:
-        logging.error(f"[Translate] Exception for mal:{mal_id}: {e}")
-    finally:
-        _translating_in_progress.discard(mal_id)
-
-
-async def _translate_batch_and_cache(entries: list[tuple[str, dict]]):
-    """Background task: batch translate descriptions and update cache."""
-    # Filter out already-in-progress
-    entries = [(mid, m) for mid, m in entries if mid not in _translating_in_progress]
-    if not entries:
-        return
-    for mid, _ in entries:
-        _translating_in_progress.add(mid)
-    try:
-        from app.utils.translate import batch_translate_to_polish
-        texts = [meta.get('description', '') for _, meta in entries]
-        translations = await batch_translate_to_polish(texts)
-        for (mal_id, meta), translated in zip(entries, translations):
-            if translated:
-                meta['description'] = translated
-                await set_cached_meta(mal_id, meta)
-                _mem_cache[mal_id] = (meta, int(time.time()))
-    except Exception:
-        pass
-    finally:
-        for mid, _ in entries:
-            _translating_in_progress.discard(mid)
-
-
-def _start_background_translation(mal_id: str, videos: list):
-    """Start background thread to translate videos."""
-    import threading
-    import logging
-    if f"videos:{mal_id}" in _translating_in_progress:
-        return
-    
-    def _run():
-        import asyncio
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(_do_translate_videos(mal_id, videos))
-        except Exception as e:
-            logging.error(f"[Translate BG] videos error mal:{mal_id}: {e}")
-        finally:
-            loop.close()
-    
-    t = threading.Thread(target=_run, daemon=True)
-    t.start()
-    logging.info(f"[Translate BG] Started videos thread for mal:{mal_id}")
-
-
-def _start_background_batch_meta(entries: list):
-    """Start background thread to batch translate meta descriptions."""
-    import threading
-    import logging
-    
-    def _run():
-        import asyncio
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(_translate_batch_and_cache(entries))
-        except Exception as e:
-            logging.error(f"[Translate BG] batch meta error: {e}")
-        finally:
-            loop.close()
-    
-    t = threading.Thread(target=_run, daemon=True)
-    t.start()
-    logging.info(f"[Translate BG] Started batch meta thread for {len(entries)} entries")
-
-
-def _start_background_meta_translation(mal_id: str, description: str):
-    """Start background thread to translate single meta description."""
-    import threading
-    import logging
-    if mal_id in _translating_in_progress:
-        return
-    
-    def _run():
-        import asyncio
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(_translate_and_cache_meta(mal_id, {'description': description}))
-        except Exception as e:
-            logging.error(f"[Translate BG] meta error mal:{mal_id}: {e}")
-        finally:
-            loop.close()
-    
-    t = threading.Thread(target=_run, daemon=True)
-    t.start()
-    logging.info(f"[Translate BG] Started meta thread for mal:{mal_id}")
-
-
-async def _do_translate_videos(mal_id: str, videos: list):
-    """Translate all video overviews and titles that are untranslated, save to cache.
-    
-    Sends each episode's title+description together in a structured format
-    so AI translates them as a coherent unit.
-    """
-    import logging
-    key = f"videos:{mal_id}"
-    if key in _translating_in_progress:
-        return
-    _translating_in_progress.add(key)
-    try:
-        from app.utils.translate import batch_translate_episodes
-        
-        # Collect episodes that need translation (either title or overview flagged)
-        to_translate = []  # (video_index, {"title": str, "overview": str})
-        for i, v in enumerate(videos):
-            needs_title = v.get("_untranslated_title") and v.get("title")
-            needs_overview = v.get("_untranslated_overview") and v.get("overview")
-            if needs_title or needs_overview:
-                to_translate.append((i, {
-                    "title": v["title"] if needs_title else None,
-                    "overview": v["overview"] if needs_overview else None,
-                }))
-        
-        # Fallback: if no flags set (old path), translate everything
-        if not to_translate:
-            for i, v in enumerate(videos):
-                has_title = v.get("title") and not v["title"].startswith("Episode ")
-                has_overview = v.get("overview")
-                if has_title or has_overview:
-                    to_translate.append((i, {
-                        "title": v["title"] if has_title else None,
-                        "overview": v["overview"] if has_overview else None,
-                    }))
-        
-        if not to_translate:
-            return
-        
-        translated_count = 0
-        
-        # Process in chunks of 10 episodes (each has title+overview)
-        for chunk_start in range(0, len(to_translate), 10):
-            chunk = to_translate[chunk_start:chunk_start + 10]
-            episode_data = [ep_data for _, ep_data in chunk]
-            
-            results = await batch_translate_episodes(episode_data)
-            
-            chunk_ok = 0
-            for (vid_idx, _), translated in zip(chunk, results):
-                if translated.get("title"):
-                    videos[vid_idx]["title"] = translated["title"]
-                    videos[vid_idx].pop("_untranslated_title", None)
-                    translated_count += 1
-                    chunk_ok += 1
-                if translated.get("overview"):
-                    videos[vid_idx]["overview"] = translated["overview"]
-                    videos[vid_idx].pop("_untranslated_overview", None)
-                    translated_count += 1
-                    chunk_ok += 1
-            
-            logging.info(f"[Translate BG] mal:{mal_id} episodes chunk {chunk_start//10+1}: {chunk_ok} fields translated")
-        
-        # Single save after all translations complete
-        await set_cached_videos(mal_id, videos)
-        logging.info(f"[Translate BG] Videos done mal:{mal_id} - {translated_count} translations")
-        
-        # If still has untranslated content, set short TTL to retry later
-        still_untranslated = any(v.get("_untranslated_overview") or v.get("_untranslated_title") for v in videos)
-        if still_untranslated:
-            logging.info(f"[Translate BG] mal:{mal_id} still has untranslated content, setting short TTL for retry")
-            await set_cached_videos(mal_id, videos, ttl_override=VIDEOS_TTL_UNTRANSLATED)
-    except Exception as e:
-        logging.error(f"[Translate BG] Videos exception mal:{mal_id}: {e}")
-    finally:
-        _translating_in_progress.discard(key)
-
-
-async def _translate_videos_background(mal_id: str, tvdb_id: int, all_seasons: list, airs_time: str, original_country: str):
-    """Background task: translate episode overviews and update videos cache."""
-    key = f"videos:{mal_id}"
-    if key in _translating_in_progress:
-        return
-    _translating_in_progress.add(key)
-    try:
-        from app.api.tvdb import _fetch_episodes_for_lang, _build_videos_from_episodes
-        from app.utils.translate import batch_translate_to_polish
-
-        # Load previously cached videos to reuse already-translated overviews/titles
-        prev_cached = await get_cached_videos(mal_id)
-        prev_overview_map = {}  # vid_id -> overview, vid_id:title -> title
-        if prev_cached:
-            for v in prev_cached:
-                vid_id = v.get("id")
-                if not vid_id:
-                    continue
-                if v.get("overview"):
-                    prev_overview_map[vid_id] = v["overview"]
-                if v.get("title") and not v["title"].startswith("Episode "):
-                    prev_overview_map[f"{vid_id}:title"] = v["title"]
-
-        videos = []
-        for season_entry in all_seasons:
-            entry_mal_id = str(season_entry.get('mal_id', mal_id))
-            tvdb_season = season_entry.get('season', {}).get('tvdb')
-            if tvdb_season is None:
-                continue
-
-            # Get English episodes for translation source
-            eng_episodes = await _fetch_episodes_for_lang(tvdb_id, int(tvdb_season), "eng")
-            pol_episodes = await _fetch_episodes_for_lang(tvdb_id, int(tvdb_season), "pol")
-
-            # Merge: use Polish where available, then prev cache, then queue for AI
-            pol_map = {ep.get("number"): ep for ep in pol_episodes if ep.get("number")}
-            to_translate_overviews = []
-            to_translate_titles = []
-            overview_refs = []
-            title_refs = []
-
-            for ep in eng_episodes:
-                num = ep.get("number", 0)
-                if num <= 0:
-                    continue
-                vid_id = f"mal:{entry_mal_id}:{num}"
-                pol_ep = pol_map.get(num, {})
-                
-                # Overview
-                pol_overview = pol_ep.get("overview")
-                eng_overview = ep.get("overview")
-                if pol_overview and pol_overview != eng_overview:
-                    # Genuine Polish translation exists
-                    ep["overview"] = pol_overview
-                elif vid_id in prev_overview_map:
-                    ep["overview"] = prev_overview_map[vid_id]
-                elif eng_overview:
-                    to_translate_overviews.append(eng_overview)
-                    overview_refs.append(ep)
-                
-                # Title
-                pol_name = pol_ep.get("name")
-                eng_name = ep.get("name")
-                if pol_name and pol_name != eng_name:
-                    # Genuine Polish translation exists
-                    ep["name"] = pol_name
-                elif f"{vid_id}:title" in prev_overview_map:
-                    ep["name"] = prev_overview_map[f"{vid_id}:title"]
-                elif eng_name and eng_name != f"Episode {num}":
-                    to_translate_titles.append(eng_name)
-                    title_refs.append(ep)
-
-            # Batch translate overviews and titles together
-            all_texts = to_translate_overviews[:25] + to_translate_titles[:25]
-            if all_texts:
-                translations = await batch_translate_to_polish(all_texts)
-                ov_count = min(len(to_translate_overviews), 25)
-                for ep, translated in zip(overview_refs[:25], translations[:ov_count]):
-                    if translated:
-                        ep["overview"] = translated
-                for ep, translated in zip(title_refs[:25], translations[ov_count:]):
-                    if translated:
-                        ep["name"] = translated
-
-            season_videos = _build_videos_from_episodes(eng_episodes, entry_mal_id, int(tvdb_season), airs_time, original_country)
-            for v in season_videos:
-                v['season'] = int(tvdb_season)
-            videos.extend(season_videos)
-
-        if videos:
-            await _enrich_thumbnails({'videos': videos}, mal_id)
-            await set_cached_videos(mal_id, videos)
-    except Exception:
-        pass
-    finally:
-        _translating_in_progress.discard(key)
 
 
 async def fetch_videos(mal_id: str) -> list:
@@ -733,6 +407,7 @@ async def fetch_videos(mal_id: str) -> list:
                                     break
                         
                         offset = 0
+                        global_ep_num = 1  # Continuous episode numbering across all MAL entries in same TVDB season
                         for entry_mal_id, ep_count in zip(mal_ids_for_season, ep_counts):
                             if offset >= len(episodes):
                                 break
@@ -740,11 +415,12 @@ async def fetch_videos(mal_id: str) -> list:
                             entry_episodes = episodes[offset:offset + ep_count]
                             # Use skip_season_filter=True since episodes are already filtered
                             season_videos = _build_videos_from_episodes(entry_episodes, entry_mal_id, tvdb_season, airs_time, original_country, skip_season_filter=True)
-                            # Renumber episodes starting from 1
+                            # Renumber episodes continuously across the whole TVDB season
                             for i, v in enumerate(season_videos):
-                                v['episode'] = i + 1
+                                v['episode'] = global_ep_num
                                 v['id'] = f"mal:{entry_mal_id}:{i + 1}"
                                 v['season'] = tvdb_season
+                                global_ep_num += 1
                             videos.extend(season_videos)
                             offset += ep_count
                             logging.info(f"[TVDB] Split: mal:{entry_mal_id} got {len(season_videos)} episodes (offset was {offset - ep_count})")
@@ -767,17 +443,12 @@ async def fetch_videos(mal_id: str) -> list:
                 # Check if any episodes have untranslated content
                 has_untranslated = any(v.get("_untranslated") for v in videos)
                 logging.info(f"[TVDB] has_untranslated={has_untranslated}, total_videos={len(videos)}")
-                # Strip general _untranslated flag (keep granular _untranslated_title/_untranslated_overview for BG)
+                # Strip general _untranslated flag (keep granular _untranslated_title/_untranslated_overview for cron job)
                 for v in videos:
                     v.pop("_untranslated", None)
                 
-                # Save to cache first (with short TTL if untranslated)
-                if has_untranslated:
-                    await set_cached_videos(mal_id, videos, ttl_override=VIDEOS_TTL_UNTRANSLATED)
-                    # Fire background translation in a thread (non-blocking)
-                    _start_background_translation(mal_id, videos)
-                else:
-                    await set_cached_videos(mal_id, videos)
+                # Save to cache — no background translation, cron job handles it
+                await set_cached_videos(mal_id, videos)
                 return videos
         except Exception as e:
             logging.error(f"[TVDB] fetch_videos error: {e}", exc_info=True)
