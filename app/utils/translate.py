@@ -111,7 +111,7 @@ async def translate_to_polish(text: str) -> str | None:
 async def batch_translate_to_polish(texts: list[str]) -> list[str | None]:
     """Translate multiple texts in a single API call using delimiter-based batching.
     
-    Uses 1 API call for up to ~30 texts instead of 30 separate calls.
+    Uses simple |||NEXT||| delimiter format for plain text translations (descriptions).
     """
     if not Config.OPENROUTER_API_KEY or not texts:
         return [None] * len(texts)
@@ -120,9 +120,18 @@ async def batch_translate_to_polish(texts: list[str]) -> list[str | None]:
         result = await translate_to_polish(texts[0])
         return [result]
 
+    BATCH_SIMPLE_PROMPT = (
+        "Below are multiple anime descriptions in English, each separated by |||NEXT|||.\n"
+        "Translate each one independently from English to Polish.\n"
+        "Keep proper nouns (character names, place names) unchanged.\n"
+        "Use natural Polish that fits anime/manga context.\n"
+        "Return translations in the same order, separated by the EXACT delimiter: |||NEXT|||\n"
+        "Do NOT add numbering, labels, or any extra text — just the translations separated by |||NEXT|||\n\n"
+    )
+
     # Build batch prompt
     numbered_texts = "\n|||NEXT|||\n".join(texts)
-    prompt = f"{BATCH_TRANSLATE_PROMPT}{numbered_texts}"
+    prompt = f"{BATCH_SIMPLE_PROMPT}{numbered_texts}"
 
     result = await _openrouter_request(prompt)
     if not result:
@@ -137,6 +146,8 @@ async def batch_translate_to_polish(texts: list[str]) -> list[str | None]:
             translations.append(translated if translated else None)
         else:
             translations.append(None)
+
+    return translations
 
     return translations
 
