@@ -100,32 +100,31 @@ async def get_series_episodes(tvdb_id: int, season_number: int = None, lang: str
     
     Uses /series/{id}/episodes/default/{lang} endpoint.
     If season_number is provided, filters to only that season.
-    Falls back to English data for missing Polish fields (translation runs in background).
+    Fetches Polish and English in parallel, marks untranslated fields.
     Returns list of episode dicts.
     """
-    episodes = await _fetch_episodes_for_lang(tvdb_id, season_number, lang)
+    import asyncio
     
-    # Fallback to English if no episodes found in requested language
-    if not episodes and lang != "eng":
+    if lang != "eng":
+        # Fetch both languages in parallel
+        pol_task = _fetch_episodes_for_lang(tvdb_id, season_number, lang)
+        eng_task = _fetch_episodes_for_lang(tvdb_id, season_number, "eng")
+        episodes, eng_episodes = await asyncio.gather(pol_task, eng_task)
+        
+        # Fallback to English if no episodes found in requested language
+        if not episodes:
+            episodes = eng_episodes
+        elif eng_episodes:
+            # Mark untranslated fields by comparing with English
+            _mark_untranslated(episodes, eng_episodes)
+    else:
         episodes = await _fetch_episodes_for_lang(tvdb_id, season_number, "eng")
-
-    # If we got episodes but some lack overview, fill from English (no AI blocking)
-    if episodes and lang != "eng":
-        await _fill_english_fallback(episodes, tvdb_id, season_number)
 
     return episodes
 
 
-async def _fill_english_fallback(episodes: list, tvdb_id: int, season_number: int = None):
-    """Detect untranslated episodes by comparing with English. Marks as _untranslated."""
-    if not episodes:
-        return
-
-    # Fetch English episodes to compare
-    eng_episodes = await _fetch_episodes_for_lang(tvdb_id, season_number, "eng")
-    if not eng_episodes:
-        return
-
+def _mark_untranslated(episodes: list, eng_episodes: list):
+    """Compare Polish episodes with English and mark untranslated fields. Fill missing from English."""
     eng_map = {ep.get("number"): ep for ep in eng_episodes if ep.get("number")}
 
     for ep in episodes:
@@ -134,7 +133,7 @@ async def _fill_english_fallback(episodes: list, tvdb_id: int, season_number: in
             continue
         eng_ep = eng_map.get(num, {})
         
-        # If overview matches English exactly, it's not translated
+        # If overview matches English exactly or is missing, it's not translated
         if ep.get("overview") and eng_ep.get("overview") and ep["overview"] == eng_ep["overview"]:
             ep["_untranslated"] = True
             ep["_untranslated_overview"] = True
@@ -209,45 +208,49 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
     if not Config.TVDB_API_KEY:
         return None
 
-    # Fetch series extended info (with characters) and Polish translation in parallel
+    # Fetch series extended, translation, and Kitsu data all in parallel
     import asyncio
+    
     series_ext_task = get_series_extended(tvdb_id, short=False)
     translation_task = get_series_translation(tvdb_id, "pol")
-    episodes_task = get_series_episodes(tvdb_id, season_number=season_number, lang="pol")
+    
+    # Kitsu call for poster, cover, trailer, rating
+    kitsu_id = None
+    if mal_id:
+        from app.utils.anime_mapping import get_kitsu_from_mal_id
+        kitsu_id = get_kitsu_from_mal_id(mal_id)
+    
+    async def _fetch_kitsu_data():
+        if not kitsu_id:
+            return {}
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+                async with session.get(f"https://kitsu.io/api/edge/anime/{kitsu_id}",
+                                       params={"fields[anime]": "posterImage,coverImage,youtubeVideoId,averageRating"}) as resp:
+                    if resp.status == 200:
+                        return (await resp.json()).get("data", {}).get("attributes", {})
+        except Exception:
+            pass
+        return {}
 
-    series_ext, translation, episodes = await asyncio.gather(
-        series_ext_task, translation_task, episodes_task
+    series_ext, translation, kdata = await asyncio.gather(
+        series_ext_task, translation_task, _fetch_kitsu_data()
     )
 
     if not series_ext:
         return None
 
-    # Fetch trailer, poster and rating from Kitsu in one call (per-season unique images)
+    # Parse Kitsu data
     trailers = []
-    poster = None
-    background = None
+    poster = (kdata.get("posterImage") or {}).get("large") or (kdata.get("posterImage") or {}).get("medium")
+    background = (kdata.get("coverImage") or {}).get("original")
     imdb_rating = None
-    kitsu_id = None
-    if mal_id:
-        from app.utils.anime_mapping import get_kitsu_from_mal_id
-        kitsu_id = get_kitsu_from_mal_id(mal_id)
-        if kitsu_id:
-            try:
-                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
-                    async with session.get(f"https://kitsu.io/api/edge/anime/{kitsu_id}",
-                                           params={"fields[anime]": "posterImage,coverImage,youtubeVideoId,averageRating"}) as resp:
-                        if resp.status == 200:
-                            kdata = (await resp.json()).get("data", {}).get("attributes", {})
-                            poster = (kdata.get("posterImage") or {}).get("large") or (kdata.get("posterImage") or {}).get("medium")
-                            background = (kdata.get("coverImage") or {}).get("original")
-                            yt_id = kdata.get("youtubeVideoId")
-                            if yt_id:
-                                trailers = [{"source": yt_id, "type": "Trailer"}]
-                            avg_rating = kdata.get("averageRating")
-                            if avg_rating:
-                                imdb_rating = str(round(float(avg_rating) / 10, 1))
-            except Exception:
-                pass
+    yt_id = kdata.get("youtubeVideoId")
+    if yt_id:
+        trailers = [{"source": yt_id, "type": "Trailer"}]
+    avg_rating = kdata.get("averageRating")
+    if avg_rating:
+        imdb_rating = str(round(float(avg_rating) / 10, 1))
 
     # Series name: prefer Polish translation, then English, fallback to original
     name = series_ext.get("name", "")
@@ -404,10 +407,8 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
     # Content type
     content_type = "series"
 
-    # Build videos from episodes
-    airs_time = series_ext.get("airsTime") or "00:00"
+    # Country from TVDB
     original_country = series_ext.get("originalCountry") or ""
-    videos = _build_videos_from_episodes(episodes, mal_id, season_number, airs_time, original_country, backdrop=background)
 
     # Released date (series premiere)
     released = f"{first_aired}T00:00:00.000Z" if first_aired else None
@@ -442,7 +443,7 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
         "poster": poster,
         "background": background,
         "logo": logo,
-        "videos": videos,
+        "videos": [],
         "trailers": trailers,
         "links": links,
     }
