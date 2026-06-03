@@ -80,20 +80,33 @@ async def set_cached_videos(mal_id: str, videos: list, ttl_override: int = 0):
 
 
 def _videos_ttl(videos: list) -> int:
-    """Determine TTL for videos cache: 12h if has future episodes, 1 month otherwise."""
+    """Determine TTL for videos cache.
+    
+    - If has future episodes: min(12h, time until next episode premiere)
+    - If all episodes aired: 1 month
+    """
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
+    next_premiere = None
+    
     for v in videos:
         released = v.get('released')
         if not released:
-            # No date = probably still airing
+            # No date = probably still airing, use 12h
             return VIDEOS_TTL_AIRING
         try:
             ep_date = datetime.fromisoformat(released.replace('Z', '+00:00'))
             if ep_date > now:
-                return VIDEOS_TTL_AIRING
+                if next_premiere is None or ep_date < next_premiere:
+                    next_premiere = ep_date
         except (ValueError, TypeError):
             continue
+    
+    if next_premiere:
+        # Cap TTL at time until next episode airs (so available flips to true on time)
+        seconds_until = int((next_premiere - now).total_seconds())
+        return max(60, min(VIDEOS_TTL_AIRING, seconds_until))
+    
     return VIDEOS_TTL_FINISHED
 
 
@@ -455,61 +468,77 @@ def _start_background_meta_translation(mal_id: str, description: str):
 
 
 async def _do_translate_videos(mal_id: str, videos: list):
-    """Translate all video overviews and titles that are untranslated, save to cache."""
+    """Translate all video overviews and titles that are untranslated, save to cache.
+    
+    Sends each episode's title+description together in a structured format
+    so AI translates them as a coherent unit.
+    """
     import logging
     key = f"videos:{mal_id}"
     if key in _translating_in_progress:
         return
     _translating_in_progress.add(key)
     try:
-        from app.utils.translate import batch_translate_to_polish
+        from app.utils.translate import batch_translate_episodes
         
-        # Only translate items that were flagged as untranslated (or still have English text)
-        # We keep _untranslated_title and _untranslated_overview flags on videos
-        to_translate_ov = [(i, v["overview"]) for i, v in enumerate(videos) 
-                          if v.get("overview") and v.get("_untranslated_overview")]
-        to_translate_ti = [(i, v["title"]) for i, v in enumerate(videos) 
-                          if v.get("title") and v.get("_untranslated_title")]
+        # Collect episodes that need translation (either title or overview flagged)
+        to_translate = []  # (video_index, {"title": str, "overview": str})
+        for i, v in enumerate(videos):
+            needs_title = v.get("_untranslated_title") and v.get("title")
+            needs_overview = v.get("_untranslated_overview") and v.get("overview")
+            if needs_title or needs_overview:
+                to_translate.append((i, {
+                    "title": v["title"] if needs_title else None,
+                    "overview": v["overview"] if needs_overview else None,
+                }))
         
-        # Fallback: if no flags set (old path), translate all non-"Episode N" titles and all overviews
-        if not to_translate_ov and not to_translate_ti:
-            to_translate_ov = [(i, v["overview"]) for i, v in enumerate(videos) if v.get("overview")]
-            to_translate_ti = [(i, v["title"]) for i, v in enumerate(videos) if v.get("title") and not v["title"].startswith("Episode ")]
+        # Fallback: if no flags set (old path), translate everything
+        if not to_translate:
+            for i, v in enumerate(videos):
+                has_title = v.get("title") and not v["title"].startswith("Episode ")
+                has_overview = v.get("overview")
+                if has_title or has_overview:
+                    to_translate.append((i, {
+                        "title": v["title"] if has_title else None,
+                        "overview": v["overview"] if has_overview else None,
+                    }))
+        
+        if not to_translate:
+            return
         
         translated_count = 0
-        # Overviews in chunks of 10
-        for chunk_start in range(0, len(to_translate_ov), 10):
-            chunk = to_translate_ov[chunk_start:chunk_start + 10]
-            texts = [t for _, t in chunk]
-            translations = await batch_translate_to_polish(texts)
+        
+        # Process in chunks of 10 episodes (each has title+overview)
+        for chunk_start in range(0, len(to_translate), 10):
+            chunk = to_translate[chunk_start:chunk_start + 10]
+            episode_data = [ep_data for _, ep_data in chunk]
+            
+            results = await batch_translate_episodes(episode_data)
+            
             chunk_ok = 0
-            for (idx, _), translated in zip(chunk, translations):
-                if translated:
-                    videos[idx]["overview"] = translated
-                    videos[idx].pop("_untranslated_overview", None)
+            for (vid_idx, _), translated in zip(chunk, results):
+                if translated.get("title"):
+                    videos[vid_idx]["title"] = translated["title"]
+                    videos[vid_idx].pop("_untranslated_title", None)
                     translated_count += 1
                     chunk_ok += 1
-            logging.info(f"[Translate BG] mal:{mal_id} overviews chunk {chunk_start//10+1}: {chunk_ok}/{len(chunk)}")
-            # Save progress after each chunk
-            await set_cached_videos(mal_id, videos)
-        
-        # Titles in chunks of 10
-        for chunk_start in range(0, len(to_translate_ti), 10):
-            chunk = to_translate_ti[chunk_start:chunk_start + 10]
-            texts = [t for _, t in chunk]
-            translations = await batch_translate_to_polish(texts)
-            chunk_ok = 0
-            for (idx, _), translated in zip(chunk, translations):
-                if translated:
-                    videos[idx]["title"] = translated
-                    videos[idx].pop("_untranslated_title", None)
+                if translated.get("overview"):
+                    videos[vid_idx]["overview"] = translated["overview"]
+                    videos[vid_idx].pop("_untranslated_overview", None)
                     translated_count += 1
                     chunk_ok += 1
-            logging.info(f"[Translate BG] mal:{mal_id} titles chunk {chunk_start//10+1}: {chunk_ok}/{len(chunk)}")
-            # Save progress after each chunk
-            await set_cached_videos(mal_id, videos)
+            
+            logging.info(f"[Translate BG] mal:{mal_id} episodes chunk {chunk_start//10+1}: {chunk_ok} fields translated")
         
+        # Single save after all translations complete
+        await set_cached_videos(mal_id, videos)
         logging.info(f"[Translate BG] Videos done mal:{mal_id} - {translated_count} translations")
+        
+        # If still has untranslated content, set short TTL to retry later
+        still_untranslated = any(v.get("_untranslated_overview") or v.get("_untranslated_title") for v in videos)
+        if still_untranslated:
+            logging.info(f"[Translate BG] mal:{mal_id} still has untranslated content, setting short TTL for retry")
+            await set_cached_videos(mal_id, videos, ttl_override=VIDEOS_TTL_UNTRANSLATED)
     except Exception as e:
         logging.error(f"[Translate BG] Videos exception mal:{mal_id}: {e}")
     finally:
@@ -738,16 +767,17 @@ async def fetch_videos(mal_id: str) -> list:
                 # Check if any episodes have untranslated content
                 has_untranslated = any(v.get("_untranslated") for v in videos)
                 logging.info(f"[TVDB] has_untranslated={has_untranslated}, total_videos={len(videos)}")
-                # Strip internal flags before serving
+                # Strip general _untranslated flag (keep granular _untranslated_title/_untranslated_overview for BG)
                 for v in videos:
                     v.pop("_untranslated", None)
                 
+                # Save to cache first (with short TTL if untranslated)
                 if has_untranslated:
+                    await set_cached_videos(mal_id, videos, ttl_override=VIDEOS_TTL_UNTRANSLATED)
                     # Fire background translation in a thread (non-blocking)
-                    import threading
                     _start_background_translation(mal_id, videos)
-                
-                await set_cached_videos(mal_id, videos, ttl_override=VIDEOS_TTL_UNTRANSLATED)
+                else:
+                    await set_cached_videos(mal_id, videos)
                 return videos
         except Exception as e:
             logging.error(f"[TVDB] fetch_videos error: {e}", exc_info=True)

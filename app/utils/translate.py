@@ -24,12 +24,17 @@ TRANSLATE_PROMPT = (
 )
 
 BATCH_TRANSLATE_PROMPT = (
-    "Below are multiple anime series/episode descriptions in English, each separated by |||NEXT|||.\n"
-    "Translate each one independently from English to Polish.\n"
-    "Keep proper nouns (character names, place names, attack names) unchanged.\n"
-    "Use natural Polish that fits anime/manga context.\n"
-    "Return translations in the same order, separated by the EXACT delimiter: |||NEXT|||\n"
-    "Do NOT add numbering, labels, or any extra text — just the translations separated by |||NEXT|||\n\n"
+    "Below are multiple anime episodes in English. Each episode has a TITLE and optionally a DESCRIPTION.\n"
+    "Translate each episode's title and description from English to Polish.\n"
+    "IMPORTANT: Always translate the TITLE to Polish, even if it looks like a proper noun or foreign word.\n"
+    "Only keep character names and place names unchanged in descriptions.\n"
+    "Use natural Polish that fits anime/manga context.\n\n"
+    "Return each episode in this EXACT format:\n"
+    "TITLE: <translated title>\n"
+    "DESC: <translated description>\n"
+    "---\n"
+    "If the description is empty, return DESC: empty\n"
+    "Do NOT add numbering, episode numbers, or any extra text.\n\n"
 )
 
 # Rate limiting: sliding window, 20 RPM max
@@ -132,5 +137,57 @@ async def batch_translate_to_polish(texts: list[str]) -> list[str | None]:
             translations.append(translated if translated else None)
         else:
             translations.append(None)
+
+    return translations
+
+
+async def batch_translate_episodes(episodes: list[dict]) -> list[dict]:
+    """Translate episodes (title + description) in a single structured API call.
+    
+    Args:
+        episodes: list of {"title": str, "overview": str|None} dicts
+    
+    Returns:
+        list of {"title": str|None, "overview": str|None} with translated values.
+        None means translation failed for that field.
+    """
+    if not Config.OPENROUTER_API_KEY or not episodes:
+        return [{"title": None, "overview": None}] * len(episodes)
+
+    # Build structured prompt
+    parts = []
+    for ep in episodes:
+        title = ep.get("title") or ""
+        overview = ep.get("overview") or ""
+        parts.append(f"TITLE: {title}\nDESC: {overview if overview else 'empty'}")
+    
+    prompt = BATCH_TRANSLATE_PROMPT + "\n---\n".join(parts)
+
+    result = await _openrouter_request(prompt)
+    if not result:
+        return [{"title": None, "overview": None}] * len(episodes)
+
+    # Parse structured response
+    blocks = result.split("---")
+    translations = []
+    for i in range(len(episodes)):
+        if i < len(blocks):
+            block = blocks[i].strip()
+            title_line = None
+            desc_line = None
+            for line in block.split("\n"):
+                line = line.strip()
+                if line.upper().startswith("TITLE:"):
+                    title_line = line[6:].strip()
+                elif line.upper().startswith("DESC:"):
+                    desc_line = line[5:].strip()
+                    # Collect multi-line descriptions
+                elif desc_line is not None and line:
+                    desc_line += " " + line
+            if desc_line and desc_line.lower() == "empty":
+                desc_line = None
+            translations.append({"title": title_line or None, "overview": desc_line or None})
+        else:
+            translations.append({"title": None, "overview": None})
 
     return translations
