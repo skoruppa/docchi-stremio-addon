@@ -64,7 +64,6 @@ async def get_cached_videos(mal_id: str) -> list | None:
         if time.time() - ts < ttl:
             _videos_mem_cache[mal_id] = (videos, ts, 0)
             return videos
-        await execute("DELETE FROM videos_cache WHERE mal_id=?", (mal_id,))
     return None
 
 
@@ -353,8 +352,6 @@ async def fetch_videos(mal_id: str) -> list:
                 entry["overview"] = v["overview"]
             if entry:
                 prev_translations[vid_id] = entry
-        # Delete expired entry
-        await execute("DELETE FROM videos_cache WHERE mal_id=?", (mal_id,))
 
     # Try TVDB first with multi-season support
     if Config.TVDB_API_KEY and ids.get('tvdb_id'):
