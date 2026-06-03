@@ -287,13 +287,14 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
     year = first_aired[:4] if first_aired else None
     release_info = None
     if year:
-        end_year = last_aired[:4] if last_aired else None
-        if end_year and end_year != year:
-            release_info = f"{year}-{end_year}"
-        elif status == "Continuing":
+        if status == "Continuing":
             release_info = f"{year}-"
         else:
-            release_info = year
+            end_year = last_aired[:4] if last_aired else None
+            if end_year and end_year != year:
+                release_info = f"{year}-{end_year}"
+            else:
+                release_info = year
 
     # Artwork - runtime from TVDB
     runtime = series_ext.get("averageRuntime")
