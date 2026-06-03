@@ -377,15 +377,21 @@ async def fetch_videos(mal_id: str) -> list:
             has_season_info = any(s.get('season', {}).get('tvdb') for s in all_seasons)
             
             if not all_seasons or not has_season_info:
-                # No season mapping — fetch all episodes for current mal_id only
-                tvdb_season_num = int(ids['tvdb_season']) if ids.get('tvdb_season') else None
-                _t1 = _time.time()
-                episodes = await get_series_episodes(tvdb_id, season_number=tvdb_season_num, lang="pol")
-                logging.info(f"[TVDB timing] get_series_episodes: {_time.time()-_t1:.2f}s, got {len(episodes)} eps")
-                season_videos = _build_videos_from_episodes(episodes, mal_id, tvdb_season_num, airs_time, original_country)
-                for v in season_videos:
-                    v['season'] = v.get('season', 1)
-                videos.extend(season_videos)
+                # No season mapping — can't split by TVDB seasons
+                # If multiple MAL entries share this tvdb_id without season info, skip TVDB
+                # (episodes can't be properly attributed to this MAL id)
+                if len(all_seasons) > 1:
+                    logging.info(f"[TVDB] Skipping - multiple MAL entries without season mapping, falling back to Kitsu")
+                    videos = []  # Will fall through to Kitsu fallback below
+                else:
+                    tvdb_season_num = int(ids['tvdb_season']) if ids.get('tvdb_season') else None
+                    _t1 = _time.time()
+                    episodes = await get_series_episodes(tvdb_id, season_number=tvdb_season_num, lang="pol")
+                    logging.info(f"[TVDB timing] get_series_episodes: {_time.time()-_t1:.2f}s, got {len(episodes)} eps")
+                    season_videos = _build_videos_from_episodes(episodes, mal_id, tvdb_season_num, airs_time, original_country)
+                    for v in season_videos:
+                        v['season'] = v.get('season', 1)
+                    videos.extend(season_videos)
             else:
                 # Group MAL entries by TVDB season
                 from collections import defaultdict
