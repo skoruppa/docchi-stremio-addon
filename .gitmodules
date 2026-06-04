@@ -1,3 +1,6 @@
 [submodule "data/anime-lists"]
 	path = data/anime-lists
 	url = https://github.com/Fribb/anime-lists.git
+[submodule "app/players"]
+	path = app/players
+	url = https://github.com/skoruppa/docchi-players.git
