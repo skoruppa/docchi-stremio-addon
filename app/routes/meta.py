@@ -8,10 +8,15 @@ from app.utils.meta_cache import fetch_and_cache_meta, fetch_videos
 
 meta_bp = Blueprint('meta', __name__)
 
+# In-memory response cache: (meta_id, is_vip) -> (response_data, cache_time, timestamp)
+_response_cache: dict[tuple, tuple] = {}
+_RESPONSE_CACHE_TTL = 60  # 1 min in-memory response cache
+
 
 @meta_bp.route('/meta/<meta_type>/<meta_id>.json')
 async def addon_meta(meta_type: str, meta_id: str):
     import asyncio
+    import time
     is_vip = Config.VIP_PATH in request.path
     meta_id = unquote(meta_id)
 
@@ -20,6 +25,15 @@ async def addon_meta(meta_type: str, meta_id: str):
 
     if '_' in meta_id:
         meta_id = meta_id.replace("_", ":")
+
+    # Check in-memory response cache first (avoids all processing)
+    cache_key = (meta_id, is_vip)
+    if cache_key in _response_cache:
+        data, cache_time, ts = _response_cache[cache_key]
+        if time.time() - ts < _RESPONSE_CACHE_TTL:
+            return respond_with(data, cache_time)
+        else:
+            del _response_cache[cache_key]
 
     # Extract mal_id early so we can fetch meta and videos in parallel
     from app.utils.meta_cache import _resolve_mal_id
@@ -71,4 +85,8 @@ async def addon_meta(meta_type: str, meta_id: str):
     else:
         cache_time = 43200  # 12h — finished, fully translated
 
-    return respond_with({'meta': meta}, cache_time)
+    # Store in response cache
+    response_data = {'meta': meta}
+    _response_cache[cache_key] = (response_data, cache_time, time.time())
+
+    return respond_with(response_data, cache_time)
