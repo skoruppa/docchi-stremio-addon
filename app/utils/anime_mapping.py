@@ -133,8 +133,9 @@ def _load_to_redis(data):
             mini['imdb_id'] = item['imdb_id']
         if item.get('tvdb_id'):
             mini['tvdb_id'] = item['tvdb_id']
-        if item.get('themoviedb_id'):
-            mini['themoviedb_id'] = item['themoviedb_id']
+        tmdb = item.get('themoviedb_id')
+        if tmdb:
+            mini['themoviedb_id'] = next(iter(tmdb.values())) if isinstance(tmdb, dict) else tmdb
         if item.get('season', {}).get('tvdb'):
             mini['season'] = {'tvdb': item['season']['tvdb']}
         tvdb_key = str(tvdb_id)
