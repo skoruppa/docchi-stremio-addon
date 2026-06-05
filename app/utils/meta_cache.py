@@ -236,8 +236,11 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                     is_untranslated = meta.pop('_untranslated', False)
                     await _fill_genres_from_docchi(meta, mal_id)
                     if is_untranslated:
-                        # Mark description as needing translation — cron job will handle it
-                        meta['_untranslated_description'] = True
+                        # Check if we have a previous translation from expired cache
+                        if expired_meta and expired_meta.get('description') and not expired_meta.get('_untranslated_description'):
+                            meta['description'] = expired_meta['description']
+                        else:
+                            meta['_untranslated_description'] = True
                     await set_cached_meta(mal_id, meta)
                     return _with_genre_links(meta), mal_id
         except Exception as e:
