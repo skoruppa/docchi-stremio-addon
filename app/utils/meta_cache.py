@@ -359,12 +359,19 @@ async def fetch_videos(mal_id: str) -> list:
             from app.api.tvdb import get_series_episodes, _build_videos_from_episodes, get_series_extended
             tvdb_id = ids['tvdb_id']
 
-            # Get airs time and country from series record
-            _t1 = _time.time()
-            series_ext = await get_series_extended(tvdb_id)
-            logging.info(f"[TVDB timing] get_series_extended: {_time.time()-_t1:.2f}s")
-            airs_time = (series_ext or {}).get("airsTime") or "00:00"
-            original_country = (series_ext or {}).get("originalCountry") or ""
+            # Try to get airs_time/country from cached meta (avoid extra API call)
+            cached_meta = await get_cached_meta(mal_id)
+            if cached_meta and cached_meta.get("_airsTime"):
+                airs_time = cached_meta["_airsTime"]
+                original_country = cached_meta.get("country") or ""
+                series_ext = None
+            else:
+                # Fallback: fetch series extended (only if meta not cached yet)
+                _t1 = _time.time()
+                series_ext = await get_series_extended(tvdb_id)
+                logging.info(f"[TVDB timing] get_series_extended: {_time.time()-_t1:.2f}s")
+                airs_time = (series_ext or {}).get("airsTime") or "00:00"
+                original_country = (series_ext or {}).get("originalCountry") or ""
 
             # Get all seasons that share the same tvdb_id
             all_seasons = get_all_seasons_for_tvdb_id(tvdb_id)

@@ -407,8 +407,9 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
     # Content type
     content_type = "series"
 
-    # Country from TVDB
+    # Country and airs time from TVDB (airs_time stored for fetch_videos to reuse)
     original_country = series_ext.get("originalCountry") or ""
+    airs_time = series_ext.get("airsTime") or "00:00"
 
     # Released date (series premiere)
     released = f"{first_aired}T00:00:00.000Z" if first_aired else None
@@ -431,6 +432,7 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
         "type": content_type,
         "name": name,
         "country": original_country or None,
+        "_airsTime": airs_time,
         "genres": genres,
         "description": description,
         "year": year,
