@@ -1,30 +1,35 @@
-name: Update anime-lists submodule
+name: Update players submodule
 
 on:
   schedule:
-    - cron: '0 2 * * *'  # Every day at 2 AM UTC
-  workflow_dispatch:  # Allow manual trigger
+    - cron: '0 4 * * *'  # Daily at 4:00 UTC
+  workflow_dispatch:
 
 jobs:
   update:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           submodules: true
-          persist-credentials: true
-          fetch-depth: 0
-      
+          token: ${{ secrets.GH_PAT }}
+
       - name: Update submodule
         run: |
-          git submodule update --remote --merge
+          git submodule update --remote app/players
+          if git diff --quiet; then
+            echo "No submodule changes"
+            echo "CHANGED=false" >> $GITHUB_ENV
+          else
+            echo "Submodule updated"
+            echo "CHANGED=true" >> $GITHUB_ENV
+          fi
+
+      - name: Commit and push
+        if: env.CHANGED == 'true'
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/anime-lists
-          
-      - name: Commit and push if changed
-        run: |
-          git diff --staged --quiet || (git commit -m "Update anime-lists submodule" && git pull --rebase && git push)
+          git add app/players
+          git commit -m "Update players submodule"
+          git push
