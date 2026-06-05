@@ -1,7 +1,4 @@
-.git
 .github
-.gitignore
-.gitmodules
 *.md
 .env
 .venv
@@ -16,3 +13,4 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+anime-nexus-nuvio/

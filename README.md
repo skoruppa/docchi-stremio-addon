@@ -90,6 +90,11 @@ cd docchi-stremio-addon
 docker-compose up -d
 ```
 
+> **Note:** The `--recurse-submodules` flag is required to clone the `app/players` and `data/anime-lists` submodules. If you already cloned without it, run:
+> ```bash
+> git submodule update --init --recursive
+> ```
+
 Addon will be available at `http://localhost:5000` & `http://localhost:5000/vip`
 
 **Docker Image Tags:**
