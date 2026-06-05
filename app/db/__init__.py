@@ -1,7 +1,9 @@
 import sqlite3
 import logging
+import threading
 from config import Config
 
+db_lock = threading.Lock()
 connection = sqlite3.connect(Config.DATABASE, check_same_thread=False)
 connection.row_factory = sqlite3.Row
 connection.executescript("""

@@ -1,9 +1,8 @@
 """SQLite backend for anime mapping and slug cache."""
-from app.db import connection
+from app.db import connection, db_lock
 
 
 def load_anime_mapping(data: list):
-    connection.execute("DELETE FROM anime_mapping")
     rows = []
     for item in data:
         imdb = item.get('imdb_id')
@@ -21,11 +20,13 @@ def load_anime_mapping(data: list):
             tmdb,
             item.get('season', {}).get('tvdb') if isinstance(item.get('season'), dict) else None,
         ))
-    connection.executemany(
-        "INSERT INTO anime_mapping (mal_id, kitsu_id, imdb_id, tvdb_id, themoviedb_id, season_tvdb) VALUES (?,?,?,?,?,?)",
-        rows
-    )
-    connection.commit()
+    with db_lock:
+        with connection:
+            connection.execute("DELETE FROM anime_mapping")
+            connection.executemany(
+                "INSERT INTO anime_mapping (mal_id, kitsu_id, imdb_id, tvdb_id, themoviedb_id, season_tvdb) VALUES (?,?,?,?,?,?)",
+                rows
+            )
 
 
 def _row_to_dict(row) -> dict:
