@@ -14,14 +14,15 @@ jobs:
           submodules: true
           token: ${{ secrets.GH_PAT }}
 
-      - name: Update submodule
+      - name: Update submodules
         run: |
           git submodule update --remote app/players
+          git submodule update --remote data/anime-lists
           if git diff --quiet; then
             echo "No submodule changes"
             echo "CHANGED=false" >> $GITHUB_ENV
           else
-            echo "Submodule updated"
+            echo "Submodules updated"
             echo "CHANGED=true" >> $GITHUB_ENV
           fi
 
@@ -30,6 +31,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add app/players
-          git commit -m "Update players submodule"
+          git add app/players data/anime-lists
+          git commit -m "Update submodules"
           git push
