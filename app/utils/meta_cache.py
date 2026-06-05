@@ -176,6 +176,23 @@ async def batch_fetch_and_cache_meta(content_ids: list[str], is_vip: bool = Fals
     return results
 
 
+async def _resolve_mal_id(content_id: str, is_vip: bool = False) -> str | None:
+    """Resolve content_id to MAL ID without fetching metadata."""
+    parts = content_id.split(':')
+    prefix = parts[0]
+
+    if prefix == 'mal' and len(parts) > 1:
+        return parts[1]
+    elif prefix.startswith('tt') and is_vip and len(parts) >= 1:
+        from app.routes import mapping
+        season = int(parts[1]) if len(parts) > 1 else None
+        return mapping.get_mal_id_from_imdb_id(prefix, season)
+    elif prefix == 'kitsu' and len(parts) > 1:
+        from app.routes import mapping
+        return mapping.get_mal_id_from_kitsu_id(parts[1])
+    return None
+
+
 async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     """Fetch metadata from TVDB (primary), Kitsu, or MAL (fallbacks) and cache it.
     
@@ -221,6 +238,9 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     # Try TVDB API first (primary source)
     if Config.TVDB_API_KEY:
         try:
+            import time as _time
+            import logging
+            _t0 = _time.time()
             from app.api.tvdb import get_anime_meta as tvdb_get_meta
             ids = get_ids_from_mal_id(mal_id)
             if ids.get('tvdb_id'):
@@ -232,6 +252,7 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                     imdb_id=ids.get('imdb_id'),
                     tmdb_id=ids.get('tmdb_id'),
                 )
+                logging.info(f"[META timing] get_anime_meta: {_time.time()-_t0:.2f}s")
                 if meta and meta.get('name'):
                     is_untranslated = meta.pop('_untranslated', False)
                     await _fill_genres_from_docchi(meta, mal_id)
