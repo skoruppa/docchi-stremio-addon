@@ -303,25 +303,27 @@ async def _get_episode_counts(mal_ids: list[str]) -> list[int]:
     Falls back to 0 if unavailable (will use remaining episodes).
     """
     import aiohttp as _aiohttp
-    counts = []
-    for mid in mal_ids:
+    from app.utils.anime_mapping import get_kitsu_from_mal_id
+
+    async def _fetch_one(session, mid):
         try:
-            from app.utils.anime_mapping import get_kitsu_from_mal_id
             kitsu_id = get_kitsu_from_mal_id(mid)
             if kitsu_id:
-                async with _aiohttp.ClientSession(timeout=_aiohttp.ClientTimeout(total=5)) as session:
-                    async with session.get(f"https://kitsu.io/api/edge/anime/{kitsu_id}",
-                                           headers={"Accept": "application/vnd.api+json", "User-Agent": "Mozilla/5.0"},
-                                           params={"fields[anime]": "episodeCount"}) as resp:
-                        if resp.status == 200:
-                            data = await resp.json()
-                            ep_count = data.get("data", {}).get("attributes", {}).get("episodeCount") or 0
-                            counts.append(int(ep_count))
-                            continue
+                async with session.get(
+                    f"https://kitsu.io/api/edge/anime/{kitsu_id}",
+                    headers={"Accept": "application/vnd.api+json", "User-Agent": "Mozilla/5.0"},
+                    params={"fields[anime]": "episodeCount"}
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        return int(data.get("data", {}).get("attributes", {}).get("episodeCount") or 0)
         except Exception:
             pass
-        counts.append(0)
-    return counts
+        return 0
+
+    async with _aiohttp.ClientSession(timeout=_aiohttp.ClientTimeout(total=5)) as session:
+        results = await asyncio.gather(*[_fetch_one(session, mid) for mid in mal_ids])
+    return list(results)
 
 
 async def _fill_genres_from_docchi(meta: dict, mal_id: str):
@@ -385,17 +387,12 @@ async def fetch_videos(mal_id: str) -> list:
 
             # Try to get airs_time/country from cached meta (avoid extra API call)
             cached_meta = await get_cached_meta(mal_id)
-            if cached_meta and cached_meta.get("_airsTime"):
+            need_extended = not (cached_meta and cached_meta.get("_airsTime"))
+            
+            if not need_extended:
                 airs_time = cached_meta["_airsTime"]
                 original_country = cached_meta.get("country") or ""
                 series_ext = None
-            else:
-                # Fallback: fetch series extended (only if meta not cached yet)
-                _t1 = _time.time()
-                series_ext = await get_series_extended(tvdb_id)
-                logging.info(f"[TVDB timing] get_series_extended: {_time.time()-_t1:.2f}s")
-                airs_time = (series_ext or {}).get("airsTime") or "00:00"
-                original_country = (series_ext or {}).get("originalCountry") or ""
 
             # Get all seasons that share the same tvdb_id
             all_seasons = get_all_seasons_for_tvdb_id(tvdb_id)
@@ -406,16 +403,25 @@ async def fetch_videos(mal_id: str) -> list:
             
             if not all_seasons or not has_season_info:
                 # No season mapping — can't split by TVDB seasons
-                # If multiple MAL entries share this tvdb_id without season info, skip TVDB
-                # (episodes can't be properly attributed to this MAL id)
                 if len(all_seasons) > 1:
                     logging.info(f"[TVDB] Skipping - multiple MAL entries without season mapping, falling back to Kitsu")
                     videos = []  # Will fall through to Kitsu fallback below
                 else:
                     tvdb_season_num = int(ids['tvdb_season']) if ids.get('tvdb_season') else None
-                    _t1 = _time.time()
-                    episodes = await get_series_episodes(tvdb_id, season_number=tvdb_season_num, lang="pol")
-                    logging.info(f"[TVDB timing] get_series_episodes: {_time.time()-_t1:.2f}s, got {len(episodes)} eps")
+                    if need_extended:
+                        # Fetch extended + episodes in parallel
+                        _t1 = _time.time()
+                        series_ext, episodes = await asyncio.gather(
+                            get_series_extended(tvdb_id),
+                            get_series_episodes(tvdb_id, season_number=tvdb_season_num, lang="pol")
+                        )
+                        airs_time = (series_ext or {}).get("airsTime") or "00:00"
+                        original_country = (series_ext or {}).get("originalCountry") or ""
+                        logging.info(f"[TVDB timing] extended+episodes parallel: {_time.time()-_t1:.2f}s, got {len(episodes)} eps")
+                    else:
+                        _t1 = _time.time()
+                        episodes = await get_series_episodes(tvdb_id, season_number=tvdb_season_num, lang="pol")
+                        logging.info(f"[TVDB timing] get_series_episodes: {_time.time()-_t1:.2f}s, got {len(episodes)} eps")
                     season_videos = _build_videos_from_episodes(episodes, mal_id, tvdb_season_num, airs_time, original_country)
                     for v in season_videos:
                         v['season'] = v.get('season', 1)
@@ -429,10 +435,30 @@ async def fetch_videos(mal_id: str) -> list:
                     if tvdb_season is not None:
                         season_groups[int(tvdb_season)].append(str(season_entry.get('mal_id', mal_id)))
 
-                for tvdb_season, mal_ids_for_season in sorted(season_groups.items()):
-                    _t1 = _time.time()
-                    episodes = await get_series_episodes(tvdb_id, season_number=tvdb_season, lang="pol")
-                    logging.info(f"[TVDB timing] get_series_episodes s{tvdb_season}: {_time.time()-_t1:.2f}s, got {len(episodes)} eps")
+                # Fetch all seasons (+ extended if needed) in parallel
+                sorted_seasons = sorted(season_groups.items())
+                _t1 = _time.time()
+                tasks = [
+                    get_series_episodes(tvdb_id, season_number=tvdb_season, lang="pol")
+                    for tvdb_season, _ in sorted_seasons
+                ]
+                if need_extended:
+                    tasks.append(get_series_extended(tvdb_id))
+                
+                results = await asyncio.gather(*tasks)
+                
+                if need_extended:
+                    season_episode_results = results[:-1]
+                    series_ext = results[-1]
+                    airs_time = (series_ext or {}).get("airsTime") or "00:00"
+                    original_country = (series_ext or {}).get("originalCountry") or ""
+                else:
+                    season_episode_results = results
+                
+                logging.info(f"[TVDB timing] parallel fetch ({len(sorted_seasons)} seasons{' + extended' if need_extended else ''}): {_time.time()-_t1:.2f}s")
+
+                for (tvdb_season, mal_ids_for_season), episodes in zip(sorted_seasons, season_episode_results):
+                    logging.info(f"[TVDB] season {tvdb_season}: got {len(episodes)} eps")
 
                     if len(mal_ids_for_season) == 1:
                         # Simple case: one MAL entry per season
