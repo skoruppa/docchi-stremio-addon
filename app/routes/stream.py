@@ -60,15 +60,15 @@ def build_filename(anime_name, episode_num, content_id, quality, translator_norm
     if anime_name:
         name_norm = anime_name.replace(' ', '_').replace(':', '').replace('/', '')
         if episode_num:
-            return f"{name_norm}.e{episode_num.zfill(2)}.{quality}-{translator_norm}.docc"
-        return f"{name_norm}.{quality}-{translator_norm}.docc"
+            return f"{name_norm}.e{episode_num.zfill(2)}.PL.{quality}-{translator_norm}.docc"
+        return f"{name_norm}.PL.{quality}-{translator_norm}.docc"
     
     # Fallback to content_id
     parts = content_id.split(':')
     content_base = f"{parts[0]}:{parts[1]}"
     if episode_num:
-        return f"{content_base}.e{episode_num.zfill(2)}.{quality}-{translator_norm}.docc"
-    return f"{content_base}.{quality}-{translator_norm}.docc"
+        return f"{content_base}.e{episode_num.zfill(2)}.PL.{quality}-{translator_norm}.docc"
+    return f"{content_base}.PL.{quality}-{translator_norm}.docc"
 
 
 def build_binge_group(anime_name, content_id, quality, translator_norm):
