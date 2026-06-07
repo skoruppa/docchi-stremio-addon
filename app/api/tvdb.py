@@ -213,6 +213,7 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
     
     series_ext_task = get_series_extended(tvdb_id, short=False)
     translation_task = get_series_translation(tvdb_id, "pol")
+    fanart_task = get_fanart_images(imdb_id=imdb_id, tvdb_id=tvdb_id, tmdb_id=tmdb_id)
     
     # Kitsu call for poster, cover, trailer, rating
     kitsu_id = None
@@ -233,8 +234,8 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
             pass
         return {}
 
-    series_ext, translation, kdata = await asyncio.gather(
-        series_ext_task, translation_task, _fetch_kitsu_data()
+    series_ext, translation, kdata, fanart = await asyncio.gather(
+        series_ext_task, translation_task, _fetch_kitsu_data(), fanart_task
     )
 
     if not series_ext:
@@ -315,8 +316,7 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
         except Exception:
             pass
 
-    # Fanart for logo, background (series-level)
-    fanart = await get_fanart_images(imdb_id=imdb_id, tvdb_id=tvdb_id, tmdb_id=tmdb_id)
+    # Fanart for logo, background (series-level) — already fetched in parallel above
     logo = fanart.get("logo")
     background = fanart.get("background") or background
     # Only use fanart poster as absolute last resort (it's series-level, not season-specific)
