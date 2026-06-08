@@ -221,6 +221,10 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     if not mal_id:
         return None, None
 
+    import time as _time
+    import logging
+    _t_start = _time.time()
+
     def _with_genre_links(meta):
         meta = dict(meta)
         meta['links'] = list(meta.get('links', []))
@@ -230,7 +234,10 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     # Check cache first
     cached = await get_cached_meta(mal_id)
     if cached:
+        logging.info(f"[META timing] cache hit for mal:{mal_id} in {_time.time()-_t_start:.3f}s")
         return _with_genre_links(cached), mal_id
+
+    logging.info(f"[META timing] cache miss for mal:{mal_id}, fetching...")
 
     # Check for expired cache to reuse translations
     expired_meta = await _get_expired_meta(mal_id)
@@ -238,8 +245,6 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     # Try TVDB API first (primary source)
     if Config.TVDB_API_KEY:
         try:
-            import time as _time
-            import logging
             _t0 = _time.time()
             from app.api.tvdb import get_anime_meta as tvdb_get_meta
             ids = get_ids_from_mal_id(mal_id)
@@ -252,7 +257,7 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                     imdb_id=ids.get('imdb_id'),
                     tmdb_id=ids.get('tmdb_id'),
                 )
-                logging.info(f"[META timing] get_anime_meta: {_time.time()-_t0:.2f}s")
+                logging.info(f"[META timing] get_anime_meta: {_time.time()-_t0:.2f}s (total since start: {_time.time()-_t_start:.2f}s)")
                 if meta and meta.get('name'):
                     is_untranslated = meta.pop('_untranslated', False)
                     await _fill_genres_from_docchi(meta, mal_id)

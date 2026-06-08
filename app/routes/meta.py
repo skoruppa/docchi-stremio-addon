@@ -17,6 +17,7 @@ _RESPONSE_CACHE_TTL = 60  # 1 min in-memory response cache
 async def addon_meta(meta_type: str, meta_id: str):
     import asyncio
     import time
+    import logging
     is_vip = Config.VIP_PATH in request.path
     meta_id = unquote(meta_id)
 
@@ -35,16 +36,22 @@ async def addon_meta(meta_type: str, meta_id: str):
         else:
             del _response_cache[cache_key]
 
+    _t_route = time.time()
+
     # Extract mal_id early so we can fetch meta and videos in parallel
     from app.utils.meta_cache import _resolve_mal_id
     mal_id = await _resolve_mal_id(meta_id, is_vip)
     if not mal_id:
         return respond_with({'meta': {}, 'message': 'Could not resolve anime ID'}), 404
 
+    logging.info(f"[ROUTE timing] resolve {meta_id} -> mal:{mal_id} in {time.time()-_t_route:.3f}s")
+
     # Fetch meta and videos in parallel
     meta_task = fetch_and_cache_meta(meta_id, is_vip)
     videos_task = fetch_videos(mal_id)
     (meta, _), videos = await asyncio.gather(meta_task, videos_task)
+
+    logging.info(f"[ROUTE timing] gather done for mal:{mal_id} in {time.time()-_t_route:.3f}s")
 
     if not meta:
         return respond_with({'meta': {}, 'message': 'Could not fetch anime metadata'}), 404
