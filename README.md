@@ -1,5 +1,5 @@
 # Docchi Stremio Addon
-![Version](https://img.shields.io/badge/version-0.2.7-blue.svg)
+![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Status](https://img.shields.io/badge/status-Active-brightgreen.svg)
 
@@ -11,39 +11,21 @@ This Stremio addon allows users to access anime streams with polish subtitles av
 
 ## Supported Players
 
-The addon supports the following video players:
+Player extractors are maintained in a separate repository: **[docchi-players](https://github.com/skoruppa/docchi-players)** (included as a git submodule at `app/players`).
 
-- **CDA**
-- **OK.ru**
-- **VK.com**
-- **Sibnet.ru**
-- **Lycoris.cafe**
-- **Dailymotion**
-- **Google Drive**
-- **Rumble.com**
-- **Lulustream**
-- **Vidtube.one**
-- **UPnShare** (formerly UPNS)
-- **RPMShare** (formerly RPMHub)
-- **MP4Upload**
-- **EarnVid**
-- **StreamUP**
-- **Vidguard**
-- **Vidnest**
-- **StreamHG** (formerly StreamHLS)
-- **Pixeldrain**
-- **Savefiles**
-- **Turbovid**
-- **Buzzheavier**
-- **Vidara**
-- **Vids.st**
-- **Abyss** (HydraX)
-- **Uqload*** 
-- **Byse*** (formerly Filemoon)
-- **Streamtape***
-- **VOE***
+If you want to use these extractors in your own project or contribute new players, check out the [docchi-players README](https://github.com/skoruppa/docchi-players#readme) for details.
 
-**\* These players require full stream proxying through [MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy)** or local deployment 
+The addon currently supports **33 players** including:
+
+- **CDA**, **OK.ru**, **VK.com**, **Sibnet.ru**
+- **Lycoris.cafe**, **Dailymotion**, **Google Drive**, **Rumble.com**
+- **Lulustream**, **Vidtube**, **UPnShare/RPMShare**, **MP4Upload**
+- **EarnVid**, **StreamUP**, **Vidguard**, **Vidnest**, **Pixeldrain**
+- **Savefiles/StreamHG**, **Turbovid**, **Buzzheavier**, **Vidara**
+- **Vids.st**, **Abyss (HydraX)**, **ABStream**, **Veev**, **Vidoza**, **SendVid**
+- **Uqload**\*, **Byse/Filemoon**\*, **Streamtape**\*, **VOE**\*
+
+**\* These players require full stream proxying through [MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy)** or local deployment
 
 ## Usage 🧑‍💻
 
