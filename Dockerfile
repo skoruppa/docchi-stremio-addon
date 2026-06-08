@@ -3,7 +3,7 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Install git for submodule init and gcc for native extensions
-RUN apt-get update && apt-get install -y --no-install-recommends git gcc && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends git gcc libc6-dev && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first (cache layer)
 COPY requirements.txt .
