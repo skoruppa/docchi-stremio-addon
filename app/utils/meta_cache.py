@@ -610,8 +610,10 @@ async def fetch_videos(mal_id: str) -> list:
                 for v in videos:
                     v.pop("_untranslated", None)
                 
-                # Save to cache — no background translation, cron job handles it
-                await set_cached_videos(mal_id, videos)
+                # Save to cache in background (don't block response)
+                # Update in-memory cache immediately so next request hits cache
+                _videos_mem_cache[mal_id] = (videos, int(time.time()), 0)
+                asyncio.ensure_future(set_cached_videos(mal_id, videos))
                 return videos
         except Exception as e:
             logging.error(f"[TVDB] fetch_videos error: {e}", exc_info=True)
@@ -636,7 +638,8 @@ async def fetch_videos(mal_id: str) -> list:
 
     await _enrich_thumbnails({'videos': videos}, mal_id)
     if videos:
-        await set_cached_videos(mal_id, videos)
+        _videos_mem_cache[mal_id] = (videos, int(time.time()), 0)
+        asyncio.ensure_future(set_cached_videos(mal_id, videos))
     return videos
 
 
