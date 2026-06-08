@@ -457,6 +457,26 @@ async def fetch_videos(mal_id: str) -> list:
                 
                 logging.info(f"[TVDB timing] parallel fetch ({len(sorted_seasons)} seasons{' + extended' if need_extended else ''}): {_time.time()-_t1:.2f}s")
 
+                # Pre-fetch episode counts for all multi-split seasons in parallel
+                multi_split_seasons = [
+                    (tvdb_season, mal_ids_for_season)
+                    for (tvdb_season, mal_ids_for_season) in sorted_seasons
+                    if len(mal_ids_for_season) > 1
+                ]
+                if multi_split_seasons:
+                    all_mal_ids_to_fetch = []
+                    for _, mal_ids_for_season in multi_split_seasons:
+                        all_mal_ids_to_fetch.extend(mal_ids_for_season)
+                    _t2 = _time.time()
+                    all_ep_counts = await _get_episode_counts(all_mal_ids_to_fetch)
+                    logging.info(f"[TVDB timing] _get_episode_counts ({len(all_mal_ids_to_fetch)} ids): {_time.time()-_t2:.2f}s")
+                    # Map back to per-season
+                    _ep_count_map = {}
+                    idx = 0
+                    for _, mal_ids_for_season in multi_split_seasons:
+                        _ep_count_map[id(mal_ids_for_season)] = all_ep_counts[idx:idx+len(mal_ids_for_season)]
+                        idx += len(mal_ids_for_season)
+
                 for (tvdb_season, mal_ids_for_season), episodes in zip(sorted_seasons, season_episode_results):
                     logging.info(f"[TVDB] season {tvdb_season}: got {len(episodes)} eps")
 
@@ -468,8 +488,7 @@ async def fetch_videos(mal_id: str) -> list:
                         videos.extend(season_videos)
                     else:
                         # Multiple MAL entries share same TVDB season (e.g. Part 1 + Part 2)
-                        # Get episode counts from Kitsu/mapping to split correctly
-                        ep_counts = await _get_episode_counts(mal_ids_for_season)
+                        ep_counts = _ep_count_map[id(mal_ids_for_season)]
                         logging.info(f"[TVDB] Multi-split season {tvdb_season}: mal_ids={mal_ids_for_season}, ep_counts={ep_counts}, total_episodes={len(episodes)}")
                         
                         # Sort episodes by number (already filtered to this season by get_series_episodes)
