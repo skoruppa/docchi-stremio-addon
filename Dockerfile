@@ -2,8 +2,8 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install git for submodule init
-RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+# Install git for submodule init and gcc for native extensions
+RUN apt-get update && apt-get install -y --no-install-recommends git gcc && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first (cache layer)
 COPY requirements.txt .
@@ -14,6 +14,9 @@ COPY . .
 
 # Initialize submodules if not already present
 RUN git submodule update --init --recursive
+
+# Compile native PoW solver for Filemoon
+RUN gcc -O3 -shared -fPIC -o /app/app/players/pow_solver.so /app/app/players/pow_solver.c
 
 # Create data directory
 RUN mkdir -p /app/data

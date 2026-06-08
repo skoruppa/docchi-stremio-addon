@@ -10,3 +10,7 @@
 # Anime lists submodule
 !data/
 !data/anime-lists/
+
+# Compiled shared libraries (except pre-built PoW solver)
+*.so
+!app/players/pow_solver.so
