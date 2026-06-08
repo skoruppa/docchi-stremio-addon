@@ -15,8 +15,10 @@ COPY . .
 # Initialize submodules if not already present
 RUN git submodule update --init --recursive
 
-# Compile native PoW solver for Filemoon
-RUN gcc -O3 -shared -fPIC -o /app/app/players/pow_solver.so /app/app/players/pow_solver.c
+# Recompile native PoW solver for target architecture (overrides pre-built x86_64)
+RUN if [ -f /app/app/players/pow_solver.c ]; then \
+      gcc -O3 -shared -fPIC -o /app/app/players/pow_solver.so /app/app/players/pow_solver.c; \
+    fi
 
 # Create data directory
 RUN mkdir -p /app/data
