@@ -440,8 +440,18 @@ async def fetch_videos(mal_id: str) -> list:
                     if tvdb_season is not None:
                         season_groups[int(tvdb_season)].append(str(season_entry.get('mal_id', mal_id)))
 
-                # Fetch all seasons (+ extended if needed) in parallel
+                # Identify multi-split seasons upfront (need episode counts)
                 sorted_seasons = sorted(season_groups.items())
+                multi_split_seasons = [
+                    (tvdb_season, mal_ids_for_season)
+                    for (tvdb_season, mal_ids_for_season) in sorted_seasons
+                    if len(mal_ids_for_season) > 1
+                ]
+                all_mal_ids_to_fetch = []
+                for _, mal_ids_for_season in multi_split_seasons:
+                    all_mal_ids_to_fetch.extend(mal_ids_for_season)
+
+                # Fetch all seasons + extended + episode counts ALL in parallel
                 _t1 = _time.time()
                 tasks = [
                     get_series_episodes(tvdb_id, season_number=tvdb_season, lang="pol")
@@ -449,34 +459,29 @@ async def fetch_videos(mal_id: str) -> list:
                 ]
                 if need_extended:
                     tasks.append(get_series_extended(tvdb_id))
+                if all_mal_ids_to_fetch:
+                    tasks.append(_get_episode_counts(all_mal_ids_to_fetch))
                 
                 results = await asyncio.gather(*tasks)
                 
+                # Unpack results
+                ep_results_end = len(sorted_seasons)
+                season_episode_results = results[:ep_results_end]
+                remaining = results[ep_results_end:]
+                
                 if need_extended:
-                    season_episode_results = results[:-1]
-                    series_ext = results[-1]
+                    series_ext = remaining[0]
+                    remaining = remaining[1:]
                     airs_time = (series_ext or {}).get("airsTime") or "00:00"
                     original_country = (series_ext or {}).get("originalCountry") or ""
-                else:
-                    season_episode_results = results
                 
-                logging.info(f"[TVDB timing] parallel fetch ({len(sorted_seasons)} seasons{' + extended' if need_extended else ''}): {_time.time()-_t1:.2f}s")
+                all_ep_counts = remaining[0] if remaining else []
+                
+                logging.info(f"[TVDB timing] parallel fetch ({len(sorted_seasons)} seasons{' + extended' if need_extended else ''}{' + ep_counts' if all_mal_ids_to_fetch else ''}): {_time.time()-_t1:.2f}s")
 
-                # Pre-fetch episode counts for all multi-split seasons in parallel
-                multi_split_seasons = [
-                    (tvdb_season, mal_ids_for_season)
-                    for (tvdb_season, mal_ids_for_season) in sorted_seasons
-                    if len(mal_ids_for_season) > 1
-                ]
+                # Map episode counts back to per-season
+                _ep_count_map = {}
                 if multi_split_seasons:
-                    all_mal_ids_to_fetch = []
-                    for _, mal_ids_for_season in multi_split_seasons:
-                        all_mal_ids_to_fetch.extend(mal_ids_for_season)
-                    _t2 = _time.time()
-                    all_ep_counts = await _get_episode_counts(all_mal_ids_to_fetch)
-                    logging.info(f"[TVDB timing] _get_episode_counts ({len(all_mal_ids_to_fetch)} ids): {_time.time()-_t2:.2f}s")
-                    # Map back to per-season
-                    _ep_count_map = {}
                     idx = 0
                     for _, mal_ids_for_season in multi_split_seasons:
                         _ep_count_map[id(mal_ids_for_season)] = all_ep_counts[idx:idx+len(mal_ids_for_season)]
