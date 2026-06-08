@@ -67,6 +67,34 @@ async def get_cached_videos(mal_id: str) -> list | None:
     return None
 
 
+async def _get_cached_videos_with_expired(mal_id: str) -> tuple:
+    """Get cached videos. Returns (valid_cache, expired_data).
+    
+    - If cache is valid: returns (videos, None)
+    - If cache is expired: returns (None, expired_videos) for reuse as prev_translations
+    - If no cache at all: returns (None, None)
+    Single DB query instead of two.
+    """
+    if mal_id in _videos_mem_cache:
+        videos, ts, ttl_override = _videos_mem_cache[mal_id]
+        ttl = ttl_override if ttl_override else _videos_ttl(videos)
+        if time.time() - ts < ttl:
+            return videos, None
+        del _videos_mem_cache[mal_id]
+        return None, videos  # expired but reusable
+
+    rows = await execute("SELECT videos, timestamp FROM videos_cache WHERE mal_id=?", (mal_id,))
+    if rows:
+        videos = orjson.loads(rows[0]['videos'])
+        ts = rows[0]['timestamp']
+        ttl = _videos_ttl(videos)
+        if time.time() - ts < ttl:
+            _videos_mem_cache[mal_id] = (videos, ts, 0)
+            return videos, None
+        return None, videos  # expired but reusable
+    return None, None
+
+
 async def set_cached_videos(mal_id: str, videos: list, ttl_override: int = 0):
     """Cache videos list by MAL ID. If ttl_override > 0, use that instead of computed TTL."""
     await execute(
@@ -356,8 +384,8 @@ async def fetch_videos(mal_id: str) -> list:
     import logging
     import time as _time
 
-    # Check cache first
-    cached = await get_cached_videos(mal_id)
+    # Check cache first (also returns expired data for prev_translations reuse)
+    cached, expired_videos = await _get_cached_videos_with_expired(mal_id)
     if cached is not None:
         return cached
 
@@ -365,17 +393,13 @@ async def fetch_videos(mal_id: str) -> list:
     ids = get_ids_from_mal_id(mal_id)
     videos = []
 
-    # Load expired cache to preserve previous translations
+    # Build prev_translations from expired cache (no extra DB query needed)
     prev_translations = {}  # vid_id -> {"title": ..., "overview": ...}
-    rows = await execute("SELECT videos FROM videos_cache WHERE mal_id=?", (mal_id,))
-    if rows:
-        import orjson as _orjson
-        prev_videos = _orjson.loads(rows[0]['videos'])
-        for v in prev_videos:
+    if expired_videos:
+        for v in expired_videos:
             vid_id = v.get("id")
             if not vid_id:
                 continue
-            # Only keep if it was actually translated (no _untranslated flags)
             entry = {}
             if v.get("title") and not v.get("_untranslated_title"):
                 entry["title"] = v["title"]
