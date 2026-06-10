@@ -14,11 +14,11 @@ class Config:
     CACHE_TYPE = 'SimpleCache'
     CACHE_DEFAULT_TIMEOUT = 600
     JSON_SORT_KEYS = False
-    PROXIFY_STREAMS = os.getenv('PROXIFY_STREAMS', True)  # proxify needed streams
+    PROXIFY_STREAMS = os.getenv('PROXIFY_STREAMS', 'false').lower() in ('true', '1', 'yes')  # proxify needed streams
     STREAM_PROXY_URL = os.getenv('STREAM_PROXY_URL', "")  # MediaFlow Proxy
     STREAM_PROXY_PASSWORD = os.getenv('STREAM_PROXY_PASSWORD', "")  # MediaFlowProxy API_PASSWORD
     VIP_PATH = os.getenv('VIP_PATH', 'vip')  # Secret path for VIP users with proxy access
-    FORCE_VIP_PLAYERS = os.getenv('FORCE_VIP_PLAYERS', False)  # Make VIP-only players available for all users
+    FORCE_VIP_PLAYERS = os.getenv('FORCE_VIP_PLAYERS', 'false').lower() in ('true', '1', 'yes')  # Make VIP-only players available for all users
     MAL_CLIENT_ID = os.getenv('MAL_CLIENT_ID', '')  # MyAnimeList API Client ID
     FANART_API_KEY = os.getenv('FANART_API_KEY', '')  # fanart.tv API key (optional)
     TVDB_API_KEY = os.getenv('TVDB_API_KEY', '')  # TheTVDB API key (v4)
@@ -28,7 +28,7 @@ class Config:
     DATABASE = "/tmp/database.db"
     
     # Redis for anime mapping
-    USE_REDIS = os.getenv('USE_REDIS', False)
+    USE_REDIS = os.getenv('USE_REDIS', 'false').lower() in ('true', '1', 'yes')
     REDIS_URL = os.getenv('REDIS_URL', '')
 
     # Turso for meta cache
