@@ -610,6 +610,18 @@ async def fetch_videos(mal_id: str) -> list:
                 for v in videos:
                     v.pop("_untranslated", None)
                 
+                # Guard against regression: don't overwrite good cache with worse data
+                # If expired cache had titles/thumbnails/overviews and new data doesn't, keep the old
+                if expired_videos and videos:
+                    old_quality = sum(1 for v in expired_videos if v.get('overview') or (v.get('title') and not v['title'].startswith('Episode ')))
+                    new_quality = sum(1 for v in videos if v.get('overview') or (v.get('title') and not v['title'].startswith('Episode ')))
+                    if old_quality > 0 and new_quality == 0 and len(videos) <= len(expired_videos):
+                        # New data is a regression — TVDB likely returned empty translations
+                        logging.warning(f"[TVDB] Regression detected for mal:{mal_id}: old had {old_quality} enriched eps, new has {new_quality}. Keeping old data.")
+                        _videos_mem_cache[mal_id] = (expired_videos, int(time.time()), 300)  # short TTL to retry soon
+                        asyncio.ensure_future(set_cached_videos(mal_id, expired_videos, 300))
+                        return expired_videos
+                
                 # Save to cache in background (don't block response)
                 # Update in-memory cache immediately so next request hits cache
                 _videos_mem_cache[mal_id] = (videos, int(time.time()), 0)
