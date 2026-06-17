@@ -10,8 +10,14 @@ def load_anime_mapping(data: list):
             imdb = imdb[0] if imdb else None
         tmdb = item.get('themoviedb_id')
         if isinstance(tmdb, dict):
-            # Extract first value from dict like {"tv": 26209}
-            tmdb = next(iter(tmdb.values()), None) if tmdb else None
+            # Extract first value from dict like {"tv": 26209} or {"movie": [128]}
+            val = next(iter(tmdb.values()), None) if tmdb else None
+            if isinstance(val, list):
+                tmdb = val[0] if val else None
+            else:
+                tmdb = val
+        elif isinstance(tmdb, list):
+            tmdb = tmdb[0] if tmdb else None
         rows.append((
             item.get('mal_id'),
             item.get('kitsu_id'),
