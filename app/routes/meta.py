@@ -59,6 +59,18 @@ async def addon_meta(meta_type: str, meta_id: str):
     meta['id'] = meta_id
     meta['videos'] = videos
 
+    # Recompute 'available' dynamically based on current time (cache may have stale values)
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    for v in meta.get('videos', []):
+        released = v.get('released')
+        if released:
+            try:
+                ep_date = datetime.fromisoformat(released.replace('Z', '+00:00'))
+                v['available'] = ep_date <= now
+            except (ValueError, TypeError):
+                pass
+
     # Dynamic cache TTL:
     # - Short (5min) if has untranslated content (cron will translate soon)
     # - Airing: min(1h, seconds until next episode premiere)
