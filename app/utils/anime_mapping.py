@@ -156,9 +156,47 @@ def _load_to_sqlite(data):
     logging.info(f"Loaded {len(data)} anime to SQLite")
 
 def get_mal_id_from_kitsu_id(kitsu_id: str) -> Optional[str]:
-    """Get MAL ID from Kitsu ID"""
+    """Get MAL ID from Kitsu ID. Falls back to Kitsu Mappings API if not in local DB."""
     item = _get_item('kitsu', kitsu_id)
-    return str(item.get('mal_id')) if item and item.get('mal_id') else None
+    if item and item.get('mal_id'):
+        return str(item['mal_id'])
+
+    # Fallback: query Kitsu API mappings endpoint
+    mal_id = _kitsu_api_fallback(kitsu_id)
+    if mal_id:
+        # Cache the result for future lookups
+        _cache_kitsu_mapping(kitsu_id, mal_id)
+    return mal_id
+
+
+def _kitsu_api_fallback(kitsu_id: str) -> Optional[str]:
+    """Query Kitsu Mappings API to resolve kitsu_id -> MAL ID."""
+    import requests
+    try:
+        url = (
+            f"https://kitsu.io/api/edge/anime/{kitsu_id}/mappings"
+            f"?filter[externalSite]=myanimelist/anime"
+        )
+        resp = requests.get(url, timeout=5)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        mappings = data.get("data", [])
+        if mappings:
+            return mappings[0].get("attributes", {}).get("externalId")
+    except Exception as e:
+        logging.warning(f"Kitsu API fallback failed for kitsu:{kitsu_id}: {e}")
+    return None
+
+
+def _cache_kitsu_mapping(kitsu_id: str, mal_id: str):
+    """Cache a kitsu->mal mapping discovered via API fallback."""
+    mini = {'kitsu_id': int(kitsu_id), 'mal_id': int(mal_id)}
+    if _redis_client:
+        import json as _json
+        ttl = 86400 * 7
+        _redis_client.setex(f"kitsu:{kitsu_id}", ttl, _json.dumps(mini))
+    # For SQLite, we don't persist API-discovered mappings to avoid stale data
 
 def get_kitsu_from_mal_id(mal_id: str) -> Optional[str]:
     """Get Kitsu ID from MAL ID"""

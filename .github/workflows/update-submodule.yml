@@ -13,6 +13,11 @@ jobs:
         with:
           submodules: true
           token: ${{ secrets.GH_PAT }}
+          persist-credentials: true
+
+      - name: Configure git credentials for submodules
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
 
       - name: Update submodules
         run: |
