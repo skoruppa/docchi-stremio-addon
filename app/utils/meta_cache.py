@@ -221,6 +221,44 @@ async def _resolve_mal_id(content_id: str, is_vip: bool = False) -> str | None:
     return None
 
 
+async def _resolve_tvdb_via_anilist(mal_id: str, ids: dict) -> dict | None:
+    """Resolve tvdb_id for a MAL entry that lacks one, by following AniList PREQUEL chain.
+    
+    Walks back through PREQUEL relations until it finds a MAL ID that has a tvdb_id
+    in our local mapping. Calculates the TVDB season number based on steps taken.
+    
+    Returns dict with tvdb_id and tvdb_season, or None if unable to resolve.
+    """
+    import logging
+    from app.api.anilist import get_tv_prequel_chain
+
+    prequels = await get_tv_prequel_chain(int(mal_id))
+    if not prequels:
+        return None
+
+    for prequel in prequels:
+        prequel_mal_id = prequel.get('mal_id')
+        if not prequel_mal_id:
+            continue
+
+        prequel_ids = get_ids_from_mal_id(str(prequel_mal_id))
+        if prequel_ids.get('tvdb_id'):
+            prequel_season = int(prequel_ids['tvdb_season']) if prequel_ids.get('tvdb_season') else 1
+            resolved_season = prequel_season + prequel['steps']
+            logging.info(
+                f"[AniList] Resolved mal:{mal_id} -> tvdb:{prequel_ids['tvdb_id']} "
+                f"season {resolved_season} (via {prequel['steps']} PREQUEL steps from mal:{prequel_mal_id})"
+            )
+            return {
+                'tvdb_id': prequel_ids['tvdb_id'],
+                'tvdb_season': resolved_season,
+                'imdb_id': ids.get('imdb_id') or prequel_ids.get('imdb_id'),
+                'tmdb_id': ids.get('tmdb_id') or prequel_ids.get('tmdb_id'),
+            }
+
+    return None
+
+
 async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     """Fetch metadata from TVDB (primary), Kitsu, or MAL (fallbacks) and cache it.
     
@@ -276,6 +314,12 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
             _t0 = _time.time()
             from app.api.tvdb import get_anime_meta as tvdb_get_meta
             ids = get_ids_from_mal_id(mal_id)
+            # If tvdb_id is missing, try to resolve via AniList relations
+            if not ids.get('tvdb_id'):
+                resolved = await _resolve_tvdb_via_anilist(mal_id, ids)
+                if resolved:
+                    ids.update(resolved)
+                    logging.info(f"[TVDB meta] Resolved tvdb_id via AniList for mal:{mal_id}: tvdb_id={ids['tvdb_id']}, season={ids['tvdb_season']}")
             if ids.get('tvdb_id'):
                 tvdb_season = int(ids['tvdb_season']) if ids.get('tvdb_season') is not None else 1
                 meta = await tvdb_get_meta(
@@ -409,6 +453,13 @@ async def fetch_videos(mal_id: str) -> list:
                 prev_translations[vid_id] = entry
 
     # Try TVDB first with multi-season support
+    # If tvdb_id is missing, try to resolve it via AniList relations (PREQUEL chain)
+    if Config.TVDB_API_KEY and not ids.get('tvdb_id'):
+        resolved = await _resolve_tvdb_via_anilist(mal_id, ids)
+        if resolved:
+            ids.update(resolved)
+            logging.info(f"[TVDB] Resolved tvdb_id via AniList for mal:{mal_id}: tvdb_id={ids['tvdb_id']}, season={ids['tvdb_season']}")
+
     if Config.TVDB_API_KEY and ids.get('tvdb_id'):
         try:
             from app.api.tvdb import get_series_episodes, _build_videos_from_episodes, get_series_extended
@@ -425,6 +476,19 @@ async def fetch_videos(mal_id: str) -> list:
 
             # Get all seasons that share the same tvdb_id
             all_seasons = get_all_seasons_for_tvdb_id(tvdb_id)
+            
+            # If current mal_id was resolved via AniList (not in local mapping),
+            # add it to all_seasons so it gets its proper season
+            current_in_seasons = any(str(s.get('mal_id')) == str(mal_id) for s in all_seasons)
+            if not current_in_seasons and ids.get('tvdb_season'):
+                all_seasons.append({
+                    'mal_id': int(mal_id),
+                    'tvdb_id': tvdb_id,
+                    'season': {'tvdb': int(ids['tvdb_season'])},
+                    'kitsu_id': int(ids['kitsu_id']) if ids.get('kitsu_id') else None,
+                })
+                all_seasons.sort(key=lambda x: int(x.get('season', {}).get('tvdb', 0) if isinstance(x.get('season'), dict) else 0))
+            
             logging.info(f"[TVDB] mal_id={mal_id}, tvdb_id={tvdb_id}, all_seasons={all_seasons}")
             
             # Check if any entry has season info
