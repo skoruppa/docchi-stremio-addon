@@ -259,6 +259,20 @@ async def _resolve_tvdb_via_anilist(mal_id: str, ids: dict) -> dict | None:
     return None
 
 
+async def _resolve_mal_for_season_via_anilist(known_mal_id: str, steps: int) -> int | None:
+    """Resolve MAL ID for a future season by walking SEQUEL chain from a known MAL ID.
+    
+    Args:
+        known_mal_id: MAL ID of a known season (e.g. season 1)
+        steps: How many SEQUEL hops to take (e.g. 1 for next season)
+    
+    Returns:
+        MAL ID of the target season, or None if not found.
+    """
+    from app.api.anilist import get_tv_sequel_mal_id
+    return await get_tv_sequel_mal_id(int(known_mal_id), steps)
+
+
 async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     """Fetch metadata from TVDB (primary), Kitsu, or MAL (fallbacks) and cache it.
     
@@ -503,6 +517,28 @@ async def fetch_videos(mal_id: str) -> list:
                     })
                 all_seasons.sort(key=lambda x: int(x.get('season', {}).get('tvdb', 0) if isinstance(x.get('season'), dict) else 0))
             
+            # Resolve missing mal_ids in all_seasons via AniList SEQUEL/PREQUEL chains
+            # This ensures all seasons get correct video IDs regardless of which MAL ID is queried
+            missing_seasons = [s for s in all_seasons if not s.get('mal_id')]
+            if missing_seasons:
+                # Find known MAL IDs and their seasons to use as starting points
+                known_entries = [(s.get('mal_id'), int(s['season']['tvdb'])) for s in all_seasons if s.get('mal_id')]
+                if known_entries:
+                    from app.api.anilist import get_tv_prequel_chain
+                    # For each known MAL ID, walk SEQUEL chain to find mal_ids for later seasons
+                    for known_mal, known_season in known_entries:
+                        for ms in missing_seasons:
+                            ms_season = int(ms.get('season', {}).get('tvdb', 0))
+                            steps_needed = ms_season - known_season
+                            if steps_needed > 0:
+                                # Need to walk SEQUEL chain (forward)
+                                resolved_mal = await _resolve_mal_for_season_via_anilist(str(known_mal), steps_needed)
+                                if resolved_mal:
+                                    ms['mal_id'] = resolved_mal
+                                    break
+                    # Clean up any still-unresolved entries
+                    all_seasons = [s for s in all_seasons if s.get('mal_id')]
+            
             logging.info(f"[TVDB] mal_id={mal_id}, tvdb_id={tvdb_id}, all_seasons={all_seasons}")
             
             # Check if any entry has season info
@@ -539,14 +575,8 @@ async def fetch_videos(mal_id: str) -> list:
                 season_groups = defaultdict(list)
                 for season_entry in all_seasons:
                     tvdb_season = season_entry.get('season', {}).get('tvdb')
-                    if tvdb_season is not None:
-                        entry_mal_id = season_entry.get('mal_id')
-                        if entry_mal_id:
-                            season_groups[int(tvdb_season)].append(str(entry_mal_id))
-                        elif int(tvdb_season) == int(ids.get('tvdb_season') or 0):
-                            # Entry without mal_id matches our resolved season — use current mal_id
-                            season_groups[int(tvdb_season)].append(str(mal_id))
-                        # else: skip entries without mal_id for other seasons
+                    if tvdb_season is not None and season_entry.get('mal_id'):
+                        season_groups[int(tvdb_season)].append(str(season_entry['mal_id']))
 
                 # Identify multi-split seasons upfront (need episode counts)
                 sorted_seasons = sorted(season_groups.items())
