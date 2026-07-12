@@ -220,6 +220,14 @@ async def addon_stream(content_type: str, content_id: str):
             episode = int(parts[2])
 
         prefix_id = mapping.get_mal_id_from_imdb_id(prefix, season)
+        # If season > 1 and no direct mapping, try resolving via AniList SEQUEL chain
+        if not prefix_id and season and season > 1:
+            base_mal_id = mapping.get_mal_id_from_imdb_id(prefix, 1)
+            if base_mal_id:
+                from app.api.anilist import get_tv_sequel_mal_id
+                prefix_id = await get_tv_sequel_mal_id(int(base_mal_id), season - 1)
+                if prefix_id:
+                    prefix_id = str(prefix_id)
         if prefix_id:
             prefix = 'mal'
         else:

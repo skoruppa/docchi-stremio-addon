@@ -214,7 +214,15 @@ async def _resolve_mal_id(content_id: str, is_vip: bool = False) -> str | None:
     elif prefix.startswith('tt') and is_vip and len(parts) >= 1:
         from app.routes import mapping
         season = int(parts[1]) if len(parts) > 1 else None
-        return mapping.get_mal_id_from_imdb_id(prefix, season)
+        mal_id = mapping.get_mal_id_from_imdb_id(prefix, season)
+        if not mal_id and season and season > 1:
+            base_mal_id = mapping.get_mal_id_from_imdb_id(prefix, 1)
+            if base_mal_id:
+                from app.api.anilist import get_tv_sequel_mal_id
+                resolved = await get_tv_sequel_mal_id(int(base_mal_id), season - 1)
+                if resolved:
+                    mal_id = str(resolved)
+        return mal_id
     elif prefix == 'kitsu' and len(parts) > 1:
         from app.routes import mapping
         return mapping.get_mal_id_from_kitsu_id(parts[1])
@@ -294,6 +302,13 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
         from app.routes import mapping
         season = int(parts[1]) if len(parts) > 1 else None
         mal_id = mapping.get_mal_id_from_imdb_id(prefix, season)
+        if not mal_id and season and season > 1:
+            base_mal_id = mapping.get_mal_id_from_imdb_id(prefix, 1)
+            if base_mal_id:
+                from app.api.anilist import get_tv_sequel_mal_id
+                resolved = await get_tv_sequel_mal_id(int(base_mal_id), season - 1)
+                if resolved:
+                    mal_id = str(resolved)
     elif prefix == 'kitsu' and len(parts) > 1:
         from app.routes import mapping
         mal_id = mapping.get_mal_id_from_kitsu_id(parts[1])
