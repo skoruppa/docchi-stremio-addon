@@ -481,12 +481,26 @@ async def fetch_videos(mal_id: str) -> list:
             # add it to all_seasons so it gets its proper season
             current_in_seasons = any(str(s.get('mal_id')) == str(mal_id) for s in all_seasons)
             if not current_in_seasons and ids.get('tvdb_season'):
-                all_seasons.append({
-                    'mal_id': int(mal_id),
-                    'tvdb_id': tvdb_id,
-                    'season': {'tvdb': int(ids['tvdb_season'])},
-                    'kitsu_id': int(ids['kitsu_id']) if ids.get('kitsu_id') else None,
-                })
+                # Check if there's already an entry for this season without mal_id — replace it
+                target_season = int(ids['tvdb_season'])
+                replaced = False
+                for i, s in enumerate(all_seasons):
+                    if (int(s.get('season', {}).get('tvdb', 0)) == target_season and not s.get('mal_id')):
+                        all_seasons[i] = {
+                            'mal_id': int(mal_id),
+                            'tvdb_id': tvdb_id,
+                            'season': {'tvdb': target_season},
+                            'kitsu_id': int(ids['kitsu_id']) if ids.get('kitsu_id') else None,
+                        }
+                        replaced = True
+                        break
+                if not replaced:
+                    all_seasons.append({
+                        'mal_id': int(mal_id),
+                        'tvdb_id': tvdb_id,
+                        'season': {'tvdb': target_season},
+                        'kitsu_id': int(ids['kitsu_id']) if ids.get('kitsu_id') else None,
+                    })
                 all_seasons.sort(key=lambda x: int(x.get('season', {}).get('tvdb', 0) if isinstance(x.get('season'), dict) else 0))
             
             logging.info(f"[TVDB] mal_id={mal_id}, tvdb_id={tvdb_id}, all_seasons={all_seasons}")
@@ -526,7 +540,13 @@ async def fetch_videos(mal_id: str) -> list:
                 for season_entry in all_seasons:
                     tvdb_season = season_entry.get('season', {}).get('tvdb')
                     if tvdb_season is not None:
-                        season_groups[int(tvdb_season)].append(str(season_entry.get('mal_id', mal_id)))
+                        entry_mal_id = season_entry.get('mal_id')
+                        if entry_mal_id:
+                            season_groups[int(tvdb_season)].append(str(entry_mal_id))
+                        elif int(tvdb_season) == int(ids.get('tvdb_season') or 0):
+                            # Entry without mal_id matches our resolved season — use current mal_id
+                            season_groups[int(tvdb_season)].append(str(mal_id))
+                        # else: skip entries without mal_id for other seasons
 
                 # Identify multi-split seasons upfront (need episode counts)
                 sorted_seasons = sorted(season_groups.items())
