@@ -44,7 +44,12 @@ async def process_player(session, player, is_vip=False):
     inverted = False
 
     try:
-        url, quality, headers = await handler(session, player['player'], is_vip=is_vip)
+        translator_title = player.get('translator_title', '')
+        # Pass translator to players that support embed origin per translator (e.g. filemoon)
+        if player_hosting == 'filemoon':
+            url, quality, headers = await handler(session, player['player'], is_vip=is_vip, translator=translator_title)
+        else:
+            url, quality, headers = await handler(session, player['player'], is_vip=is_vip)
         
         if player_hosting == 'vk' and player.get('isInverted'):
             inverted = True
