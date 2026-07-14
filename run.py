@@ -1,4 +1,5 @@
 import logging
+import sys
 
 from flask import Flask, render_template, session, url_for, redirect
 from flask_compress import Compress
@@ -11,6 +12,14 @@ from app.utils.stream_utils import cache
 from app.utils.anime_mapping import load_mapping
 from config import Config
 from version import __version__
+
+# Configure logging at module level (works with both direct run and waitress)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)s: %(message)s',
+    level=logging.INFO,
+    stream=sys.stdout,
+    force=True
+)
 
 app = Flask(__name__, template_folder='./templates', static_folder='./static')
 app.config.from_object('config.Config')
@@ -98,15 +107,6 @@ if __name__ == '__main__':
 
     try:
         from waitress import serve
-        import sys
-        
-        # Configure logging to stdout
-        logging.basicConfig(
-            format='%(asctime)s %(levelname)s: %(message)s',
-            level=logging.INFO,
-            stream=sys.stdout,
-            force=True
-        )
         
         logging.info(f"Starting Docchi Stremio Addon v{__version__} on http://0.0.0.0:5000")
         serve(app, host='0.0.0.0', port=5000)
