@@ -8,23 +8,31 @@ from app.utils.anime_mapping import get_ids_from_mal_id, get_all_seasons_for_tvd
 from app.db import execute
 
 CACHE_TTL = 2592000  # 1 month
+CACHE_TTL_UPCOMING = 43200  # 12 hours for "Upcoming" series (status may change)
 VIDEOS_TTL_AIRING = 10800  # 3 hours for airing series
 VIDEOS_TTL_FINISHED = 2592000  # 1 month for finished series
 _mem_cache: dict[str, tuple[dict, float]] = {}  # mal_id -> (meta, timestamp)
 _videos_mem_cache: dict[str, tuple[list, float, int]] = {}  # mal_id -> (videos, timestamp, ttl_override)
 
 
+def _meta_ttl(meta: dict) -> int:
+    """Get appropriate TTL for a meta entry based on status."""
+    if meta.get('status') == 'Upcoming':
+        return CACHE_TTL_UPCOMING
+    return CACHE_TTL
+
+
 async def get_cached_meta(mal_id: str):
     """Get cached metadata by MAL ID."""
     if mal_id in _mem_cache:
         meta, ts = _mem_cache[mal_id]
-        if time.time() - ts < CACHE_TTL:
+        if time.time() - ts < _meta_ttl(meta):
             return meta
         del _mem_cache[mal_id]
     rows = await execute("SELECT meta, timestamp FROM meta_cache WHERE mal_id=?", (mal_id,))
     if rows:
-        if time.time() - rows[0]['timestamp'] < CACHE_TTL:
-            meta = orjson.loads(rows[0]['meta'])
+        meta = orjson.loads(rows[0]['meta'])
+        if time.time() - rows[0]['timestamp'] < _meta_ttl(meta):
             return meta
         await execute("DELETE FROM meta_cache WHERE mal_id=?", (mal_id,))
     return None
