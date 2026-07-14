@@ -241,14 +241,28 @@ async def _resolve_mal_id(content_id: str, is_vip: bool = False) -> str | None:
 
 
 async def _resolve_tvdb_via_anilist(mal_id: str, ids: dict) -> dict | None:
-    """Resolve tvdb_id for a MAL entry that lacks one, by following AniList PREQUEL chain.
+    """Resolve tvdb_id for a MAL entry that lacks one.
     
-    Walks back through PREQUEL relations until it finds a MAL ID that has a tvdb_id
-    in our local mapping. Calculates the TVDB season number based on steps taken.
+    Tries Simkl API first (fast, 1-2 requests, provides season number directly).
+    Falls back to AniList PREQUEL chain if Simkl is unavailable or has no data.
+    
+    Caches successful results in Redis for future lookups.
     
     Returns dict with tvdb_id and tvdb_season, or None if unable to resolve.
     """
     import logging
+    from config import Config
+
+    # Try Simkl first (fast, direct season info)
+    if Config.SIMKL_CLIENT_ID:
+        from app.api.simkl import get_ids_from_mal
+        simkl_result = await get_ids_from_mal(int(mal_id))
+        if simkl_result and simkl_result.get('tvdb_id'):
+            # Cache in Redis for future lookups
+            _cache_resolved_mapping(mal_id, simkl_result)
+            return simkl_result
+
+    # Fallback: AniList PREQUEL chain
     from app.api.anilist import get_tv_prequel_chain
 
     prequels = await get_tv_prequel_chain(int(mal_id))
@@ -268,14 +282,37 @@ async def _resolve_tvdb_via_anilist(mal_id: str, ids: dict) -> dict | None:
                 f"[AniList] Resolved mal:{mal_id} -> tvdb:{prequel_ids['tvdb_id']} "
                 f"season {resolved_season} (via {prequel['steps']} PREQUEL steps from mal:{prequel_mal_id})"
             )
-            return {
+            result = {
                 'tvdb_id': prequel_ids['tvdb_id'],
                 'tvdb_season': resolved_season,
                 'imdb_id': ids.get('imdb_id') or prequel_ids.get('imdb_id'),
                 'tmdb_id': ids.get('tmdb_id') or prequel_ids.get('tmdb_id'),
             }
+            _cache_resolved_mapping(mal_id, result)
+            return result
 
     return None
+
+
+def _cache_resolved_mapping(mal_id: str, resolved: dict):
+    """Cache a resolved mapping in Redis for future lookups (TTL 7 days)."""
+    import json as _json
+    from app.utils.anime_mapping import _redis_client
+    if not _redis_client:
+        return
+    try:
+        mini = {'mal_id': int(mal_id)}
+        if resolved.get('tvdb_id'):
+            mini['tvdb_id'] = resolved['tvdb_id']
+        if resolved.get('imdb_id'):
+            mini['imdb_id'] = resolved['imdb_id']
+        if resolved.get('tmdb_id'):
+            mini['themoviedb_id'] = resolved['tmdb_id']
+        if resolved.get('tvdb_season'):
+            mini['season'] = {'tvdb': int(resolved['tvdb_season'])}
+        _redis_client.setex(f"mal:{mal_id}", 86400 * 7, _json.dumps(mini))
+    except Exception:
+        pass
 
 
 async def _resolve_mal_for_season_via_anilist(known_mal_id: str, steps: int) -> int | None:
