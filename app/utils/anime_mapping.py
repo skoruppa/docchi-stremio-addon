@@ -31,25 +31,30 @@ def load_mapping():
         return
     
     try:
-        with open(MAPPING_FILE, 'r') as f:
-            data = json.load(f)
-        
-        # Use hash of file content + schema version to detect changes
         import hashlib
         MAPPING_SCHEMA_VERSION = "2"  # bump when _load_to_redis changes structure
-        file_content = json.dumps(data, sort_keys=True)
-        file_hash = hashlib.md5((file_content + MAPPING_SCHEMA_VERSION).encode()).hexdigest()
-            
+        
+        # Read raw file bytes for hash (cheap) before parsing JSON (expensive)
+        with open(MAPPING_FILE, 'rb') as f:
+            raw_bytes = f.read()
+        
+        file_hash = hashlib.md5(raw_bytes + MAPPING_SCHEMA_VERSION.encode()).hexdigest()
+        
         if _redis_client:
-            # Check if Redis has same version
+            # Check if Redis has same version — skip expensive JSON parse if so
             cached_hash = _redis_client.get('mapping:hash')
             if cached_hash == file_hash:
                 logging.info(f"Redis has up-to-date anime mapping (hash: {file_hash[:8]}), skipping load")
-            else:
-                _load_to_redis(data)
-                _redis_client.set('mapping:hash', file_hash)
-                logging.info(f"Loaded anime mapping with hash: {file_hash[:8]}")
+                _loaded = True
+                return
+            
+            # Hash mismatch — need to parse and reload
+            data = json.loads(raw_bytes)
+            _load_to_redis(data)
+            _redis_client.set('mapping:hash', file_hash)
+            logging.info(f"Loaded anime mapping with hash: {file_hash[:8]}")
         else:
+            data = json.loads(raw_bytes)
             _load_to_sqlite(data)
         _loaded = True
     except FileNotFoundError:
