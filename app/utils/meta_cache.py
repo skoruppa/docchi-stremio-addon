@@ -16,9 +16,12 @@ _videos_mem_cache: dict[str, tuple[list, float, int]] = {}  # mal_id -> (videos,
 
 
 def _meta_ttl(meta: dict) -> int:
-    """Get appropriate TTL for a meta entry based on status."""
+    """Get appropriate TTL for a meta entry based on status and completeness."""
     if meta.get('status') == 'Upcoming':
         return CACHE_TTL_UPCOMING
+    # Re-fetch sooner if logo is missing (fanart.tv may have added it since)
+    if not meta.get('logo'):
+        return 86400 * 3  # 3 days
     return CACHE_TTL
 
 
