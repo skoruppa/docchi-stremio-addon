@@ -46,6 +46,10 @@ async def process_player(session, player, is_vip=False):
     quality = None
     inverted = False
 
+    import time as _time
+    _t0 = _time.time()
+    status = "ok"
+
     try:
         translator_title = player.get('translator_title', '')
         # Pass translator to players that support embed origin per translator (e.g. filemoon)
@@ -58,10 +62,15 @@ async def process_player(session, player, is_vip=False):
         
         if player_hosting == 'vk' and player.get('isInverted'):
             inverted = True
+        if not url:
+            status = "no_url"
     except asyncio.TimeoutError:
-        pass
+        status = "timeout"
     except Exception as e:
-        pass
+        status = "error"
+
+    elapsed = (_time.time() - _t0) * 1000
+    print(f"[Player] {player_hosting}: {status} in {elapsed:.0f}ms")
         
     stream.update({'url': url, 'quality': quality, 'headers': headers, 'inverted': inverted})
     return stream
