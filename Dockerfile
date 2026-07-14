@@ -12,8 +12,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application (including .git and .gitmodules)
 COPY . .
 
-# Initialize submodules if not already present
-RUN git submodule update --init --recursive
+# Initialize submodules if .git is available (CI/local), skip on platforms that pre-clone (Render)
+RUN if [ -d .git ]; then git submodule update --init --recursive; fi
 
 # Recompile native PoW solver for target architecture (overrides pre-built x86_64)
 RUN if [ -f /app/app/players/pow_solver.c ]; then \
