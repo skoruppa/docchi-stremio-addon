@@ -20,6 +20,8 @@ PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 
 
 PLAYER_TIMEOUT = 8  # Max seconds per player extraction
+PLAYER_TIMEOUT_SLOW = 18  # Extended timeout for slow players (filemoon/byse challenge flow)
+_SLOW_PLAYERS = {'filemoon'}
 
 
 async def process_player(session, player, is_vip=False):
@@ -58,7 +60,8 @@ async def process_player(session, player, is_vip=False):
         else:
             coro = handler(session, player['player'], is_vip=is_vip)
         
-        url, quality, headers = await asyncio.wait_for(coro, timeout=PLAYER_TIMEOUT)
+        timeout = PLAYER_TIMEOUT_SLOW if player_hosting in _SLOW_PLAYERS else PLAYER_TIMEOUT
+        url, quality, headers = await asyncio.wait_for(coro, timeout=timeout)
         
         if player_hosting == 'vk' and player.get('isInverted'):
             inverted = True
