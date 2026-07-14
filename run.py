@@ -34,6 +34,15 @@ def load_mapping_once():
         load_mapping()
         _mapping_loaded = True
 
+@app.after_request
+def log_request(response):
+    from flask import request
+    import time
+    # Skip static files and favicon
+    if not request.path.startswith('/static') and request.path != '/favicon.ico':
+        logging.info(f"{request.method} {request.path} -> {response.status_code}")
+    return response
+
 # Register blueprints normally
 app.register_blueprint(manifest_blueprint)
 app.register_blueprint(catalog_bp)
