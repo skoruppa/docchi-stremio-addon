@@ -537,7 +537,7 @@ async def fetch_videos(mal_id: str) -> list:
             missing_seasons = [s for s in all_seasons if not s.get('mal_id')]
             if missing_seasons:
                 # Find known MAL IDs and their seasons to use as starting points
-                known_entries = [(s.get('mal_id'), int(s['season']['tvdb'])) for s in all_seasons if s.get('mal_id')]
+                known_entries = [(s.get('mal_id'), int(s['season']['tvdb'])) for s in all_seasons if s.get('mal_id') and s.get('season', {}).get('tvdb')]
                 if known_entries:
                     from app.api.anilist import get_tv_prequel_chain
                     # For each known MAL ID, walk SEQUEL chain to find mal_ids for later seasons
