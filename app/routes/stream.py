@@ -106,16 +106,22 @@ async def process_players(players, content_id=None, content_type='series', is_vi
 
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
         tasks = [process_player(session, player, is_vip) for player in players]
+        
+        # Fetch meta in parallel with player extraction (for filename/bingeGroup)
+        meta_task = asyncio.ensure_future(fetch_and_cache_meta(content_id, is_vip)) if content_id else None
+        
         player_results = await asyncio.gather(*tasks)
         valid_streams = [s for s in player_results if s and s['url']]
 
         anime_name = None
-        if valid_streams and content_id:
+        if valid_streams and meta_task:
             try:
-                meta, _ = await asyncio.wait_for(fetch_and_cache_meta(content_id, is_vip), timeout=3)
+                meta, _ = await asyncio.wait_for(meta_task, timeout=2)
                 anime_name = meta.get('name') if meta else None
             except Exception:
                 pass
+        elif meta_task:
+            meta_task.cancel()
 
         for stream in valid_streams:
             translator = stream['translator_title'] or 'unknown'
