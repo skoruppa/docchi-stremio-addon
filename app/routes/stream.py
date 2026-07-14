@@ -19,6 +19,9 @@ stream_bp = Blueprint('stream', __name__)
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 
 
+PLAYER_TIMEOUT = 8  # Max seconds per player extraction
+
+
 async def process_player(session, player, is_vip=False):
     player_hosting = player['player_hosting'].lower()
     detected_player = detect_player(player)
@@ -47,12 +50,16 @@ async def process_player(session, player, is_vip=False):
         translator_title = player.get('translator_title', '')
         # Pass translator to players that support embed origin per translator (e.g. filemoon)
         if player_hosting == 'filemoon':
-            url, quality, headers = await handler(session, player['player'], is_vip=is_vip, translator=translator_title)
+            coro = handler(session, player['player'], is_vip=is_vip, translator=translator_title)
         else:
-            url, quality, headers = await handler(session, player['player'], is_vip=is_vip)
+            coro = handler(session, player['player'], is_vip=is_vip)
+        
+        url, quality, headers = await asyncio.wait_for(coro, timeout=PLAYER_TIMEOUT)
         
         if player_hosting == 'vk' and player.get('isInverted'):
             inverted = True
+    except asyncio.TimeoutError:
+        pass
     except Exception as e:
         pass
         
