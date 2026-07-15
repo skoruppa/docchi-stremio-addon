@@ -826,6 +826,16 @@ async def fetch_videos(mal_id: str) -> list:
             pass
 
     await _enrich_thumbnails({'videos': videos}, mal_id)
+    
+    # Backdrop fallback for episodes still without thumbnail
+    if videos and any(not v.get('thumbnail') for v in videos):
+        cached_meta = await get_cached_meta(mal_id)
+        backdrop = cached_meta.get('background') if cached_meta else None
+        if backdrop:
+            for v in videos:
+                if not v.get('thumbnail'):
+                    v['thumbnail'] = backdrop
+
     if videos:
         _videos_mem_cache[mal_id] = (videos, int(time.time()), 0)
         asyncio.ensure_future(set_cached_videos(mal_id, videos))
