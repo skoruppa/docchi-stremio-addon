@@ -66,6 +66,7 @@ def load_mapping():
         logging.error("anime-list-full.json not found. Run: git submodule update --init")
     except Exception as e:
         logging.error(f"Failed to load anime mapping: {e}")
+        _loaded = True  # Don't retry on every request if Redis is full
 
 def _load_to_redis(data):
     """Load only necessary fields to Redis with TTL"""
