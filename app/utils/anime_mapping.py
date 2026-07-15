@@ -245,16 +245,27 @@ def get_imdb_id_from_mal_id(mal_id: str) -> Optional[str]:
 
 
 def get_ids_from_mal_id(mal_id: str) -> dict:
-    """Get kitsu_id, imdb_id, tvdb_id, themoviedb_id for a given MAL ID."""
+    """Get kitsu_id, imdb_id, tvdb_id, themoviedb_id for a given MAL ID.
+    Checks both the main mapping and resolved: cache (from Simkl/AniList fallback)."""
     item = _get_item('mal', mal_id) or {}
     imdb_id = item.get('imdb_id')
-    return {
+    result = {
         'kitsu_id': str(item['kitsu_id']) if item.get('kitsu_id') else None,
         'imdb_id': (imdb_id[0] if isinstance(imdb_id, list) else imdb_id) or None,
         'tvdb_id': item.get('tvdb_id'),
         'tmdb_id': item.get('themoviedb_id'),
         'tvdb_season': item.get('season', {}).get('tvdb') if item.get('season') else None,
     }
+    # If main mapping lacks tvdb_id, check resolved cache (Simkl/AniList fallback)
+    if not result['tvdb_id'] and _redis_client:
+        resolved_data = _redis_client.get(f"resolved:mal:{mal_id}")
+        if resolved_data:
+            resolved = json.loads(resolved_data)
+            result['tvdb_id'] = result['tvdb_id'] or resolved.get('tvdb_id')
+            result['imdb_id'] = result['imdb_id'] or resolved.get('imdb_id')
+            result['tmdb_id'] = result['tmdb_id'] or resolved.get('themoviedb_id')
+            result['tvdb_season'] = result['tvdb_season'] or (resolved.get('season', {}).get('tvdb') if resolved.get('season') else None)
+    return result
 
 def _get_imdb_items(imdb_id: str) -> list:
     """Get list of items for IMDB ID (can have multiple seasons)"""

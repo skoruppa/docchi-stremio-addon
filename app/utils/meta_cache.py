@@ -295,7 +295,8 @@ async def _resolve_tvdb_via_anilist(mal_id: str, ids: dict) -> dict | None:
 
 
 def _cache_resolved_mapping(mal_id: str, resolved: dict):
-    """Cache a resolved mapping in Redis for future lookups (TTL 7 days)."""
+    """Cache a resolved mapping in Redis for future lookups (TTL 7 days).
+    Uses a separate key prefix to avoid being overwritten by load_mapping."""
     import json as _json
     from app.utils.anime_mapping import _redis_client
     if not _redis_client:
@@ -308,9 +309,10 @@ def _cache_resolved_mapping(mal_id: str, resolved: dict):
             mini['imdb_id'] = resolved['imdb_id']
         if resolved.get('tmdb_id'):
             mini['themoviedb_id'] = resolved['tmdb_id']
-        if resolved.get('tvdb_season'):
-            mini['season'] = {'tvdb': int(resolved['tvdb_season'])}
-        _redis_client.setex(f"mal:{mal_id}", 86400 * 7, _json.dumps(mini))
+        # Default season to 1 if not provided (single-season series)
+        season = resolved.get('tvdb_season') or 1
+        mini['season'] = {'tvdb': int(season)}
+        _redis_client.setex(f"resolved:mal:{mal_id}", 86400 * 7, _json.dumps(mini))
     except Exception:
         pass
 
@@ -535,6 +537,9 @@ async def fetch_videos(mal_id: str) -> list:
         resolved = await _resolve_tvdb_via_anilist(mal_id, ids)
         if resolved:
             ids.update(resolved)
+            # Default to season 1 if Simkl/AniList didn't provide a season number
+            if not ids.get('tvdb_season'):
+                ids['tvdb_season'] = 1
             logging.info(f"[TVDB] Resolved tvdb_id via AniList for mal:{mal_id}: tvdb_id={ids['tvdb_id']}, season={ids['tvdb_season']}")
 
     if Config.TVDB_API_KEY and ids.get('tvdb_id'):
