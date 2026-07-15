@@ -177,6 +177,12 @@ async def process_players(players, content_id=None, content_type='series', is_vi
     streams['streams'] = sorted(streams['streams'], key=lambda d: d['_priority'])
     for stream in streams['streams']:
         stream.pop('_priority', None)
+    
+    # Check if any players failed (timeout/error) — signal shorter cache
+    total_players = len(players)
+    successful = len(valid_streams)
+    streams['_had_failures'] = successful < total_players
+    
     return streams
 
 
@@ -287,5 +293,6 @@ async def addon_stream(content_type: str, content_id: str):
                 unique_players.append(player)
         
         streams = await process_players(unique_players, content_id, content_type, is_vip)
-        return respond_with(streams, 600)
+        cache_time = 20 if streams.pop('_had_failures', False) else 600
+        return respond_with(streams, cache_time)
     return respond_with({'streams': []})
