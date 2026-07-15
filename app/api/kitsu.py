@@ -122,7 +122,7 @@ async def get_anime_meta(kitsu_id: str, mal_id: str = None, imdb_id: str = None,
         if t and t.lower() != canonical.lower()
     })
 
-    poster = poster_img.get("medium") or poster_img.get("large")
+    poster = poster_img.get("medium") or poster_img.get("large") or poster_img.get("original")
     background = cover_img.get("original")
     logo = None
 
