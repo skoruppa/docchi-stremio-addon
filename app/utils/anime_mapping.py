@@ -45,17 +45,22 @@ def load_mapping():
             cached_hash = _redis_client.get('mapping:hash')
             if cached_hash == file_hash:
                 logging.info(f"Redis has up-to-date anime mapping (hash: {file_hash[:8]}), skipping load")
+                del raw_bytes
                 _loaded = True
                 return
             
             # Hash mismatch — need to parse and reload
             data = json.loads(raw_bytes)
+            del raw_bytes  # Free 15MB immediately
             _load_to_redis(data)
+            del data  # Free parsed data after loading to Redis
             _redis_client.set('mapping:hash', file_hash)
             logging.info(f"Loaded anime mapping with hash: {file_hash[:8]}")
         else:
             data = json.loads(raw_bytes)
+            del raw_bytes
             _load_to_sqlite(data)
+            del data
         _loaded = True
     except FileNotFoundError:
         logging.error("anime-list-full.json not found. Run: git submodule update --init")

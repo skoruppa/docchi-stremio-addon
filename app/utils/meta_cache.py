@@ -11,7 +11,7 @@ CACHE_TTL = 2592000  # 1 month
 CACHE_TTL_UPCOMING = 43200  # 12 hours for "Upcoming" series (status may change)
 VIDEOS_TTL_AIRING = 10800  # 3 hours for airing series
 VIDEOS_TTL_FINISHED = 2592000  # 1 month for finished series
-_MAX_MEM_CACHE = 200  # Max entries in memory (rest stays in DB/Redis only)
+_MAX_MEM_CACHE = 50  # Max entries in memory (reduced for 512MB environments)
 _mem_cache: dict[str, tuple[dict, float]] = {}  # mal_id -> (meta, timestamp)
 _videos_mem_cache: dict[str, tuple[list, float, int]] = {}  # mal_id -> (videos, timestamp, ttl_override)
 
