@@ -113,7 +113,7 @@ async def process_players(players, content_id=None, content_type='series', is_vi
     parts = content_id.split(':') if content_id else []
     episode_num = parts[-1] if len(parts) > 2 else None
 
-    timeout = aiohttp.ClientTimeout(total=3, connect=2)
+    timeout = aiohttp.ClientTimeout(total=None, connect=5)
     connector = aiohttp.TCPConnector(limit=15, limit_per_host=5, ttl_dns_cache=300, verify_ssl=False)
 
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
