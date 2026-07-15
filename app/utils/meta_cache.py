@@ -274,10 +274,11 @@ async def _resolve_tvdb_via_anilist(mal_id: str, ids: dict) -> dict | None:
     if Config.SIMKL_CLIENT_ID:
         from app.api.simkl import get_ids_from_mal
         simkl_result = await get_ids_from_mal(int(mal_id))
-        if simkl_result and simkl_result.get('tvdb_id'):
-            # Cache in Redis for future lookups
+        if simkl_result:
+            # Cache even without tvdb_id (imdb/tmdb useful for fanart)
             _cache_resolved_mapping(mal_id, simkl_result)
-            return simkl_result
+            if simkl_result.get('tvdb_id'):
+                return simkl_result
 
     # Fallback: AniList PREQUEL chain
     from app.api.anilist import get_tv_prequel_chain
