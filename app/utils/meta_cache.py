@@ -11,8 +11,22 @@ CACHE_TTL = 2592000  # 1 month
 CACHE_TTL_UPCOMING = 43200  # 12 hours for "Upcoming" series (status may change)
 VIDEOS_TTL_AIRING = 10800  # 3 hours for airing series
 VIDEOS_TTL_FINISHED = 2592000  # 1 month for finished series
+_MAX_MEM_CACHE = 200  # Max entries in memory (rest stays in DB/Redis only)
 _mem_cache: dict[str, tuple[dict, float]] = {}  # mal_id -> (meta, timestamp)
 _videos_mem_cache: dict[str, tuple[list, float, int]] = {}  # mal_id -> (videos, timestamp, ttl_override)
+
+
+def _evict_mem_cache():
+    """Evict oldest entries if memory cache exceeds limit."""
+    if len(_mem_cache) > _MAX_MEM_CACHE:
+        # Remove oldest 25%
+        sorted_keys = sorted(_mem_cache, key=lambda k: _mem_cache[k][1])
+        for k in sorted_keys[:len(sorted_keys) // 4]:
+            del _mem_cache[k]
+    if len(_videos_mem_cache) > _MAX_MEM_CACHE:
+        sorted_keys = sorted(_videos_mem_cache, key=lambda k: _videos_mem_cache[k][1])
+        for k in sorted_keys[:len(sorted_keys) // 4]:
+            del _videos_mem_cache[k]
 
 
 def _meta_ttl(meta: dict) -> int:
@@ -52,6 +66,8 @@ async def _get_expired_meta(mal_id: str) -> dict | None:
 async def set_cached_meta(mal_id: str, meta: dict):
     """Cache metadata by MAL ID with timestamp (videos excluded)."""
     meta_to_cache = {k: v for k, v in meta.items() if k != 'videos'}
+    _mem_cache[mal_id] = (meta_to_cache, int(time.time()))
+    _evict_mem_cache()
     await execute(
         "INSERT OR REPLACE INTO meta_cache (mal_id, meta, timestamp) VALUES (?,?,?)",
         (mal_id, orjson.dumps(meta_to_cache).decode(), int(time.time()))
@@ -113,6 +129,7 @@ async def set_cached_videos(mal_id: str, videos: list, ttl_override: int = 0):
         (mal_id, orjson.dumps(videos).decode(), int(time.time()))
     )
     _videos_mem_cache[mal_id] = (videos, int(time.time()), ttl_override)
+    _evict_mem_cache()
 
 
 def _videos_ttl(videos: list) -> int:
