@@ -627,12 +627,43 @@ async def fetch_videos(mal_id: str) -> list:
             
             logging.info(f"[TVDB] mal_id={mal_id}, tvdb_id={tvdb_id}, all_seasons={all_seasons}")
             
-            # Check if any entry has season info
+            # Check if current MAL entry has season info
+            current_entry = next((s for s in all_seasons if str(s.get('mal_id')) == str(mal_id)), None)
+            current_has_season = current_entry and current_entry.get('season', {}).get('tvdb')
             has_season_info = any(s.get('season', {}).get('tvdb') for s in all_seasons)
             
-            if not all_seasons or not has_season_info:
-                # No season mapping — can't split by TVDB seasons
-                if len(all_seasons) > 1:
+            if not all_seasons or (not current_has_season and not has_season_info):
+                # No season mapping at all — try Simkl episode-level TVDB mapping or single season fetch
+                if len(all_seasons) > 1 and Config.SIMKL_CLIENT_ID:
+                    from app.api.simkl import get_episode_tvdb_mapping
+                    simkl_mapping = await get_episode_tvdb_mapping(int(mal_id))
+                    if simkl_mapping and simkl_mapping.get('mapping'):
+                        # Determine which TVDB seasons this MAL entry covers
+                        ep_mapping = simkl_mapping['mapping']
+                        covered_seasons = sorted(set(m['season'] for m in ep_mapping.values()))
+                        logging.info(f"[Simkl] mal:{mal_id} covers TVDB seasons {covered_seasons} ({len(ep_mapping)} eps)")
+
+                        # Fetch extended for airs_time if needed
+                        if need_extended:
+                            series_ext = await get_series_extended(tvdb_id)
+                            airs_time = (series_ext or {}).get("airsTime") or "00:00"
+                            original_country = (series_ext or {}).get("originalCountry") or ""
+
+                        # Fetch all covered seasons from TVDB in parallel
+                        season_tasks = [get_series_episodes(tvdb_id, season_number=s, lang="pol") for s in covered_seasons]
+                        season_results = await asyncio.gather(*season_tasks)
+
+                        for tvdb_season, episodes in zip(covered_seasons, season_results):
+                            season_videos = _build_videos_from_episodes(episodes, mal_id, tvdb_season, airs_time, original_country)
+                            for v in season_videos:
+                                v['season'] = tvdb_season
+                            videos.extend(season_videos)
+
+                        logging.info(f"[Simkl] Built {len(videos)} videos for mal:{mal_id} from TVDB via Simkl mapping")
+                    else:
+                        logging.info(f"[TVDB] Skipping - multiple MAL entries without season mapping, Simkl has no mapping either")
+                        videos = []  # Fall through to Kitsu fallback
+                elif len(all_seasons) > 1:
                     logging.info(f"[TVDB] Skipping - multiple MAL entries without season mapping, falling back to Kitsu")
                     videos = []  # Will fall through to Kitsu fallback below
                 else:
@@ -656,114 +687,132 @@ async def fetch_videos(mal_id: str) -> list:
                         v['season'] = v.get('season', 1)
                     videos.extend(season_videos)
             else:
-                # Group MAL entries by TVDB season
-                from collections import defaultdict
-                season_groups = defaultdict(list)
-                for season_entry in all_seasons:
-                    tvdb_season = season_entry.get('season', {}).get('tvdb')
-                    if tvdb_season is not None and season_entry.get('mal_id'):
-                        season_groups[int(tvdb_season)].append(str(season_entry['mal_id']))
+                # Current MAL entry lacks season info but others have it
+                # Use Simkl episode mapping for the current entry if available
+                if not current_has_season and Config.SIMKL_CLIENT_ID:
+                    from app.api.simkl import get_episode_tvdb_mapping
+                    simkl_mapping = await get_episode_tvdb_mapping(int(mal_id))
+                    if simkl_mapping and simkl_mapping.get('mapping'):
+                        ep_mapping = simkl_mapping['mapping']
+                        covered_seasons = sorted(set(m['season'] for m in ep_mapping.values()))
+                        logging.info(f"[Simkl] mal:{mal_id} covers TVDB seasons {covered_seasons} ({len(ep_mapping)} eps)")
 
-                # Identify multi-split seasons upfront (need episode counts)
-                sorted_seasons = sorted(season_groups.items())
-                multi_split_seasons = [
-                    (tvdb_season, mal_ids_for_season)
-                    for (tvdb_season, mal_ids_for_season) in sorted_seasons
-                    if len(mal_ids_for_season) > 1
-                ]
-                all_mal_ids_to_fetch = []
-                for _, mal_ids_for_season in multi_split_seasons:
-                    all_mal_ids_to_fetch.extend(mal_ids_for_season)
+                        if need_extended:
+                            series_ext = await get_series_extended(tvdb_id)
+                            airs_time = (series_ext or {}).get("airsTime") or "00:00"
+                            original_country = (series_ext or {}).get("originalCountry") or ""
 
-                # Fetch all seasons + extended + episode counts ALL in parallel
-                _t1 = _time.time()
-                tasks = [
-                    get_series_episodes(tvdb_id, season_number=tvdb_season, lang="pol")
-                    for tvdb_season, _ in sorted_seasons
-                ]
-                if need_extended:
-                    tasks.append(get_series_extended(tvdb_id))
-                if all_mal_ids_to_fetch:
-                    tasks.append(_get_episode_counts(all_mal_ids_to_fetch))
-                
-                results = await asyncio.gather(*tasks)
-                
-                # Unpack results
-                ep_results_end = len(sorted_seasons)
-                season_episode_results = results[:ep_results_end]
-                remaining = results[ep_results_end:]
-                
-                if need_extended:
-                    series_ext = remaining[0]
-                    remaining = remaining[1:]
-                    airs_time = (series_ext or {}).get("airsTime") or "00:00"
-                    original_country = (series_ext or {}).get("originalCountry") or ""
-                
-                all_ep_counts = remaining[0] if remaining else []
-                
-                logging.info(f"[TVDB timing] parallel fetch ({len(sorted_seasons)} seasons{' + extended' if need_extended else ''}{' + ep_counts' if all_mal_ids_to_fetch else ''}): {_time.time()-_t1:.2f}s")
+                        season_tasks = [get_series_episodes(tvdb_id, season_number=s, lang="pol") for s in covered_seasons]
+                        season_results = await asyncio.gather(*season_tasks)
 
-                # Map episode counts back to per-season
-                _ep_count_map = {}
-                if multi_split_seasons:
-                    idx = 0
-                    for _, mal_ids_for_season in multi_split_seasons:
-                        _ep_count_map[id(mal_ids_for_season)] = all_ep_counts[idx:idx+len(mal_ids_for_season)]
-                        idx += len(mal_ids_for_season)
-
-                for (tvdb_season, mal_ids_for_season), episodes in zip(sorted_seasons, season_episode_results):
-                    logging.info(f"[TVDB] season {tvdb_season}: got {len(episodes)} eps")
-
-                    if len(mal_ids_for_season) == 1:
-                        # Simple case: one MAL entry per season
-                        season_videos = _build_videos_from_episodes(episodes, mal_ids_for_season[0], tvdb_season, airs_time, original_country)
-                        for v in season_videos:
-                            v['season'] = tvdb_season
-                        videos.extend(season_videos)
-                    else:
-                        # Multiple MAL entries share same TVDB season (e.g. Part 1 + Part 2)
-                        ep_counts = _ep_count_map[id(mal_ids_for_season)]
-                        logging.info(f"[TVDB] Multi-split season {tvdb_season}: mal_ids={mal_ids_for_season}, ep_counts={ep_counts}, total_episodes={len(episodes)}")
-                        
-                        # Sort episodes by number (already filtered to this season by get_series_episodes)
-                        episodes.sort(key=lambda e: e.get("number", 0))
-                        # Filter out specials (number <= 0)
-                        episodes = [ep for ep in episodes if ep.get("number", 0) > 0]
-                        
-                        # If all ep_counts are 0, try to split evenly
-                        total_known = sum(ep_counts)
-                        if total_known == 0:
-                            # Fallback: split evenly among all MAL entries
-                            per_entry = len(episodes) // len(mal_ids_for_season)
-                            ep_counts = [per_entry] * len(mal_ids_for_season)
-                            # Give remainder to last entry
-                            ep_counts[-1] = len(episodes) - per_entry * (len(mal_ids_for_season) - 1)
-                            logging.info(f"[TVDB] No ep_counts available, splitting evenly: {ep_counts}")
-                        elif total_known < len(episodes):
-                            # Last entry with 0 count gets the remainder
-                            for i in range(len(ep_counts) - 1, -1, -1):
-                                if ep_counts[i] == 0:
-                                    ep_counts[i] = len(episodes) - total_known
-                                    break
-                        
-                        offset = 0
-                        global_ep_num = 1  # Continuous episode numbering across all MAL entries in same TVDB season
-                        for entry_mal_id, ep_count in zip(mal_ids_for_season, ep_counts):
-                            if offset >= len(episodes):
-                                break
-                            # Slice episodes for this MAL entry
-                            entry_episodes = episodes[offset:offset + ep_count]
-                            # Use skip_season_filter=True since episodes are already filtered
-                            season_videos = _build_videos_from_episodes(entry_episodes, entry_mal_id, tvdb_season, airs_time, original_country, skip_season_filter=True)
-                            # Renumber episodes continuously across the whole TVDB season
-                            for i, v in enumerate(season_videos):
-                                v['episode'] = global_ep_num
-                                v['id'] = f"mal:{entry_mal_id}:{i + 1}"
+                        for tvdb_season, episodes in zip(covered_seasons, season_results):
+                            season_videos = _build_videos_from_episodes(episodes, mal_id, tvdb_season, airs_time, original_country)
+                            for v in season_videos:
                                 v['season'] = tvdb_season
-                                global_ep_num += 1
                             videos.extend(season_videos)
-                            offset += ep_count
-                            logging.info(f"[TVDB] Split: mal:{entry_mal_id} got {len(season_videos)} episodes (offset was {offset - ep_count})")
+
+                        logging.info(f"[Simkl] Built {len(videos)} videos for mal:{mal_id} from TVDB via Simkl mapping")
+
+                # Fall through to regular group-by-season for remaining seasons (e.g. TYBW season 17)
+                # that have explicit mapping in all_seasons but weren't covered by Simkl
+                if not videos or (videos and has_season_info):
+                    from collections import defaultdict
+                    season_groups = defaultdict(list)
+                    for season_entry in all_seasons:
+                        tvdb_season = season_entry.get('season', {}).get('tvdb')
+                        if tvdb_season is not None and season_entry.get('mal_id'):
+                            season_groups[int(tvdb_season)].append(str(season_entry['mal_id']))
+
+                    # Remove seasons already covered by Simkl mapping
+                    if videos:
+                        covered = set(v.get('season') for v in videos)
+                        season_groups = {s: ids_list for s, ids_list in season_groups.items() if s not in covered}
+
+                    sorted_seasons = sorted(season_groups.items())
+                    multi_split_seasons = [
+                        (tvdb_season, mal_ids_for_season)
+                        for (tvdb_season, mal_ids_for_season) in sorted_seasons
+                        if len(mal_ids_for_season) > 1
+                    ]
+                    all_mal_ids_to_fetch = []
+                    for _, mal_ids_for_season in multi_split_seasons:
+                        all_mal_ids_to_fetch.extend(mal_ids_for_season)
+
+                    _t1 = _time.time()
+                    tasks = [
+                        get_series_episodes(tvdb_id, season_number=tvdb_season, lang="pol")
+                        for tvdb_season, _ in sorted_seasons
+                    ]
+                    if need_extended:
+                        tasks.append(get_series_extended(tvdb_id))
+                    if all_mal_ids_to_fetch:
+                        tasks.append(_get_episode_counts(all_mal_ids_to_fetch))
+
+                    results = await asyncio.gather(*tasks)
+
+                    ep_results_end = len(sorted_seasons)
+                    season_episode_results = results[:ep_results_end]
+                    remaining = results[ep_results_end:]
+
+                    if need_extended:
+                        series_ext = remaining[0]
+                        remaining = remaining[1:]
+                        airs_time = (series_ext or {}).get("airsTime") or "00:00"
+                        original_country = (series_ext or {}).get("originalCountry") or ""
+
+                    all_ep_counts = remaining[0] if remaining else []
+
+                    logging.info(f"[TVDB timing] parallel fetch ({len(sorted_seasons)} seasons{' + extended' if need_extended else ''}{' + ep_counts' if all_mal_ids_to_fetch else ''}): {_time.time()-_t1:.2f}s")
+
+                    _ep_count_map = {}
+                    if multi_split_seasons:
+                        idx = 0
+                        for _, mal_ids_for_season in multi_split_seasons:
+                            _ep_count_map[id(mal_ids_for_season)] = all_ep_counts[idx:idx+len(mal_ids_for_season)]
+                            idx += len(mal_ids_for_season)
+
+                    for (tvdb_season, mal_ids_for_season), episodes in zip(sorted_seasons, season_episode_results):
+                        logging.info(f"[TVDB] season {tvdb_season}: got {len(episodes)} eps")
+
+                        if len(mal_ids_for_season) == 1:
+                            season_videos = _build_videos_from_episodes(episodes, mal_ids_for_season[0], tvdb_season, airs_time, original_country)
+                            for v in season_videos:
+                                v['season'] = tvdb_season
+                            videos.extend(season_videos)
+                        else:
+                            ep_counts = _ep_count_map[id(mal_ids_for_season)]
+                            logging.info(f"[TVDB] Multi-split season {tvdb_season}: mal_ids={mal_ids_for_season}, ep_counts={ep_counts}, total_episodes={len(episodes)}")
+
+                            episodes.sort(key=lambda e: e.get("number", 0))
+                            episodes = [ep for ep in episodes if ep.get("number", 0) > 0]
+
+                            total_known = sum(ep_counts)
+                            if total_known == 0:
+                                per_entry = len(episodes) // len(mal_ids_for_season)
+                                ep_counts = [per_entry] * len(mal_ids_for_season)
+                                ep_counts[-1] = len(episodes) - per_entry * (len(mal_ids_for_season) - 1)
+                                logging.info(f"[TVDB] No ep_counts available, splitting evenly: {ep_counts}")
+                            elif total_known < len(episodes):
+                                for i in range(len(ep_counts) - 1, -1, -1):
+                                    if ep_counts[i] == 0:
+                                        ep_counts[i] = len(episodes) - total_known
+                                        break
+
+                            offset = 0
+                            global_ep_num = 1
+                            for entry_mal_id, ep_count in zip(mal_ids_for_season, ep_counts):
+                                if offset >= len(episodes):
+                                    break
+                                entry_episodes = episodes[offset:offset + ep_count]
+                                season_videos = _build_videos_from_episodes(entry_episodes, entry_mal_id, tvdb_season, airs_time, original_country, skip_season_filter=True)
+                                for i, v in enumerate(season_videos):
+                                    v['episode'] = global_ep_num
+                                    v['id'] = f"mal:{entry_mal_id}:{i + 1}"
+                                    v['season'] = tvdb_season
+                                    global_ep_num += 1
+                                videos.extend(season_videos)
+                                offset += ep_count
+                                logging.info(f"[TVDB] Split: mal:{entry_mal_id} got {len(season_videos)} episodes (offset was {offset - ep_count})")
 
             if videos:
                 # Backdrop fallback for future episodes without thumbnail (no external call needed)
