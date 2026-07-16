@@ -659,6 +659,11 @@ async def fetch_videos(mal_id: str) -> list:
                                 v['season'] = tvdb_season
                             videos.extend(season_videos)
 
+                        # Renumber episodes with absolute numbering (1..N across all seasons)
+                        for i, v in enumerate(videos, 1):
+                            v['episode'] = i
+                            v['id'] = f"mal:{mal_id}:{i}"
+
                         logging.info(f"[Simkl] Built {len(videos)} videos for mal:{mal_id} from TVDB via Simkl mapping")
                     else:
                         logging.info(f"[TVDB] Skipping - multiple MAL entries without season mapping, Simkl has no mapping either")
@@ -710,6 +715,11 @@ async def fetch_videos(mal_id: str) -> list:
                             for v in season_videos:
                                 v['season'] = tvdb_season
                             videos.extend(season_videos)
+
+                        # Renumber episodes with absolute numbering (1..N across all seasons)
+                        for i, v in enumerate(videos, 1):
+                            v['episode'] = i
+                            v['id'] = f"mal:{mal_id}:{i}"
 
                         logging.info(f"[Simkl] Built {len(videos)} videos for mal:{mal_id} from TVDB via Simkl mapping")
 
