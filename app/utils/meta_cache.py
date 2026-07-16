@@ -659,9 +659,8 @@ async def fetch_videos(mal_id: str) -> list:
                                 v['season'] = tvdb_season
                             videos.extend(season_videos)
 
-                        # Renumber episodes with absolute numbering (1..N across all seasons)
+                        # Set absolute IDs (mal:X:1..N) but keep per-season episode numbers
                         for i, v in enumerate(videos, 1):
-                            v['episode'] = i
                             v['id'] = f"mal:{mal_id}:{i}"
 
                         logging.info(f"[Simkl] Built {len(videos)} videos for mal:{mal_id} from TVDB via Simkl mapping")
@@ -716,9 +715,8 @@ async def fetch_videos(mal_id: str) -> list:
                                 v['season'] = tvdb_season
                             videos.extend(season_videos)
 
-                        # Renumber episodes with absolute numbering (1..N across all seasons)
+                        # Set absolute IDs (mal:269:1..N) but keep per-season episode numbers
                         for i, v in enumerate(videos, 1):
-                            v['episode'] = i
                             v['id'] = f"mal:{mal_id}:{i}"
 
                         logging.info(f"[Simkl] Built {len(videos)} videos for mal:{mal_id} from TVDB via Simkl mapping")
