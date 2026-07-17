@@ -13,6 +13,7 @@ class Config:
     FLASK_PORT = os.getenv('FLASK_RUN_PORT', "5000")
     CACHE_TYPE = 'SimpleCache'
     CACHE_DEFAULT_TIMEOUT = 600
+    CACHE_THRESHOLD = 50  # Max items in SimpleCache (default 500 is too much for 512MB)
     JSON_SORT_KEYS = False
     PROXIFY_STREAMS = os.getenv('PROXIFY_STREAMS', 'false').lower() in ('true', '1', 'yes')  # proxify needed streams
     STREAM_PROXY_URL = os.getenv('STREAM_PROXY_URL', "")  # MediaFlow Proxy

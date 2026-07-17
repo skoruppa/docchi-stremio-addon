@@ -32,33 +32,31 @@ def load_mapping():
     
     try:
         import hashlib
+        import os as _os
         MAPPING_SCHEMA_VERSION = "2"  # bump when _load_to_redis changes structure
         
-        # Read raw file bytes for hash (cheap) before parsing JSON (expensive)
-        with open(MAPPING_FILE, 'rb') as f:
-            raw_bytes = f.read()
-        
-        file_hash = hashlib.md5(raw_bytes + MAPPING_SCHEMA_VERSION.encode()).hexdigest()
+        # Use file size + mtime as fast hash proxy (avoids reading 15MB into RAM)
+        stat = _os.stat(MAPPING_FILE)
+        file_hash = hashlib.md5(f"{stat.st_size}:{stat.st_mtime}:{MAPPING_SCHEMA_VERSION}".encode()).hexdigest()
         
         if _redis_client:
             # Check if Redis has same version — skip expensive JSON parse if so
             cached_hash = _redis_client.get('mapping:hash')
             if cached_hash == file_hash:
                 logging.info(f"Redis has up-to-date anime mapping (hash: {file_hash[:8]}), skipping load")
-                del raw_bytes
                 _loaded = True
                 return
             
             # Hash mismatch — need to parse and reload
-            data = json.loads(raw_bytes)
-            del raw_bytes  # Free 15MB immediately
+            with open(MAPPING_FILE, 'r') as f:
+                data = json.load(f)
             _load_to_redis(data)
             del data  # Free parsed data after loading to Redis
             _redis_client.set('mapping:hash', file_hash)
             logging.info(f"Loaded anime mapping with hash: {file_hash[:8]}")
         else:
-            data = json.loads(raw_bytes)
-            del raw_bytes
+            with open(MAPPING_FILE, 'r') as f:
+                data = json.load(f)
             _load_to_sqlite(data)
             del data
         _loaded = True

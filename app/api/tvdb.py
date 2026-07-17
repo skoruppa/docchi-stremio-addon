@@ -246,9 +246,25 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
     poster = (kdata.get("posterImage") or {}).get("large") or (kdata.get("posterImage") or {}).get("medium")
     background = (kdata.get("coverImage") or {}).get("original")
     imdb_rating = None
-    yt_id = kdata.get("youtubeVideoId")
-    if yt_id:
-        trailers = [{"source": yt_id, "type": "Trailer"}]
+
+    # Trailers: prefer TVDB (multiple, with language), fallback to Kitsu (single)
+    tvdb_trailers = series_ext.get("trailers", [])
+    if tvdb_trailers:
+        for t in tvdb_trailers:
+            url = t.get("url", "")
+            # Extract YouTube video ID from URL
+            yt_id = None
+            if "youtube.com/watch?v=" in url:
+                yt_id = url.split("v=")[-1].split("&")[0]
+            elif "youtu.be/" in url:
+                yt_id = url.split("youtu.be/")[-1].split("?")[0]
+            if yt_id:
+                trailers.append({"source": yt_id, "type": "Trailer"})
+    if not trailers:
+        yt_id = kdata.get("youtubeVideoId")
+        if yt_id:
+            trailers = [{"source": yt_id, "type": "Trailer"}]
+
     avg_rating = kdata.get("averageRating")
     if avg_rating:
         imdb_rating = str(round(float(avg_rating) / 10, 1))

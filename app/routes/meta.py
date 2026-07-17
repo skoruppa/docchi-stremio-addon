@@ -11,6 +11,7 @@ meta_bp = Blueprint('meta', __name__)
 # In-memory response cache: (meta_id, is_vip) -> (response_data, cache_time, timestamp)
 _response_cache: dict[tuple, tuple] = {}
 _RESPONSE_CACHE_TTL = 60  # 1 min in-memory response cache
+_MAX_RESPONSE_CACHE = 30  # Max entries to prevent unbounded RAM growth
 
 
 @meta_bp.route('/meta/<meta_type>/<meta_id>.json')
@@ -106,6 +107,10 @@ async def addon_meta(meta_type: str, meta_id: str):
 
     # Store in response cache
     response_data = {'meta': meta}
+    if len(_response_cache) >= _MAX_RESPONSE_CACHE:
+        # Evict oldest entry
+        oldest_key = min(_response_cache, key=lambda k: _response_cache[k][2])
+        del _response_cache[oldest_key]
     _response_cache[cache_key] = (response_data, cache_time, time.time())
 
     return respond_with(response_data, cache_time)
