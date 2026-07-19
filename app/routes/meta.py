@@ -99,9 +99,9 @@ async def addon_meta(meta_type: str, meta_id: str):
                 continue
         if next_premiere:
             seconds_until = int((next_premiere - now).total_seconds())
-            cache_time = max(60, min(10800, seconds_until))
+            cache_time = max(60, min(900, seconds_until))  # max 15 min for airing
         else:
-            cache_time = 10800
+            cache_time = 900  # 15 min — airing but no future date known
     else:
         cache_time = 43200  # 12h — finished, fully translated
 
