@@ -138,6 +138,7 @@ def _videos_ttl(videos: list) -> int:
     - If has future episodes: min(12h, time until next episode premiere)
     - If all episodes aired: 1 month
     - Large series (>100 eps) with future episodes: 12h minimum (avoid frequent refetches)
+    - Very large series (>500 eps): 24h minimum
     """
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
@@ -146,7 +147,9 @@ def _videos_ttl(videos: list) -> int:
     for v in videos:
         released = v.get('released')
         if not released:
-            # No date = probably still airing, use 12h
+            # No date = probably still airing
+            if len(videos) > 500:
+                return 86400  # 24h for massive series
             return VIDEOS_TTL_AIRING
         try:
             ep_date = datetime.fromisoformat(released.replace('Z', '+00:00'))
@@ -157,10 +160,12 @@ def _videos_ttl(videos: list) -> int:
             continue
     
     if next_premiere:
-        # Cap TTL at time until next episode airs (so available flips to true on time)
         seconds_until = int((next_premiere - now).total_seconds())
-        min_ttl = VIDEOS_TTL_AIRING if len(videos) > 100 else 60
-        return max(min_ttl, min(VIDEOS_TTL_AIRING, seconds_until))
+        if len(videos) > 500:
+            return max(86400, min(VIDEOS_TTL_AIRING, seconds_until))  # min 24h
+        elif len(videos) > 100:
+            return max(VIDEOS_TTL_AIRING, min(VIDEOS_TTL_AIRING, seconds_until))  # min 3h
+        return max(60, min(VIDEOS_TTL_AIRING, seconds_until))
     
     return VIDEOS_TTL_FINISHED
 

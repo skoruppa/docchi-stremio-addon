@@ -11,6 +11,18 @@ TIMEOUT = aiohttp.ClientTimeout(total=10)
 _token: str | None = None
 _token_expires: float = 0
 
+# Shared session for connection reuse (avoids TCP/TLS handshake per request)
+_session: aiohttp.ClientSession | None = None
+
+
+def _get_session() -> aiohttp.ClientSession:
+    """Get or create shared aiohttp session for TVDB API calls."""
+    global _session
+    if _session is None or _session.closed:
+        connector = aiohttp.TCPConnector(limit=10, ttl_dns_cache=300)
+        _session = aiohttp.ClientSession(timeout=TIMEOUT, connector=connector)
+    return _session
+
 
 def _is_non_latin(text: str) -> bool:
     """Check if text contains mostly non-Latin characters (Japanese, Chinese, Korean, etc.)."""
@@ -30,15 +42,15 @@ async def _get_token() -> str | None:
         return None
 
     try:
-        async with aiohttp.ClientSession(timeout=TIMEOUT) as session:
-            async with session.post(f"{BASE_URL}/login", json={"apikey": Config.TVDB_API_KEY}) as resp:
-                if resp.status != 200:
-                    logging.error(f"TVDB login failed: {resp.status}")
-                    return None
-                data = await resp.json()
-                _token = data.get("data", {}).get("token")
-                _token_expires = time.time() + 86400 * 25  # 25 days
-                return _token
+        session = _get_session()
+        async with session.post(f"{BASE_URL}/login", json={"apikey": Config.TVDB_API_KEY}) as resp:
+            if resp.status != 200:
+                logging.error(f"TVDB login failed: {resp.status}")
+                return None
+            data = await resp.json()
+            _token = data.get("data", {}).get("token")
+            _token_expires = time.time() + 86400 * 25  # 25 days
+            return _token
     except Exception as e:
         logging.error(f"TVDB login error: {e}")
         return None
@@ -51,24 +63,24 @@ async def _api_get(path: str, params: dict = None) -> dict | None:
         return None
 
     headers = {"Authorization": f"Bearer {token}"}
+    session = _get_session()
     try:
-        async with aiohttp.ClientSession(timeout=TIMEOUT) as session:
-            async with session.get(f"{BASE_URL}{path}", headers=headers, params=params) as resp:
-                if resp.status == 401:
-                    # Token expired, reset and retry once
-                    global _token_expires
-                    _token_expires = 0
-                    token = await _get_token()
-                    if not token:
-                        return None
-                    headers = {"Authorization": f"Bearer {token}"}
-                    async with session.get(f"{BASE_URL}{path}", headers=headers, params=params) as retry_resp:
-                        if retry_resp.status != 200:
-                            return None
-                        return await retry_resp.json()
-                if resp.status != 200:
+        async with session.get(f"{BASE_URL}{path}", headers=headers, params=params) as resp:
+            if resp.status == 401:
+                # Token expired, reset and retry once
+                global _token_expires
+                _token_expires = 0
+                token = await _get_token()
+                if not token:
                     return None
-                return await resp.json()
+                headers = {"Authorization": f"Bearer {token}"}
+                async with session.get(f"{BASE_URL}{path}", headers=headers, params=params) as retry_resp:
+                    if retry_resp.status != 200:
+                        return None
+                    return await retry_resp.json()
+            if resp.status != 200:
+                return None
+            return await resp.json()
     except Exception as e:
         logging.error(f"TVDB API error ({path}): {e}")
         return None
