@@ -73,10 +73,15 @@ def detect_player(player_obj: dict) -> str:
         if player_hosting in names:
             return player_name
 
-    # Fallback: try to match any name in URL
+    # Fallback: try to match any name in URL hostname (not full URL to avoid false positives)
+    from urllib.parse import urlparse
+    try:
+        hostname = urlparse(url).hostname or ''
+    except Exception:
+        hostname = ''
     for player_name, names in PLAYER_NAMES.items():
         for name in names:
-            if name in url:
+            if name in hostname:
                 return player_name
     
     return 'default'
