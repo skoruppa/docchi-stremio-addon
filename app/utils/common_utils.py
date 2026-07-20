@@ -142,13 +142,16 @@ def get_packed_data(html):
 
 
 async def fetch_resolution_from_m3u8(session: aiohttp.ClientSession, m3u8_url: str, headers: dict, use_proxy: bool = False, timeout: int = 2) -> str | None:
-    """Extract maximum resolution from m3u8 playlist using async-tls-client.
+    """Extract maximum resolution from m3u8 playlist.
+    
+    Uses aiohttp when proxied (tls-client has issues with proxy URLs),
+    falls back to async-tls-client for direct requests (better TLS fingerprint).
     
     Args:
         session: aiohttp ClientSession (cookies will be copied)
         m3u8_url: URL to m3u8 playlist
         headers: Request headers
-        use_proxy: If True, use MediaFlow proxy to fetch m3u8
+        use_proxy: If True, use MediaFlow proxy to fetch m3u8 via aiohttp
         timeout: Timeout in seconds (default: 2)
     
     Returns:
@@ -158,7 +161,17 @@ async def fetch_resolution_from_m3u8(session: aiohttp.ClientSession, m3u8_url: s
         from config import Config
         user_agent = headers.get('User-Agent', get_random_agent())
         proxied_url = f'{Config.STREAM_PROXY_URL}/proxy/stream?d={m3u8_url}&api_password={Config.STREAM_PROXY_PASSWORD}&h_user-agent={user_agent}'
-        m3u8_url = proxied_url
+        try:
+            async with session.get(proxied_url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
+                if resp.status != 200:
+                    return None
+                text = await resp.text()
+                resolutions = re.findall(r'RESOLUTION=\s*(\d+)x(\d+)', text)
+                if resolutions:
+                    return f"{max(int(h) for w, h in resolutions)}p"
+            return None
+        except Exception:
+            return None
     
     try:
         async with AsyncSession(
