@@ -137,6 +137,7 @@ def _videos_ttl(videos: list) -> int:
     
     - If has future episodes: min(12h, time until next episode premiere)
     - If all episodes aired: 1 month
+    - Large series (>100 eps) with future episodes: 12h minimum (avoid frequent refetches)
     """
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
@@ -158,7 +159,8 @@ def _videos_ttl(videos: list) -> int:
     if next_premiere:
         # Cap TTL at time until next episode airs (so available flips to true on time)
         seconds_until = int((next_premiere - now).total_seconds())
-        return max(60, min(VIDEOS_TTL_AIRING, seconds_until))
+        min_ttl = VIDEOS_TTL_AIRING if len(videos) > 100 else 60
+        return max(min_ttl, min(VIDEOS_TTL_AIRING, seconds_until))
     
     return VIDEOS_TTL_FINISHED
 
@@ -881,8 +883,12 @@ async def fetch_videos(mal_id: str) -> list:
                 
                 # Save to cache in background (don't block response)
                 # Update in-memory cache immediately so next request hits cache
+                # For large series (>50 eps), await save to ensure it persists before potential restart
                 _videos_mem_cache[mal_id] = (videos, int(time.time()), 0)
-                asyncio.ensure_future(set_cached_videos(mal_id, videos))
+                if len(videos) > 50:
+                    await set_cached_videos(mal_id, videos)
+                else:
+                    asyncio.ensure_future(set_cached_videos(mal_id, videos))
                 return videos
         except Exception as e:
             logging.error(f"[TVDB] fetch_videos error: {e}", exc_info=True)
