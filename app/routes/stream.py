@@ -24,6 +24,9 @@ PLAYER_TIMEOUT = 8  # Max seconds per player extraction
 PLAYER_TIMEOUT_SLOW = 18  # Extended timeout for slow players (filemoon/byse challenge flow)
 _SLOW_PLAYERS = {'filemoon'}
 
+# Background tasks for slow players that timed out (let them finish to warm cache)
+_background_tasks: set = set()
+
 
 async def process_player(session, player, is_vip=False):
     player_hosting = player['player_hosting'].lower()
@@ -62,11 +65,23 @@ async def process_player(session, player, is_vip=False):
             coro = handler(session, player['player'], is_vip=is_vip)
 
         timeout = PLAYER_TIMEOUT_SLOW if player_hosting in _SLOW_PLAYERS else PLAYER_TIMEOUT
-        url, quality, headers = await asyncio.wait_for(coro, timeout=timeout)
+
+        # For slow players: don't cancel on timeout, let them finish in background (warms cache)
+        if player_hosting in _SLOW_PLAYERS:
+            task = asyncio.ensure_future(coro)
+            try:
+                url, quality, headers = await asyncio.wait_for(asyncio.shield(task), timeout=timeout)
+            except asyncio.TimeoutError:
+                status = "timeout"
+                # Let it finish in background to warm attest cache
+                _background_tasks.add(task)
+                task.add_done_callback(_background_tasks.discard)
+        else:
+            url, quality, headers = await asyncio.wait_for(coro, timeout=timeout)
 
         if player_hosting == 'vk' and player.get('isInverted'):
             inverted = True
-        if not url:
+        if not url and status == "ok":
             status = "no_url"
     except asyncio.TimeoutError:
         status = "timeout"
