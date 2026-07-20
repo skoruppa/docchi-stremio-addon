@@ -77,12 +77,15 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
+    import time as _time
     # Generate short request ID (6 chars) and bind to context
     rid = uuid.uuid4().hex[:6]
     request_id_var.set(rid)
+    t0 = _time.time()
     response = await call_next(request)
     if not request.url.path.startswith('/static') and request.url.path != '/favicon.ico':
-        logging.info(f"{request.method} {request.url.path} -> {response.status_code}")
+        elapsed = (_time.time() - t0) * 1000
+        logging.info(f"{request.method} {request.url.path} -> {response.status_code} ({elapsed:.0f}ms)")
     return response
 
 
