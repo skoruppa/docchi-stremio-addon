@@ -30,4 +30,4 @@ RUN rm -rf .git app/players/.git data/anime-lists/.git
 EXPOSE 5000
 
 # Run with uvicorn
-CMD ["uvicorn", "run:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1", "--proxy-headers"]
+CMD ["uvicorn", "run:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1", "--proxy-headers", "--no-access-log"]
