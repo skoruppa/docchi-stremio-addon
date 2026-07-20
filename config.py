@@ -9,12 +9,8 @@ class Config:
     """
     Configuration class
     """
-    FLASK_HOST = os.getenv('FLASK_RUN_HOST', "localhost")
-    FLASK_PORT = os.getenv('FLASK_RUN_PORT', "5000")
-    CACHE_TYPE = 'SimpleCache'
-    CACHE_DEFAULT_TIMEOUT = 600
-    CACHE_THRESHOLD = 50  # Max items in SimpleCache (default 500 is too much for 512MB)
-    JSON_SORT_KEYS = False
+    HOST = os.getenv('HOST', os.getenv('FLASK_RUN_HOST', "localhost"))
+    PORT = os.getenv('PORT', os.getenv('FLASK_RUN_PORT', "5000"))
     PROXIFY_STREAMS = os.getenv('PROXIFY_STREAMS', 'false').lower() in ('true', '1', 'yes')  # proxify needed streams
     STREAM_PROXY_URL = os.getenv('STREAM_PROXY_URL', "")  # MediaFlow Proxy
     STREAM_PROXY_PASSWORD = os.getenv('STREAM_PROXY_PASSWORD', "")  # MediaFlowProxy API_PASSWORD
@@ -26,7 +22,7 @@ class Config:
     SIMKL_CLIENT_ID = os.getenv('SIMKL_CLIENT_ID', '')  # Simkl API client ID (for ID mapping fallback)
     OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '')  # OpenRouter API key (for AI translation, free tier)
 
-    DEBUG = os.getenv('FLASK_DEBUG', False)
+    DEBUG = os.getenv('DEBUG', os.getenv('FLASK_DEBUG', False))
     DATABASE = "/tmp/database.db"
     
     # Redis for anime mapping
@@ -40,7 +36,7 @@ class Config:
     # Env dependent configs
     if DEBUG in ["1", True, "True"]:  # Local development
         PROTOCOL = "http"
-        REDIRECT_URL = f"{FLASK_HOST}:{FLASK_PORT}"
+        REDIRECT_URL = f"{HOST}:{PORT}"
     else:  # Production environment
         PROTOCOL = "https"
-        REDIRECT_URL = f"{FLASK_HOST}"
+        REDIRECT_URL = f"{HOST}"

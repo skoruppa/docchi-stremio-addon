@@ -3,27 +3,27 @@ import asyncio
 import logging
 
 import aiohttp
-from flask import Blueprint, abort, request
-from werkzeug.exceptions import abort
+from aiocache import Cache
+from aiocache.decorators import cached as aiocached
+from fastapi import APIRouter, Request, HTTPException
 
-from . import docchi_client
+from app.routes import docchi_client
 from app.utils.anime_mapping import get_mal_id_from_slug, save_mal_slug_mapping
-from app.utils.stream_utils import cache, respond_with, log_error
+from app.utils.stream_utils import respond_with, log_error
 from app.utils.meta_cache import build_genre_links, fetch_and_cache_meta, with_genre_links, batch_fetch_and_cache_meta
 from .manifest import MANIFEST, genres as manifest_genres
 
 from config import Config
 
-catalog_bp = Blueprint('catalog', __name__)
+catalog_router = APIRouter()
+
+# In-memory aiocache instance for catalog responses
+_catalog_cache = Cache(Cache.MEMORY, ttl=600, namespace="catalog")
 
 
 def _is_valid_catalog(catalog_type: str, catalog_id: str):
     """
     Check if the catalog type and id are valid
-    :param catalog_type: The type of catalog to return
-    :param catalog_id: The ID of the catalog to return, MAL divides a user's anime list into different categories
-           (e.g. plan to watch, watching, completed, on hold, dropped)
-    :return: True if the catalog type and id are valid, False otherwise
     """
     if catalog_type in MANIFEST['types']:
         for catalog in MANIFEST['catalogs']:
@@ -35,12 +35,10 @@ def _is_valid_catalog(catalog_type: str, catalog_id: str):
 async def _process_latest_anime(results):
     """
     Get only unique anime and add mal ids to them
-    :param results: latest episode results
-    :return: Sorted list with mal ids
     """
     if not results:
         return []
-    
+
     unique_anime = {}
     for anime in results:
         anime_id = anime.get("anime_id") or anime.get("slug")
@@ -116,27 +114,31 @@ async def _fetch_anime_list(search, catalog_id, genre=None):
     return []
 
 
-@catalog_bp.route('/catalog/<catalog_type>/<catalog_id>.json')
-@catalog_bp.route('/catalog/<catalog_type>/<catalog_id>/search=<search>.json')
-@catalog_bp.route('/catalog/<catalog_type>/<catalog_id>/genre=<genre>.json')
-@catalog_bp.route('/catalog/<catalog_type>/<catalog_id>/genre=<genre>&search=<search>.json')
-@cache.cached()
-async def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None, search: str = None):
+@catalog_router.get('/catalog/{catalog_type}/{catalog_id}.json')
+@catalog_router.get('/catalog/{catalog_type}/{catalog_id}/search={search}.json')
+@catalog_router.get('/catalog/{catalog_type}/{catalog_id}/genre={genre}.json')
+@catalog_router.get('/catalog/{catalog_type}/{catalog_id}/genre={genre}&search={search}.json')
+async def addon_catalog(
+    request: Request,
+    catalog_type: str,
+    catalog_id: str,
+    genre: str = None,
+    search: str = None
+):
     """
-    Provides a list of anime from MyAnimeList
-    :param catalog_type: The type of catalog to return
-    :param catalog_id: The ID of the catalog to return, MAL divides a user's anime list into different categories
-           (e.g. plan to watch, watching, completed, on hold, dropped)
-    :param genre: The genre to filter by
-    :param search: Used to search globally for an anime on MyAnimeList
-    :return: JSON response
+    Provides a list of anime
     """
     if not _is_valid_catalog(catalog_type, catalog_id):
-        abort(404)
+        raise HTTPException(status_code=404)
 
     cache_time = _set_cache_time(catalog_id)
+    is_vip = Config.VIP_PATH in request.url.path
 
-    is_vip = Config.VIP_PATH in request.path
+    # Check aiocache
+    cache_key = f"{catalog_type}:{catalog_id}:{genre}:{search}:{is_vip}"
+    cached = await _catalog_cache.get(cache_key)
+    if cached is not None:
+        return respond_with(cached, cache_time)
 
     try:
         response_data = await _fetch_anime_list(search, catalog_id, genre)
@@ -148,9 +150,13 @@ async def addon_catalog(catalog_type: str, catalog_id: str, genre: str = None, s
             batch_results.get(f"mal:{item['mal_id']}") or docchi_to_meta(item, is_vip, catalog_id)
             for item in response_data
         ]
-        return respond_with({'metas': list(meta_previews)}, cache_time)
+
+        result = {'metas': list(meta_previews)}
+        if cache_time:
+            await _catalog_cache.set(cache_key, result, ttl=cache_time)
+        return respond_with(result, cache_time)
     except ValueError as e:
-        return respond_with({'metas': [], 'message': str(e)}), 400
+        return respond_with({'metas': [], 'message': str(e)})
     except aiohttp.ClientError as e:
         log_error(e)
         return respond_with({'metas': []}, cache_time)

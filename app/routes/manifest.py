@@ -1,9 +1,9 @@
-from flask import Blueprint, abort
+from fastapi import APIRouter, Request
 
 from app.utils.stream_utils import respond_with
 from version import __version__
 
-manifest_blueprint = Blueprint('manifest', __name__)
+manifest_router = APIRouter()
 
 genres = ['Action', 'Adventure', 'Avant Garde',
           'Award Winning', 'Boys Love', 'Comedy',
@@ -62,15 +62,14 @@ MANIFEST_VIP = {
 }
 
 
-@manifest_blueprint.route('/manifest.json')
-def addon_manifest():
+@manifest_router.get('/manifest.json')
+async def addon_manifest(request: Request):
     """
     Provides the manifest for the addon
     :return: JSON response
     """
-    from flask import request
     from config import Config
-    
-    is_vip = Config.VIP_PATH in request.path
+
+    is_vip = Config.VIP_PATH in request.url.path
     manifest = MANIFEST_VIP if is_vip else MANIFEST
     return respond_with(manifest, 7200)

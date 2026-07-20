@@ -1,29 +1,20 @@
 """
-Stream and routing utilities for Flask responses.
+Stream and routing utilities for FastAPI responses.
 """
 
 import logging
 import json
 import hashlib
-from flask import jsonify, flash, make_response, url_for, redirect, Response, request
-from flask_caching import Cache
-
-cache = Cache()
+from fastapi.responses import JSONResponse
 
 
-def handle_error(err) -> Response:
+def handle_error(err):
     """Handles errors from MyAnimeList's API"""
-    if 400 >= err.response.status_code < 500:
-        flash(err, "danger")
-        return make_response(redirect(url_for('index')))
-    elif err.response.status_code >= 500:
-        log_error(err)
-        flash(err, "danger")
-        return make_response(redirect(url_for('index')))
+    log_error(err)
 
 
 def log_error(err):
-    """Logs errors from MyAnimeList's API"""
+    """Logs errors from API calls"""
     if hasattr(err, 'response') and err.response is not None:
         try:
             response = err.response.json()
@@ -66,14 +57,15 @@ def generate_etag(data: dict) -> str:
     return hashlib.md5(data_str.encode()).hexdigest()
 
 
-def respond_with(data: dict, cache_time: int = None) -> Response:
+def respond_with(data: dict, cache_time: int = None) -> JSONResponse:
     """Respond with CORS headers to the client"""
-    resp = jsonify(data)
+    headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': '*',
+    }
     if cache_time:
-        resp.headers['Cache-Control'] = f'public, s-maxage={cache_time}, max-age={cache_time}, stale-while-revalidate=60'
-        resp.headers['CDN-Cache-Control'] = f'public, s-maxage={cache_time}, stale-while-revalidate=60'
-        resp.headers['Vercel-CDN-Cache-Control'] = f'public, s-maxage={cache_time}, stale-while-revalidate=60'
-        resp.headers['Cloudflare-CDN-Cache-Control'] = f'public, max-age={cache_time}, stale-while-revalidate=60'
-    resp.headers['Access-Control-Allow-Origin'] = "*"
-    resp.headers['Access-Control-Allow-Headers'] = '*'
-    return resp
+        headers['Cache-Control'] = f'public, s-maxage={cache_time}, max-age={cache_time}, stale-while-revalidate=60'
+        headers['CDN-Cache-Control'] = f'public, s-maxage={cache_time}, stale-while-revalidate=60'
+        headers['Vercel-CDN-Cache-Control'] = f'public, s-maxage={cache_time}, stale-while-revalidate=60'
+        headers['Cloudflare-CDN-Cache-Control'] = f'public, max-age={cache_time}, stale-while-revalidate=60'
+    return JSONResponse(content=data, headers=headers)

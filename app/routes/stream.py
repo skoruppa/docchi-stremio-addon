@@ -1,7 +1,8 @@
 import asyncio
+import logging
 import urllib.parse
 import aiohttp
-from flask import Blueprint, abort
+from fastapi import APIRouter, Request, HTTPException
 from .manifest import MANIFEST
 
 
@@ -15,7 +16,7 @@ from config import Config
 
 from app.utils.meta_cache import fetch_and_cache_meta
 
-stream_bp = Blueprint('stream', __name__)
+stream_router = APIRouter()
 PROXIFY_STREAMS = Config.PROXIFY_STREAMS
 
 
@@ -27,15 +28,15 @@ _SLOW_PLAYERS = {'filemoon'}
 async def process_player(session, player, is_vip=False):
     player_hosting = player['player_hosting'].lower()
     detected_player = detect_player(player)
-    
+
     if detected_player != 'default' and detected_player != player_hosting:
         player_hosting = detected_player
-    
+
     # Early return if no handler available
     handler = get_player_handler(player_hosting)
     if not handler:
         return None
-    
+
     stream = {
         'url': None,
         'quality': None,
@@ -59,10 +60,10 @@ async def process_player(session, player, is_vip=False):
             coro = handler(session, player['player'], is_vip=is_vip, translator=translator_title)
         else:
             coro = handler(session, player['player'], is_vip=is_vip)
-        
+
         timeout = PLAYER_TIMEOUT_SLOW if player_hosting in _SLOW_PLAYERS else PLAYER_TIMEOUT
         url, quality, headers = await asyncio.wait_for(coro, timeout=timeout)
-        
+
         if player_hosting == 'vk' and player.get('isInverted'):
             inverted = True
         if not url:
@@ -73,8 +74,8 @@ async def process_player(session, player, is_vip=False):
         status = "error"
 
     elapsed = (_time.time() - _t0) * 1000
-    print(f"[Player] {player_hosting}: {status} in {elapsed:.0f}ms")
-        
+    logging.info(f"[Player] {player_hosting}: {status} in {elapsed:.0f}ms")
+
     stream.update({'url': url, 'quality': quality, 'headers': headers, 'inverted': inverted})
     return stream
 
@@ -86,7 +87,7 @@ def build_filename(anime_name, episode_num, content_id, quality, translator_norm
         if episode_num:
             return f"{name_norm}.e{episode_num.zfill(2)}.POL.{quality}-{translator_norm}.docc"
         return f"{name_norm}.POL.{quality}-{translator_norm}.docc"
-    
+
     # Fallback to content_id
     parts = content_id.split(':')
     content_base = f"{parts[0]}:{parts[1]}"
@@ -100,7 +101,7 @@ def build_binge_group(anime_name, content_id, quality, translator_norm):
     if anime_name:
         name_norm = anime_name.replace(' ', '_').replace(':', '').replace('/', '')
         return f"{name_norm}.{quality}-{translator_norm}.docc"
-    
+
     # Fallback to content_id
     parts = content_id.split(':')
     content_base = f"{parts[0]}:{parts[1]}"
@@ -118,10 +119,10 @@ async def process_players(players, content_id=None, content_type='series', is_vi
 
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
         tasks = [process_player(session, player, is_vip) for player in players]
-        
+
         # Fetch meta in parallel with player extraction (for filename/bingeGroup)
         meta_task = asyncio.ensure_future(fetch_and_cache_meta(content_id, is_vip)) if content_id else None
-        
+
         player_results = await asyncio.gather(*tasks)
         valid_streams = [s for s in player_results if s and s['url']]
 
@@ -141,7 +142,7 @@ async def process_players(players, content_id=None, content_type='series', is_vi
             player = stream['player_hosting']
             is_ai = translator.lower() == 'ai'
 
-            translator_norm = translator.replace(' ', '_').replace('.','_')
+            translator_norm = translator.replace(' ', '_').replace('.', '_')
             filename = build_filename(anime_name, episode_num, content_id, quality, translator_norm)
             binge_group = build_binge_group(anime_name, content_id, quality, translator_norm)
 
@@ -172,17 +173,17 @@ async def process_players(players, content_id=None, content_type='series', is_vi
                 })
 
             streams['streams'].append(stream_data)
-    
+
     # Sort by priority and remove internal field
     streams['streams'] = sorted(streams['streams'], key=lambda d: d['_priority'])
     for stream in streams['streams']:
         stream.pop('_priority', None)
-    
+
     # Check if any players failed (timeout/error) — signal shorter cache
     total_players = len(players)
     successful = len(valid_streams)
     streams['_had_failures'] = successful < total_players
-    
+
     return streams
 
 
@@ -221,22 +222,18 @@ def sort_priority(stream):
     return base + _quality_bonus(stream.get('quality'))
 
 
-@stream_bp.route('/stream/<content_type>/<content_id>.json')
-async def addon_stream(content_type: str, content_id: str):
+@stream_router.get('/stream/{content_type}/{content_id}.json')
+async def addon_stream(request: Request, content_type: str, content_id: str):
     """
     Provide url streams for web players
-    :param content_type: The type of content
-    :param content_id: The id of the content
-    :return: JSON response
     """
-    from flask import request
-    is_vip = Config.VIP_PATH in request.path
-    
+    is_vip = Config.VIP_PATH in request.url.path
+
     content_id = urllib.parse.unquote(content_id)
     parts = content_id.split(":")
 
     if content_type not in MANIFEST['types']:
-        abort(404)
+        raise HTTPException(status_code=404)
 
     prefix = parts[0]
     season = None
@@ -291,7 +288,7 @@ async def addon_stream(content_type: str, content_id: str):
             if player_url and player_url not in seen:
                 seen.add(player_url)
                 unique_players.append(player)
-        
+
         streams = await process_players(unique_players, content_id, content_type, is_vip)
         cache_time = 20 if streams.pop('_had_failures', False) else 600
         return respond_with(streams, cache_time)

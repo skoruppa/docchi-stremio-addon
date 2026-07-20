@@ -1,104 +1,137 @@
 import logging
 import sys
+import uuid
+from contextvars import ContextVar
 
-from flask import Flask, render_template, session, url_for, redirect
-from flask_compress import Compress
-from app.routes.catalog import catalog_bp
-from app.routes.manifest import manifest_blueprint
-from app.routes.meta import meta_bp
-from app.routes.stream import stream_bp
-from app.routes.translate import translate_bp
-from app.utils.stream_utils import cache
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import FileResponse
+
+from app.routes.catalog import catalog_router
+from app.routes.manifest import manifest_router
+from app.routes.meta import meta_router
+from app.routes.stream import stream_router
+from app.routes.translate import translate_router
 from app.utils.anime_mapping import load_mapping
 from config import Config
 from version import __version__
 
-# Configure logging at module level (works with both direct run and waitress)
+# Per-request ID via contextvars
+request_id_var: ContextVar[str] = ContextVar('request_id', default='-')
+
+
+class RequestIdFilter(logging.Filter):
+    """Inject request_id into every log record."""
+    def filter(self, record):
+        record.request_id = request_id_var.get('-')
+        return True
+
+
+# Configure logging at module level
 logging.basicConfig(
-    format='%(asctime)s %(levelname)s: %(message)s',
+    format='%(asctime)s %(levelname)s [%(request_id)s] %(message)s',
     level=logging.INFO,
     stream=sys.stdout,
     force=True
 )
+# Add filter to root logger so all loggers inherit it
+for handler in logging.root.handlers:
+    handler.addFilter(RequestIdFilter())
 
-app = Flask(__name__, template_folder='./templates', static_folder='./static')
-app.config.from_object('config.Config')
-app.json.sort_keys = False
+templates = Jinja2Templates(directory="templates")
 
-_mapping_loaded = False
 
-@app.before_request
-def load_mapping_once():
-    global _mapping_loaded
-    if not _mapping_loaded:
-        load_mapping()
-        _mapping_loaded = True
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    load_mapping()
+    logging.info(f"Starting Docchi Stremio Addon v{__version__}")
+    yield
+    # Shutdown (nothing needed)
 
-@app.after_request
-def log_request(response):
-    from flask import request
-    import time
-    # Skip static files and favicon
-    if not request.path.startswith('/static') and request.path != '/favicon.ico':
-        logging.info(f"{request.method} {request.path} -> {response.status_code}")
+
+app = FastAPI(lifespan=lifespan)
+
+# Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.add_middleware(GZipMiddleware, minimum_size=500)
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    # Generate short request ID (6 chars) and bind to context
+    rid = uuid.uuid4().hex[:6]
+    request_id_var.set(rid)
+    response = await call_next(request)
+    if not request.url.path.startswith('/static') and request.url.path != '/favicon.ico':
+        logging.info(f"{request.method} {request.url.path} -> {response.status_code}")
     return response
 
-# Register blueprints normally
-app.register_blueprint(manifest_blueprint)
-app.register_blueprint(catalog_bp)
-app.register_blueprint(meta_bp)
-app.register_blueprint(stream_bp)
-app.register_blueprint(translate_bp)
 
-# Register blueprints with VIP prefix
-app.register_blueprint(manifest_blueprint, name='manifest_vip', url_prefix=f'/{Config.VIP_PATH}')
-app.register_blueprint(catalog_bp, name='catalog_vip', url_prefix=f'/{Config.VIP_PATH}')
-app.register_blueprint(meta_bp, name='meta_vip', url_prefix=f'/{Config.VIP_PATH}')
-app.register_blueprint(stream_bp, name='stream_vip', url_prefix=f'/{Config.VIP_PATH}')
+# Static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-Compress(app)
-cache.init_app(app)
+# Register routers (normal)
+app.include_router(manifest_router)
+app.include_router(catalog_router)
+app.include_router(meta_router)
+app.include_router(stream_router)
+app.include_router(translate_router)
 
-
-@app.context_processor
-def inject_version():
-    return {'version': __version__}
+# Register routers with VIP prefix
+app.include_router(manifest_router, prefix=f"/{Config.VIP_PATH}")
+app.include_router(catalog_router, prefix=f"/{Config.VIP_PATH}")
+app.include_router(meta_router, prefix=f"/{Config.VIP_PATH}")
+app.include_router(stream_router, prefix=f"/{Config.VIP_PATH}")
 
 
-@app.route('/')
-@app.route('/configure')
-def index():
-    """
-    Render the index page
-    """
+# Template routes
+@app.get('/')
+@app.get('/configure')
+async def index(request: Request):
+    """Render the index page"""
     manifest_url = f'{Config.PROTOCOL}://{Config.REDIRECT_URL}/manifest.json'
     manifest_magnet = f'stremio://{Config.REDIRECT_URL}/manifest.json'
-    return render_template('index.html', logged_in=True,
-                               manifest_url=manifest_url, manifest_magnet=manifest_magnet)
+    return templates.TemplateResponse(request, "index.html", {
+        "logged_in": True,
+        "manifest_url": manifest_url,
+        "manifest_magnet": manifest_magnet,
+        "version": __version__,
+    })
 
 
-@app.route(f'/{Config.VIP_PATH}')
-@app.route(f'/{Config.VIP_PATH}/configure')
-def index_vip():
-    """
-    Render the VIP index page
-    """
+@app.get(f'/{Config.VIP_PATH}')
+@app.get(f'/{Config.VIP_PATH}/configure')
+async def index_vip(request: Request):
+    """Render the VIP index page"""
     manifest_url = f'{Config.PROTOCOL}://{Config.REDIRECT_URL}/{Config.VIP_PATH}/manifest.json'
     manifest_magnet = f'stremio://{Config.REDIRECT_URL}/{Config.VIP_PATH}/manifest.json'
-    return render_template('index.html', logged_in=True,
-                               manifest_url=manifest_url, manifest_magnet=manifest_magnet)
+    return templates.TemplateResponse(request, "index.html", {
+        "logged_in": True,
+        "manifest_url": manifest_url,
+        "manifest_magnet": manifest_magnet,
+        "version": __version__,
+    })
 
 
-@app.route('/favicon.ico')
-def favicon():
-    """
-    Render the favicon for the app
-    """
-    return app.send_static_file('favicon.ico')
+@app.get('/favicon.ico')
+async def favicon():
+    """Render the favicon for the app"""
+    return FileResponse("static/favicon.ico")
+
 
 if __name__ == '__main__':
-    import sys
-    if '--clear-cache' in sys.argv:
+    import sys as _sys
+    if '--clear-cache' in _sys.argv:
         import asyncio
         from app.utils.anime_mapping import _redis_client
         if _redis_client:
@@ -112,12 +145,8 @@ if __name__ == '__main__':
             connection.execute("DELETE FROM meta_cache")
             connection.commit()
             print("SQLite meta cache cleared")
-        sys.exit(0)
+        _sys.exit(0)
 
-    try:
-        from waitress import serve
-        
-        logging.info(f"Starting Docchi Stremio Addon v{__version__} on http://0.0.0.0:5000")
-        serve(app, host='0.0.0.0', port=5000)
-    except ImportError:
-        app.run(host='0.0.0.0', port=5000, debug=False)
+    import uvicorn
+    logging.info(f"Starting Docchi Stremio Addon v{__version__} on http://0.0.0.0:5000")
+    uvicorn.run(app, host='0.0.0.0', port=5000, access_log=False)
