@@ -33,6 +33,11 @@ connection.executescript("""
         videos TEXT,
         timestamp INTEGER
     );
+    CREATE TABLE IF NOT EXISTS season_episodes_cache (
+        cache_key TEXT PRIMARY KEY,
+        episodes TEXT,
+        timestamp INTEGER
+    );
 """)
 connection.commit()
 

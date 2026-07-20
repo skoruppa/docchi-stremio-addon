@@ -49,6 +49,15 @@ templates = Jinja2Templates(directory="templates")
 async def lifespan(app: FastAPI):
     # Startup
     load_mapping()
+    # Ensure season_episodes_cache table exists (Turso migration)
+    from app.db import execute
+    await execute("""
+        CREATE TABLE IF NOT EXISTS season_episodes_cache (
+            cache_key TEXT PRIMARY KEY,
+            episodes TEXT,
+            timestamp INTEGER
+        )
+    """)
     logging.info(f"Starting Docchi Stremio Addon v{__version__}")
     yield
     # Shutdown (nothing needed)

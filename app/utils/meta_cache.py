@@ -14,6 +14,9 @@ VIDEOS_TTL_FINISHED = 2592000  # 1 month for finished series
 _MAX_MEM_CACHE = 50  # Max entries in memory (reduced for 512MB environments)
 _mem_cache: dict[str, tuple[dict, float]] = {}  # mal_id -> (meta, timestamp)
 _videos_mem_cache: dict[str, tuple[list, float, int]] = {}  # mal_id -> (videos, timestamp, ttl_override)
+# Per-season episode cache TTLs (data lives in DB, not RAM)
+_SEASON_CACHE_TTL_FINISHED = 2592000  # 1 month for finished seasons
+_SEASON_CACHE_TTL_ONGOING = 10800  # 3h for ongoing (last) season
 
 
 def _evict_mem_cache():
@@ -27,6 +30,42 @@ def _evict_mem_cache():
         sorted_keys = sorted(_videos_mem_cache, key=lambda k: _videos_mem_cache[k][1])
         for k in sorted_keys[:len(sorted_keys) // 4]:
             del _videos_mem_cache[k]
+
+
+async def _fetch_season_cached(tvdb_id: int, season_num: int, lang: str, is_last_season: bool) -> list:
+    """Fetch episodes for a TVDB season with DB-backed caching.
+    
+    Finished seasons (not last) are cached for 1 month.
+    The last/ongoing season is cached for 3h.
+    """
+    from app.api.tvdb import get_series_episodes
+
+    cache_key = f"{tvdb_id}:{season_num}:{lang}"
+    ttl = _SEASON_CACHE_TTL_ONGOING if is_last_season else _SEASON_CACHE_TTL_FINISHED
+
+    # Check DB cache
+    rows = await execute(
+        "SELECT episodes, timestamp FROM season_episodes_cache WHERE cache_key=?",
+        (cache_key,)
+    )
+    if rows:
+        ts = rows[0]['timestamp']
+        if time.time() - ts < ttl:
+            return orjson.loads(rows[0]['episodes'])
+        # Expired — delete
+        await execute("DELETE FROM season_episodes_cache WHERE cache_key=?", (cache_key,))
+
+    # Fetch from TVDB
+    episodes = await get_series_episodes(tvdb_id, season_number=season_num, lang=lang)
+
+    # Store in DB (don't cache empty results for finished seasons — might be transient error)
+    if episodes:
+        await execute(
+            "INSERT OR REPLACE INTO season_episodes_cache (cache_key, episodes, timestamp) VALUES (?,?,?)",
+            (cache_key, orjson.dumps(episodes).decode(), int(time.time()))
+        )
+
+    return episodes
 
 
 def _meta_ttl(meta: dict) -> int:
@@ -135,10 +174,8 @@ async def set_cached_videos(mal_id: str, videos: list, ttl_override: int = 0):
 def _videos_ttl(videos: list) -> int:
     """Determine TTL for videos cache.
     
-    - If has future episodes: min(12h, time until next episode premiere)
+    - If has future episodes: min(3h, time until next episode premiere)
     - If all episodes aired: 1 month
-    - Large series (>100 eps) with future episodes: 12h minimum (avoid frequent refetches)
-    - Very large series (>500 eps): 24h minimum
     """
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
@@ -147,9 +184,7 @@ def _videos_ttl(videos: list) -> int:
     for v in videos:
         released = v.get('released')
         if not released:
-            # No date = probably still airing
-            if len(videos) > 500:
-                return 86400  # 24h for massive series
+            # No date = probably still airing, use 3h
             return VIDEOS_TTL_AIRING
         try:
             ep_date = datetime.fromisoformat(released.replace('Z', '+00:00'))
@@ -161,10 +196,6 @@ def _videos_ttl(videos: list) -> int:
     
     if next_premiere:
         seconds_until = int((next_premiere - now).total_seconds())
-        if len(videos) > 500:
-            return max(86400, min(VIDEOS_TTL_AIRING, seconds_until))  # min 24h
-        elif len(videos) > 100:
-            return max(VIDEOS_TTL_AIRING, min(VIDEOS_TTL_AIRING, seconds_until))  # min 3h
         return max(60, min(VIDEOS_TTL_AIRING, seconds_until))
     
     return VIDEOS_TTL_FINISHED
@@ -656,8 +687,12 @@ async def fetch_videos(mal_id: str) -> list:
                             airs_time = (series_ext or {}).get("airsTime") or "00:00"
                             original_country = (series_ext or {}).get("originalCountry") or ""
 
-                        # Fetch all covered seasons from TVDB in parallel
-                        season_tasks = [get_series_episodes(tvdb_id, season_number=s, lang="pol") for s in covered_seasons]
+                        # Fetch all covered seasons from TVDB (cached per-season in DB)
+                        last_season = covered_seasons[-1]
+                        season_tasks = [
+                            _fetch_season_cached(tvdb_id, s, "pol", is_last_season=(s == last_season))
+                            for s in covered_seasons
+                        ]
                         season_results = await asyncio.gather(*season_tasks)
 
                         for tvdb_season, episodes in zip(covered_seasons, season_results):
@@ -684,14 +719,14 @@ async def fetch_videos(mal_id: str) -> list:
                         _t1 = _time.time()
                         series_ext, episodes = await asyncio.gather(
                             get_series_extended(tvdb_id),
-                            get_series_episodes(tvdb_id, season_number=tvdb_season_num, lang="pol")
+                            _fetch_season_cached(tvdb_id, tvdb_season_num, "pol", is_last_season=True)
                         )
                         airs_time = (series_ext or {}).get("airsTime") or "00:00"
                         original_country = (series_ext or {}).get("originalCountry") or ""
                         logging.info(f"[TVDB timing] extended+episodes parallel: {_time.time()-_t1:.2f}s, got {len(episodes)} eps")
                     else:
                         _t1 = _time.time()
-                        episodes = await get_series_episodes(tvdb_id, season_number=tvdb_season_num, lang="pol")
+                        episodes = await _fetch_season_cached(tvdb_id, tvdb_season_num, "pol", is_last_season=True)
                         logging.info(f"[TVDB timing] get_series_episodes: {_time.time()-_t1:.2f}s, got {len(episodes)} eps")
                     season_videos = _build_videos_from_episodes(episodes, mal_id, tvdb_season_num, airs_time, original_country)
                     for v in season_videos:
@@ -713,7 +748,11 @@ async def fetch_videos(mal_id: str) -> list:
                             airs_time = (series_ext or {}).get("airsTime") or "00:00"
                             original_country = (series_ext or {}).get("originalCountry") or ""
 
-                        season_tasks = [get_series_episodes(tvdb_id, season_number=s, lang="pol") for s in covered_seasons]
+                        last_season = covered_seasons[-1]
+                        season_tasks = [
+                            _fetch_season_cached(tvdb_id, s, "pol", is_last_season=(s == last_season))
+                            for s in covered_seasons
+                        ]
                         season_results = await asyncio.gather(*season_tasks)
 
                         for tvdb_season, episodes in zip(covered_seasons, season_results):
@@ -754,8 +793,9 @@ async def fetch_videos(mal_id: str) -> list:
                         all_mal_ids_to_fetch.extend(mal_ids_for_season)
 
                     _t1 = _time.time()
+                    last_tvdb_season = sorted_seasons[-1][0] if sorted_seasons else None
                     tasks = [
-                        get_series_episodes(tvdb_id, season_number=tvdb_season, lang="pol")
+                        _fetch_season_cached(tvdb_id, tvdb_season, "pol", is_last_season=(tvdb_season == last_tvdb_season))
                         for tvdb_season, _ in sorted_seasons
                     ]
                     if need_extended:
