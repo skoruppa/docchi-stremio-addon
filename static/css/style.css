@@ -157,6 +157,13 @@ a:hover {
 .carousel-container {
     margin: 3rem 0;
     overflow: hidden;
+    min-height: 332px;
+}
+
+@media (max-width: 768px) {
+    .carousel-container {
+        min-height: 248px;
+    }
 }
 
 .carousel-track {
