@@ -33,6 +33,11 @@ async def main():
 
     # 1. Translate ALL untranslated meta descriptions first (in pages of 10)
     logging.info("[Translate] Checking for untranslated meta descriptions...")
+    count_rows = await execute(
+        "SELECT COUNT(*) as cnt FROM meta_cache WHERE meta LIKE '%_untranslated_description%'"
+    )
+    total_meta_to_translate = count_rows[0]['cnt'] if count_rows else 0
+    logging.info(f"[Translate] Found {total_meta_to_translate} meta entries to translate")
     total_meta_translated = 0
     while True:
         meta_rows = await execute(
@@ -82,14 +87,14 @@ async def main():
 
     # 2. Translate untranslated video episodes
     logging.info("[Translate] Checking for untranslated video episodes...")
+    count_rows = await execute(
+        "SELECT COUNT(*) as cnt FROM videos_cache WHERE videos LIKE '%_untranslated_%'"
+    )
+    total_vids_to_translate = count_rows[0]['cnt'] if count_rows else 0
+    logging.info(f"[Translate] Found {total_vids_to_translate} entries with untranslated episodes")
     vid_rows = await execute(
         "SELECT mal_id, videos FROM videos_cache WHERE videos LIKE '%_untranslated_%'"
     )
-
-    if not vid_rows:
-        logging.info("[Translate] No untranslated videos found")
-    else:
-        logging.info(f"[Translate] Found {len(vid_rows)} entries with untranslated episodes")
 
     for row in (vid_rows or []):
         videos = orjson.loads(row['videos'])
