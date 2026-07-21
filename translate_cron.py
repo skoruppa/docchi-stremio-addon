@@ -31,13 +31,16 @@ async def main():
     translated_videos = 0
     now = int(time.time())
 
-    # 1. Translate untranslated meta descriptions
+    # 1. Translate ALL untranslated meta descriptions first (in pages of 10)
     logging.info("[Translate] Checking for untranslated meta descriptions...")
-    meta_rows = await execute(
-        "SELECT mal_id, meta FROM meta_cache WHERE meta LIKE '%_untranslated_description%' LIMIT 20"
-    )
+    total_meta_translated = 0
+    while True:
+        meta_rows = await execute(
+            "SELECT mal_id, meta FROM meta_cache WHERE meta LIKE '%_untranslated_description%' LIMIT 10"
+        )
+        if not meta_rows:
+            break
 
-    if meta_rows:
         logging.info(f"[Translate] Found {len(meta_rows)} meta entries to translate")
         texts = []
         metas = []
@@ -49,15 +52,31 @@ async def main():
                     texts.append(desc)
                     metas.append((row['mal_id'], meta))
 
-        if texts:
-            translations = await batch_translate_to_polish(texts)
-            for (mal_id, meta), translated in zip(metas, translations):
-                if translated:
-                    meta['description'] = translated
-                    meta.pop('_untranslated_description', None)
-                    await set_cached_meta(str(mal_id), meta)
-                    translated_meta += 1
-                    logging.info(f"[Translate] Meta translated: mal:{mal_id}")
+        if not texts:
+            break
+
+        translations = await batch_translate_to_polish(texts)
+        page_translated = 0
+        for (mal_id, meta), translated in zip(metas, translations):
+            if translated:
+                meta['description'] = translated
+                meta.pop('_untranslated_description', None)
+                await set_cached_meta(str(mal_id), meta)
+                page_translated += 1
+                logging.info(f"[Translate] Meta translated: mal:{mal_id}")
+
+        total_meta_translated += page_translated
+        if page_translated == 0:
+            # All models failed — stop trying meta
+            logging.warning("[Translate] Meta translation failed, stopping meta phase")
+            break
+
+        # Rate limit pause between pages
+        await asyncio.sleep(3)
+
+    translated_meta = total_meta_translated
+    if translated_meta:
+        logging.info(f"[Translate] Meta phase done: {translated_meta} descriptions translated")
     else:
         logging.info("[Translate] No untranslated meta descriptions found")
 
