@@ -13,8 +13,8 @@ from config import Config
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 TIMEOUT = aiohttp.ClientTimeout(total=60)
-MODEL = "google/gemma-4-26b-a4b-it:free"
-FALLBACK_MODEL = "nvidia/nemotron-nano-9b-v2:free"
+MODEL = "openrouter/free"
+FALLBACK_MODEL = "google/gemma-4-26b-a4b-it:free"
 
 TRANSLATE_PROMPT = (
     "Translate the following anime synopsis/episode description from English to Polish. "
@@ -69,7 +69,7 @@ async def _openrouter_request(prompt_text: str) -> str | None:
         "Content-Type": "application/json",
     }
 
-    for model in [MODEL, FALLBACK_MODEL, "nvidia/nemotron-3-super-120b-a12b:free", "openai/gpt-oss-20b:free", "google/gemma-4-31b-it:free"]:
+    for model in [MODEL, FALLBACK_MODEL, "nvidia/nemotron-3-super-120b-a12b:free"]:
         payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt_text}],
