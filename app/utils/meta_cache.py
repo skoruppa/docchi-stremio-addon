@@ -970,6 +970,16 @@ async def fetch_videos(mal_id: str) -> list:
     if videos:
         _videos_mem_cache[mal_id] = (videos, int(time.time()), 0)
         asyncio.ensure_future(set_cached_videos(mal_id, videos))
+        return videos
+
+    # No new videos found — fall back to expired cache if available
+    if expired_videos:
+        import logging
+        logging.info(f"[Videos] No fresh data for mal:{mal_id}, serving expired cache ({len(expired_videos)} eps)")
+        _videos_mem_cache[mal_id] = (expired_videos, int(time.time()), 3600)  # re-try in 1h
+        asyncio.ensure_future(set_cached_videos(mal_id, expired_videos, 3600))
+        return expired_videos
+
     return videos
 
 
