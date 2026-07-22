@@ -566,11 +566,33 @@ async def fetch_videos(mal_id: str) -> list:
     # Check cache first (also returns expired data for prev_translations reuse)
     cached, expired_videos = await _get_cached_videos_with_expired(mal_id)
     if cached is not None:
+        if cached == []:
+            return "movie"  # empty cache = movie (was intentionally set)
         return cached
 
     _t0 = _time.time()
     ids = get_ids_from_mal_id(mal_id)
     videos = []
+
+    # Movies don't need episode list — Stremio uses behaviorHints.defaultVideoId
+    if ids.get('kitsu_id'):
+        try:
+            import aiohttp as _aiohttp
+            async with _aiohttp.ClientSession(timeout=_aiohttp.ClientTimeout(total=3)) as _sess:
+                async with _sess.get(
+                    f"https://kitsu.io/api/edge/anime/{ids['kitsu_id']}",
+                    params={"fields[anime]": "subtype"},
+                    headers={"Accept": "application/vnd.api+json"}
+                ) as _resp:
+                    if _resp.status == 200:
+                        _kdata = (await _resp.json()).get("data", {}).get("attributes", {})
+                        if _kdata.get("subtype") == "movie":
+                            # Sentinel: empty list cached with _is_movie marker
+                            _videos_mem_cache[mal_id] = ([], int(_time.time()), VIDEOS_TTL_FINISHED)
+                            asyncio.ensure_future(set_cached_videos(mal_id, [], VIDEOS_TTL_FINISHED))
+                            return "movie"  # sentinel value for meta route
+        except Exception:
+            pass
 
     # Build prev_translations from expired cache (no extra DB query needed)
     prev_translations = {}  # vid_id -> {"title": ..., "overview": ...}

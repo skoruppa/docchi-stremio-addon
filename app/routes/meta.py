@@ -60,7 +60,15 @@ async def addon_meta(request: Request, meta_type: str, meta_id: str):
         return respond_with({'meta': {}, 'message': 'Could not fetch anime metadata'})
 
     meta['id'] = meta_id
-    meta['videos'] = videos
+
+    # Handle movies vs series
+    if videos == "movie":
+        meta['type'] = 'movie'
+        meta['videos'] = []
+        meta['behaviorHints'] = meta.get('behaviorHints', {})
+        meta['behaviorHints']['defaultVideoId'] = meta_id
+    else:
+        meta['videos'] = videos
 
     # Recompute 'available' dynamically based on current time (cache may have stale values)
     from datetime import datetime, timezone
