@@ -462,7 +462,30 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
         except Exception:
             pass
 
-    # Try TVDB API first (primary source) — skip for movies
+    # Try TVDB movie endpoint for movies
+    if Config.TVDB_API_KEY and _is_movie and ids.get('tvdb_id'):
+        try:
+            from app.api.tvdb import get_movie_meta as tvdb_get_movie
+            meta = await tvdb_get_movie(
+                tvdb_id=ids['tvdb_id'],
+                mal_id=mal_id,
+                imdb_id=ids.get('imdb_id'),
+                tmdb_id=ids.get('tmdb_id'),
+            )
+            if meta and meta.get('name'):
+                is_untranslated = meta.pop('_untranslated', False)
+                await _fill_genres_from_docchi(meta, mal_id)
+                if is_untranslated and expired_meta and expired_meta.get('description') and not expired_meta.get('_untranslated_description'):
+                    meta['description'] = expired_meta['description']
+                elif is_untranslated:
+                    meta['_untranslated_description'] = True
+                await set_cached_meta(mal_id, meta)
+                return _with_genre_links(meta), mal_id
+        except Exception as e:
+            import logging
+            logging.error(f"[TVDB movie] Exception for mal:{mal_id}: {type(e).__name__}: {e}")
+
+    # Try TVDB series API (primary source for series)
     if Config.TVDB_API_KEY and not _is_movie:
         try:
             _t0 = _time.time()

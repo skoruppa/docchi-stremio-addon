@@ -94,6 +94,122 @@ async def get_series_translation(tvdb_id: int, lang: str = "pol") -> dict | None
     return None
 
 
+async def get_movie_meta(tvdb_id: int, mal_id: str = None, imdb_id: str = None, tmdb_id: int = None) -> dict | None:
+    """Fetch movie metadata from TVDB and return Stremio-compatible meta dict.
+    
+    Args:
+        tvdb_id: TheTVDB movie ID (same numeric ID space as series but /movies/ endpoint)
+        mal_id: MAL ID for the content
+        imdb_id: IMDB ID for fanart lookup
+        tmdb_id: TMDB ID for fanart lookup
+    """
+    import asyncio
+
+    # Fetch extended data and translations in parallel
+    ext_task = _api_get(f"/movies/{tvdb_id}/extended")
+    pol_task = _api_get(f"/movies/{tvdb_id}/translations/pol")
+    eng_task = _api_get(f"/movies/{tvdb_id}/translations/eng")
+
+    async def _safe_fanart():
+        try:
+            return await get_fanart_images(imdb_id=imdb_id, tvdb_id=tvdb_id, tmdb_id=tmdb_id)
+        except Exception:
+            return {}
+
+    ext_data, pol_data, eng_data, fanart = await asyncio.gather(ext_task, pol_task, eng_task, _safe_fanart())
+    fanart = fanart or {}
+
+    movie = (ext_data or {}).get("data")
+    if not movie:
+        return None
+
+    pol = (pol_data or {}).get("data", {})
+    eng = (eng_data or {}).get("data", {})
+
+    # Name: prefer Polish, then English, then original
+    name = pol.get("name") or eng.get("name") or movie.get("name", "")
+
+    # Description: prefer Polish, then English
+    description = pol.get("overview") or eng.get("overview")
+    _untranslated = False
+    if description and not pol.get("overview"):
+        _untranslated = True
+
+    # Poster from TVDB or fanart
+    poster = movie.get("image")
+    if fanart and fanart.get("poster"):
+        poster = fanart["poster"]
+
+    # Background from fanart
+    background = fanart.get("background") if fanart else None
+
+    # Logo from fanart
+    logo = fanart.get("logo") if fanart else None
+
+    # Genres
+    genres = [g.get("name") for g in movie.get("genres", []) if g.get("name")]
+
+    # Runtime
+    runtime = movie.get("runtime")
+
+    # Year and release date
+    year = str(movie.get("year")) if movie.get("year") else None
+    first_release = movie.get("first_release", {})
+    released = None
+    if first_release and first_release.get("date"):
+        released = f"{first_release['date']}T00:00:00.000Z"
+
+    # Trailers
+    trailers = []
+    for t in movie.get("trailers", []):
+        url = t.get("url", "")
+        yt_id = None
+        if "youtube.com/watch?v=" in url:
+            yt_id = url.split("v=")[-1].split("&")[0]
+        elif "youtu.be/" in url:
+            yt_id = url.split("youtu.be/")[-1].split("?")[0]
+        if yt_id:
+            trailers.append({"source": yt_id, "type": "Trailer"})
+
+    # Certification
+    certification = None
+    for cr in (movie.get("contentRatings") or []):
+        if cr.get("country") in ("jpn", "usa") and cr.get("name"):
+            certification = cr["name"]
+            break
+    if not certification:
+        crs = movie.get("contentRatings") or []
+        if crs:
+            certification = crs[0].get("name")
+
+    # Status
+    status_name = movie.get("status", {}).get("name", "")
+
+    result = {
+        "id": f"mal:{mal_id}" if mal_id else f"tvdb:{tvdb_id}",
+        "type": "movie",
+        "name": name,
+        "description": description,
+        "genres": genres,
+        "year": year,
+        "releaseInfo": year,
+        "released": released,
+        "runtime": f"{runtime}min" if runtime else None,
+        "status": status_name,
+        "certification": certification,
+        "poster": poster,
+        "background": background,
+        "logo": logo,
+        "trailers": trailers,
+        "links": [],
+        "videos": [],
+        "behaviorHints": {"defaultVideoId": f"mal:{mal_id}" if mal_id else None},
+    }
+    if _untranslated:
+        result["_untranslated"] = True
+    return result
+
+
 async def get_series_extended(tvdb_id: int, short: bool = True) -> dict | None:
     """Get series extended record (seasons, genres, artworks, etc.).
     
