@@ -509,35 +509,6 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
     if not certification and content_ratings:
         certification = content_ratings[0].get("name")
 
-    # Season posters from TVDB seasons (series_ext includes seasons with artwork)
-    season_posters = []
-    if mal_id and series_ext:
-        from app.utils.anime_mapping import get_all_seasons_for_tvdb_id
-        all_seasons = get_all_seasons_for_tvdb_id(tvdb_id)
-        if all_seasons and len(all_seasons) > 1:
-            # Build a map: tvdb_season_number -> season image URL from TVDB extended data
-            # Filter to "Aired Order" type only (type.id == 1) to avoid DVD/Absolute duplicates
-            tvdb_seasons = series_ext.get("seasons") or []
-            tvdb_season_poster_map = {}
-            for s in tvdb_seasons:
-                s_num = s.get("number")
-                s_image = s.get("image")
-                s_type = s.get("type") or {}
-                # Only use "Aired Order" seasons (type id=1, name="Aired Order")
-                if isinstance(s_type, dict) and s_type.get("id") != 1:
-                    continue
-                if s_num is not None and s_image:
-                    if not s_image.startswith("http"):
-                        s_image = f"https://artworks.thetvdb.com{s_image}"
-                    tvdb_season_poster_map[int(s_num)] = s_image
-
-            # Collect posters in season order
-            for season_entry in all_seasons:
-                tvdb_season_num = int(season_entry.get('season', {}).get('tvdb', 0))
-                season_poster = tvdb_season_poster_map.get(tvdb_season_num)
-                if season_poster:
-                    season_posters.append(season_poster)
-
     # Content type
     content_type = "series"
 
@@ -583,16 +554,12 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
         "trailers": trailers,
         "links": links,
     }
-    if season_posters:
-        result["seasonPosters"] = season_posters
-    # app_extras with cast, certification, seasonPosters
+    # app_extras with cast, certification
     app_extras = {}
     if cast_extras:
         app_extras["cast"] = cast_extras
     if certification:
         app_extras["certification"] = certification
-    if season_posters:
-        app_extras["seasonPosters"] = season_posters
     if app_extras:
         result["app_extras"] = app_extras
     if _description_untranslated:

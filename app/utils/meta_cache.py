@@ -13,7 +13,7 @@ VIDEOS_TTL_AIRING = 10800  # 3 hours for airing series
 VIDEOS_TTL_FINISHED = 2592000  # 1 month for finished series
 _MAX_MEM_CACHE = 50  # Max entries in memory (reduced for 512MB environments)
 _mem_cache: dict[str, tuple[dict, float]] = {}  # mal_id -> (meta, timestamp)
-_videos_mem_cache: dict[str, tuple[list, float, int]] = {}  # mal_id -> (videos, timestamp, ttl_override)
+_videos_mem_cache: dict[str, tuple[list, float, int, list]] = {}  # mal_id -> (videos, timestamp, ttl_override, season_posters)
 # Per-season episode cache TTLs (data lives in DB, not RAM)
 _SEASON_CACHE_TTL_FINISHED = 2592000  # 1 month for finished seasons
 _SEASON_CACHE_TTL_ONGOING = 1800  # 30 min for ongoing (last) season
@@ -116,7 +116,7 @@ async def set_cached_meta(mal_id: str, meta: dict):
 async def get_cached_videos(mal_id: str) -> list | None:
     """Get cached videos by MAL ID, respecting TTL based on airing status or override."""
     if mal_id in _videos_mem_cache:
-        videos, ts, ttl_override = _videos_mem_cache[mal_id]
+        videos, ts, ttl_override, _ = _videos_mem_cache[mal_id]
         ttl = ttl_override if ttl_override else _videos_ttl(videos)
         if time.time() - ts < ttl:
             return videos
@@ -124,11 +124,12 @@ async def get_cached_videos(mal_id: str) -> list | None:
 
     rows = await execute("SELECT videos, timestamp FROM videos_cache WHERE mal_id=?", (mal_id,))
     if rows:
-        videos = orjson.loads(rows[0]['videos'])
+        data = orjson.loads(rows[0]['videos'])
+        videos, sp = _unpack_videos_cache(data)
         ts = rows[0]['timestamp']
         ttl = _videos_ttl(videos)
         if time.time() - ts < ttl:
-            _videos_mem_cache[mal_id] = (videos, ts, 0)
+            _videos_mem_cache[mal_id] = (videos, ts, 0, sp)
             return videos
     return None
 
@@ -142,7 +143,7 @@ async def _get_cached_videos_with_expired(mal_id: str) -> tuple:
     Single DB query instead of two.
     """
     if mal_id in _videos_mem_cache:
-        videos, ts, ttl_override = _videos_mem_cache[mal_id]
+        videos, ts, ttl_override, _ = _videos_mem_cache[mal_id]
         ttl = ttl_override if ttl_override else _videos_ttl(videos)
         if time.time() - ts < ttl:
             return videos, None
@@ -151,24 +152,45 @@ async def _get_cached_videos_with_expired(mal_id: str) -> tuple:
 
     rows = await execute("SELECT videos, timestamp FROM videos_cache WHERE mal_id=?", (mal_id,))
     if rows:
-        videos = orjson.loads(rows[0]['videos'])
+        data = orjson.loads(rows[0]['videos'])
+        videos, sp = _unpack_videos_cache(data)
         ts = rows[0]['timestamp']
         ttl = _videos_ttl(videos)
         if time.time() - ts < ttl:
-            _videos_mem_cache[mal_id] = (videos, ts, 0)
+            _videos_mem_cache[mal_id] = (videos, ts, 0, sp)
             return videos, None
         return None, videos  # expired but reusable
     return None, None
 
 
-async def set_cached_videos(mal_id: str, videos: list, ttl_override: int = 0):
+async def set_cached_videos(mal_id: str, videos: list, ttl_override: int = 0, season_posters: list = None):
     """Cache videos list by MAL ID. If ttl_override > 0, use that instead of computed TTL."""
+    cache_data = _pack_videos_cache(videos, season_posters)
     await execute(
         "INSERT OR REPLACE INTO videos_cache (mal_id, videos, timestamp) VALUES (?,?,?)",
-        (mal_id, orjson.dumps(videos).decode(), int(time.time()))
+        (mal_id, orjson.dumps(cache_data).decode(), int(time.time()))
     )
-    _videos_mem_cache[mal_id] = (videos, int(time.time()), ttl_override)
+    _videos_mem_cache[mal_id] = (videos, int(time.time()), ttl_override, season_posters or [])
     _evict_mem_cache()
+
+
+def _pack_videos_cache(videos: list, season_posters: list = None) -> dict | list:
+    """Pack videos and season_posters into cache format.
+    New format: {"v": [...], "sp": [...]} — only used when season_posters is non-empty.
+    Old format (backward compat): plain list of videos.
+    """
+    if season_posters:
+        return {"v": videos, "sp": season_posters}
+    return videos
+
+
+def _unpack_videos_cache(data) -> tuple[list, list]:
+    """Unpack videos cache data. Handles both old (list) and new (dict) format.
+    Returns (videos, season_posters).
+    """
+    if isinstance(data, dict) and "v" in data:
+        return data["v"], data.get("sp", [])
+    return data, []
 
 
 def _videos_ttl(videos: list) -> int:
@@ -595,9 +617,44 @@ async def _fill_genres_from_docchi(meta: dict, mal_id: str):
         pass
 
 
-async def fetch_videos(mal_id: str) -> list:
+def _build_season_posters(series_ext: dict | None, all_seasons: list) -> list:
+    """Build season poster URLs from TVDB extended series data.
+    
+    Extracts poster images from "Aired Order" seasons (type.id == 1) and
+    maps them to the seasons defined in all_seasons by TVDB season number.
+    
+    Returns list of poster URLs ordered by season, or empty list if unavailable.
+    """
+    if not series_ext or not all_seasons or len(all_seasons) <= 1:
+        return []
+
+    tvdb_seasons = series_ext.get("seasons") or []
+    tvdb_season_poster_map = {}
+    for s in tvdb_seasons:
+        s_num = s.get("number")
+        s_image = s.get("image")
+        s_type = s.get("type") or {}
+        # Only use "Aired Order" seasons (type id=1)
+        if isinstance(s_type, dict) and s_type.get("id") != 1:
+            continue
+        if s_num is not None and s_image:
+            if not s_image.startswith("http"):
+                s_image = f"https://artworks.thetvdb.com{s_image}"
+            tvdb_season_poster_map[int(s_num)] = s_image
+
+    posters = []
+    for season_entry in all_seasons:
+        tvdb_season_num = int(season_entry.get('season', {}).get('tvdb', 0))
+        season_poster = tvdb_season_poster_map.get(tvdb_season_num)
+        if season_poster:
+            posters.append(season_poster)
+    return posters
+
+
+async def fetch_videos(mal_id: str) -> dict | str:
     """Fetch videos/episodes for a given MAL ID with caching.
     
+    Returns dict {"videos": list, "seasonPosters": list} or "movie" sentinel.
     Cache TTL: 3h for airing series (has future episode dates), 1 month for finished.
     When TVDB is configured, fetches episodes for ALL seasons sharing the same tvdb_id.
     """
@@ -609,7 +666,11 @@ async def fetch_videos(mal_id: str) -> list:
     if cached is not None:
         if cached == []:
             return "movie"  # empty cache = movie (was intentionally set)
-        return cached
+        # Get season posters from mem cache if available
+        sp = []
+        if mal_id in _videos_mem_cache:
+            sp = _videos_mem_cache[mal_id][3]
+        return {"videos": cached, "seasonPosters": sp}
 
     _t0 = _time.time()
     ids = get_ids_from_mal_id(mal_id)
@@ -629,7 +690,7 @@ async def fetch_videos(mal_id: str) -> list:
                         _kdata = (await _resp.json()).get("data", {}).get("attributes", {})
                         if _kdata.get("subtype") == "movie":
                             # Sentinel: empty list cached with _is_movie marker
-                            _videos_mem_cache[mal_id] = ([], int(_time.time()), VIDEOS_TTL_FINISHED)
+                            _videos_mem_cache[mal_id] = ([], int(_time.time()), VIDEOS_TTL_FINISHED, [])
                             asyncio.ensure_future(set_cached_videos(mal_id, [], VIDEOS_TTL_FINISHED))
                             return "movie"  # sentinel value for meta route
         except Exception:
@@ -677,6 +738,11 @@ async def fetch_videos(mal_id: str) -> list:
 
             # Get all seasons that share the same tvdb_id
             all_seasons = get_all_seasons_for_tvdb_id(tvdb_id)
+
+            # Fetch series_ext for season posters if we skipped it earlier
+            # (short=True is fast and includes seasons with poster images)
+            if series_ext is None and len(all_seasons) > 1:
+                series_ext = await get_series_extended(tvdb_id, short=True)
             
             # If current mal_id was resolved via AniList (not in local mapping),
             # add it to all_seasons so it gets its proper season
@@ -985,19 +1051,21 @@ async def fetch_videos(mal_id: str) -> list:
                     if old_quality > 0 and new_quality == 0 and len(videos) <= len(expired_videos):
                         # New data is a regression — TVDB likely returned empty translations
                         logging.warning(f"[TVDB] Regression detected for mal:{mal_id}: old had {old_quality} enriched eps, new has {new_quality}. Keeping old data.")
-                        _videos_mem_cache[mal_id] = (expired_videos, int(time.time()), 300)  # short TTL to retry soon
-                        asyncio.ensure_future(set_cached_videos(mal_id, expired_videos, 300))
-                        return expired_videos
+                        sp = _build_season_posters(series_ext, all_seasons)
+                        _videos_mem_cache[mal_id] = (expired_videos, int(time.time()), 300, sp)  # short TTL to retry soon
+                        asyncio.ensure_future(set_cached_videos(mal_id, expired_videos, 300, sp))
+                        return {"videos": expired_videos, "seasonPosters": sp}
                 
                 # Save to cache in background (don't block response)
                 # Update in-memory cache immediately so next request hits cache
                 # For large series (>50 eps), await save to ensure it persists before potential restart
-                _videos_mem_cache[mal_id] = (videos, int(time.time()), 0)
+                sp = _build_season_posters(series_ext, all_seasons)
+                _videos_mem_cache[mal_id] = (videos, int(time.time()), 0, sp)
                 if len(videos) > 50:
-                    await set_cached_videos(mal_id, videos)
+                    await set_cached_videos(mal_id, videos, 0, sp)
                 else:
-                    asyncio.ensure_future(set_cached_videos(mal_id, videos))
-                return videos
+                    asyncio.ensure_future(set_cached_videos(mal_id, videos, 0, sp))
+                return {"videos": videos, "seasonPosters": sp}
         except Exception as e:
             logging.error(f"[TVDB] fetch_videos error: {e}", exc_info=True)
 
@@ -1031,19 +1099,19 @@ async def fetch_videos(mal_id: str) -> list:
                     v['thumbnail'] = backdrop
 
     if videos:
-        _videos_mem_cache[mal_id] = (videos, int(time.time()), 0)
+        _videos_mem_cache[mal_id] = (videos, int(time.time()), 0, [])
         asyncio.ensure_future(set_cached_videos(mal_id, videos))
-        return videos
+        return {"videos": videos, "seasonPosters": []}
 
     # No new videos found — fall back to expired cache if available
     if expired_videos:
         import logging
         logging.info(f"[Videos] No fresh data for mal:{mal_id}, serving expired cache ({len(expired_videos)} eps)")
-        _videos_mem_cache[mal_id] = (expired_videos, int(time.time()), 3600)  # re-try in 1h
+        _videos_mem_cache[mal_id] = (expired_videos, int(time.time()), 3600, [])  # re-try in 1h
         asyncio.ensure_future(set_cached_videos(mal_id, expired_videos, 3600))
-        return expired_videos
+        return {"videos": expired_videos, "seasonPosters": []}
 
-    return videos
+    return {"videos": videos, "seasonPosters": []}
 
 
 async def _enrich_thumbnails(meta: dict, mal_id: str):

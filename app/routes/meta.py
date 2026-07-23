@@ -52,7 +52,7 @@ async def addon_meta(request: Request, meta_type: str, meta_id: str):
     # Fetch meta and videos in parallel
     meta_task = fetch_and_cache_meta(meta_id, is_vip)
     videos_task = fetch_videos(mal_id)
-    (meta, _), videos = await asyncio.gather(meta_task, videos_task)
+    (meta, _), videos_result = await asyncio.gather(meta_task, videos_task)
 
     logging.info(f"[ROUTE timing] gather done for mal:{mal_id} in {time.time()-_t_route:.3f}s")
 
@@ -62,13 +62,19 @@ async def addon_meta(request: Request, meta_type: str, meta_id: str):
     meta['id'] = meta_id
 
     # Handle movies vs series
-    if videos == "movie":
+    if videos_result == "movie":
         meta['type'] = 'movie'
         meta['videos'] = []
         meta['behaviorHints'] = meta.get('behaviorHints', {})
         meta['behaviorHints']['defaultVideoId'] = meta_id
     else:
-        meta['videos'] = videos
+        meta['videos'] = videos_result.get('videos', [])
+        season_posters = videos_result.get('seasonPosters', [])
+        if season_posters:
+            meta['seasonPosters'] = season_posters
+            app_extras = meta.get('app_extras', {})
+            app_extras['seasonPosters'] = season_posters
+            meta['app_extras'] = app_extras
 
     # Recompute 'available' dynamically based on current time (cache may have stale values)
     from datetime import datetime, timezone
