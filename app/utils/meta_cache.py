@@ -624,11 +624,12 @@ async def _fill_genres_from_docchi(meta: dict, mal_id: str):
         pass
 
 
-def _build_season_posters(series_ext: dict | None, all_seasons: list) -> list:
+def _build_season_posters(series_ext: dict | None, all_seasons: list, videos: list = None) -> list:
     """Build season poster URLs from TVDB extended series data.
     
     Extracts poster images from "Aired Order" seasons (type.id == 1) and
-    maps them to the seasons defined in all_seasons by TVDB season number.
+    maps them to seasons. Uses season numbers from videos if all_seasons
+    entries lack tvdb_season info.
     
     Returns list of poster URLs ordered by season, or empty list if unavailable.
     """
@@ -644,18 +645,41 @@ def _build_season_posters(series_ext: dict | None, all_seasons: list) -> list:
         # Only use "Aired Order" seasons (type id=1)
         if isinstance(s_type, dict) and s_type.get("id") != 1:
             continue
-        if s_num is not None and s_image:
+        if s_num is not None and s_num > 0 and s_image:
             if not s_image.startswith("http"):
                 s_image = f"https://artworks.thetvdb.com{s_image}"
             tvdb_season_poster_map[int(s_num)] = s_image
 
-    posters = []
-    for season_entry in all_seasons:
-        tvdb_season_num = int(season_entry.get('season', {}).get('tvdb', 0))
-        season_poster = tvdb_season_poster_map.get(tvdb_season_num)
-        if season_poster:
-            posters.append(season_poster)
-    return posters
+    if not tvdb_season_poster_map:
+        return []
+
+    # Determine which season numbers to use
+    # Prefer explicit tvdb_season from mapping entries
+    has_explicit_seasons = any(
+        s.get('season', {}).get('tvdb') for s in all_seasons
+    )
+
+    if has_explicit_seasons:
+        # Use mapped season numbers
+        posters = []
+        for season_entry in all_seasons:
+            tvdb_season_num = season_entry.get('season', {}).get('tvdb')
+            if tvdb_season_num is not None:
+                season_poster = tvdb_season_poster_map.get(int(tvdb_season_num))
+                if season_poster:
+                    posters.append(season_poster)
+        return posters
+    else:
+        # No explicit season mapping — use unique season numbers from videos
+        if not videos:
+            return []
+        season_nums = sorted(set(v.get('season') for v in videos if v.get('season') and v.get('season') > 0))
+        posters = []
+        for s_num in season_nums:
+            season_poster = tvdb_season_poster_map.get(s_num)
+            if season_poster:
+                posters.append(season_poster)
+        return posters
 
 
 async def fetch_videos(mal_id: str) -> dict | str:
@@ -1058,7 +1082,7 @@ async def fetch_videos(mal_id: str) -> dict | str:
                     if old_quality > 0 and new_quality == 0 and len(videos) <= len(expired_videos):
                         # New data is a regression — TVDB likely returned empty translations
                         logging.warning(f"[TVDB] Regression detected for mal:{mal_id}: old had {old_quality} enriched eps, new has {new_quality}. Keeping old data.")
-                        sp = _build_season_posters(series_ext, all_seasons)
+                        sp = _build_season_posters(series_ext, all_seasons, expired_videos)
                         _videos_mem_cache[mal_id] = (expired_videos, int(time.time()), 300, sp)  # short TTL to retry soon
                         asyncio.ensure_future(set_cached_videos(mal_id, expired_videos, 300, sp))
                         return {"videos": expired_videos, "seasonPosters": sp}
@@ -1066,7 +1090,7 @@ async def fetch_videos(mal_id: str) -> dict | str:
                 # Save to cache in background (don't block response)
                 # Update in-memory cache immediately so next request hits cache
                 # For large series (>50 eps), await save to ensure it persists before potential restart
-                sp = _build_season_posters(series_ext, all_seasons)
+                sp = _build_season_posters(series_ext, all_seasons, videos)
                 _videos_mem_cache[mal_id] = (videos, int(time.time()), 0, sp)
                 if len(videos) > 50:
                     await set_cached_videos(mal_id, videos, 0, sp)
