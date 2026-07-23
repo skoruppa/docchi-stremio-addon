@@ -897,9 +897,46 @@ async def fetch_videos(mal_id: str) -> dict | str:
                         v['season'] = v.get('season', 1)
                     videos.extend(season_videos)
             else:
-                # Current MAL entry lacks season info but others have it
-                # Use Simkl episode mapping for the current entry if available
-                if not current_has_season and Config.SIMKL_CLIENT_ID:
+                # Some entries have season info — use group-by-season approach
+                # But first: if there are entries WITHOUT season info, fetch their episodes via Simkl
+                # This handles the case where e.g. mal:41467 (season 17) is queried but
+                # mal:269 (seasons 1-16) has no tvdb_season in mapping
+                entries_without_season = [s for s in all_seasons if not s.get('season', {}).get('tvdb') and s.get('mal_id')]
+                if entries_without_season and Config.SIMKL_CLIENT_ID:
+                    # Use the first entry without season to get Simkl mapping (it covers the "old" seasons)
+                    simkl_mal_id = str(entries_without_season[0]['mal_id'])
+                    from app.api.simkl import get_episode_tvdb_mapping
+                    simkl_mapping = await get_episode_tvdb_mapping(int(simkl_mal_id))
+                    if simkl_mapping and simkl_mapping.get('mapping'):
+                        ep_mapping = simkl_mapping['mapping']
+                        covered_seasons = sorted(set(m['season'] for m in ep_mapping.values()))
+                        logging.info(f"[Simkl] mal:{simkl_mal_id} (base entry) covers TVDB seasons {covered_seasons} ({len(ep_mapping)} eps)")
+
+                        if need_extended:
+                            series_ext = await get_series_extended(tvdb_id)
+                            airs_time = (series_ext or {}).get("airsTime") or "00:00"
+                            original_country = (series_ext or {}).get("originalCountry") or ""
+
+                        last_season = covered_seasons[-1]
+                        season_tasks = [
+                            _fetch_season_cached(tvdb_id, s, "pol", is_last_season=False)
+                            for s in covered_seasons
+                        ]
+                        season_results = await asyncio.gather(*season_tasks)
+
+                        for tvdb_season, episodes in zip(covered_seasons, season_results):
+                            season_videos = _build_videos_from_episodes(episodes, simkl_mal_id, tvdb_season, airs_time, original_country)
+                            for v in season_videos:
+                                v['season'] = tvdb_season
+                            videos.extend(season_videos)
+
+                        # Re-number IDs with the base mal_id
+                        for i, v in enumerate(videos, 1):
+                            v['id'] = f"mal:{simkl_mal_id}:{i}"
+
+                        logging.info(f"[Simkl] Built {len(videos)} videos from base entry mal:{simkl_mal_id}")
+                elif entries_without_season and not current_has_season:
+                    # Current entry has no season info and Simkl unavailable — use Simkl for current
                     from app.api.simkl import get_episode_tvdb_mapping
                     simkl_mapping = await get_episode_tvdb_mapping(int(mal_id))
                     if simkl_mapping and simkl_mapping.get('mapping'):
@@ -914,7 +951,7 @@ async def fetch_videos(mal_id: str) -> dict | str:
 
                         last_season = covered_seasons[-1]
                         season_tasks = [
-                            _fetch_season_cached(tvdb_id, s, "pol", is_last_season=(s == last_season))
+                            _fetch_season_cached(tvdb_id, s, "pol", is_last_season=False)
                             for s in covered_seasons
                         ]
                         season_results = await asyncio.gather(*season_tasks)
@@ -925,7 +962,6 @@ async def fetch_videos(mal_id: str) -> dict | str:
                                 v['season'] = tvdb_season
                             videos.extend(season_videos)
 
-                        # Set absolute IDs (mal:269:1..N) but keep per-season episode numbers
                         for i, v in enumerate(videos, 1):
                             v['id'] = f"mal:{mal_id}:{i}"
 
