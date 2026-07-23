@@ -509,44 +509,34 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
     if not certification and content_ratings:
         certification = content_ratings[0].get("name")
 
-    # Season posters from Kitsu for all seasons sharing this TVDB ID
+    # Season posters from TVDB seasons (series_ext includes seasons with artwork)
     season_posters = []
-    if mal_id:
+    if mal_id and series_ext:
         from app.utils.anime_mapping import get_all_seasons_for_tvdb_id
         all_seasons = get_all_seasons_for_tvdb_id(tvdb_id)
         if all_seasons and len(all_seasons) > 1:
-            from app.utils.anime_mapping import get_kitsu_from_mal_id as _get_kitsu
-            kitsu_ids_for_posters = []
+            # Build a map: tvdb_season_number -> season image URL from TVDB extended data
+            # Filter to "Aired Order" type only (type.id == 1) to avoid DVD/Absolute duplicates
+            tvdb_seasons = series_ext.get("seasons") or []
+            tvdb_season_poster_map = {}
+            for s in tvdb_seasons:
+                s_num = s.get("number")
+                s_image = s.get("image")
+                s_type = s.get("type") or {}
+                # Only use "Aired Order" seasons (type id=1, name="Aired Order")
+                if isinstance(s_type, dict) and s_type.get("id") != 1:
+                    continue
+                if s_num is not None and s_image:
+                    if not s_image.startswith("http"):
+                        s_image = f"https://artworks.thetvdb.com{s_image}"
+                    tvdb_season_poster_map[int(s_num)] = s_image
+
+            # Collect posters in season order
             for season_entry in all_seasons:
-                entry_mal_id = str(season_entry.get('mal_id', ''))
-                entry_kitsu_id = _get_kitsu(entry_mal_id) if entry_mal_id else None
-                if entry_kitsu_id:
-                    kitsu_ids_for_posters.append(entry_kitsu_id)
-            
-            if kitsu_ids_for_posters:
-                try:
-                    # Batch fetch posters from Kitsu (max ~10 seasons)
-                    ids_param = ",".join(kitsu_ids_for_posters[:15])
-                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8)) as session:
-                        async with session.get(f"https://kitsu.io/api/edge/anime",
-                                               params={"filter[id]": ids_param,
-                                                       "fields[anime]": "posterImage"}) as resp:
-                            if resp.status == 200:
-                                kdata = (await resp.json()).get("data", [])
-                                # Build map id -> poster
-                                poster_map = {}
-                                for item in kdata:
-                                    kid = item.get("id")
-                                    p_img = (item.get("attributes", {}).get("posterImage") or {})
-                                    p_url = p_img.get("large") or p_img.get("medium")
-                                    if kid and p_url:
-                                        poster_map[kid] = p_url
-                                # Ordered by season
-                                for kid in kitsu_ids_for_posters:
-                                    if kid in poster_map:
-                                        season_posters.append(poster_map[kid])
-                except Exception:
-                    pass
+                tvdb_season_num = int(season_entry.get('season', {}).get('tvdb', 0))
+                season_poster = tvdb_season_poster_map.get(tvdb_season_num)
+                if season_poster:
+                    season_posters.append(season_poster)
 
     # Content type
     content_type = "series"
