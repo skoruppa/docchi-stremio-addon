@@ -654,23 +654,27 @@ def _build_season_posters(series_ext: dict | None, all_seasons: list, videos: li
         return []
 
     # Determine which season numbers to use
-    # Prefer explicit tvdb_season from mapping entries
-    has_explicit_seasons = any(
+    # Prefer explicit tvdb_season from mapping entries, but ONLY if ALL entries have it
+    # Mixed situations (some with, some without) mean the mapping is incomplete
+    all_have_explicit = all(
         s.get('season', {}).get('tvdb') for s in all_seasons
     )
 
-    if has_explicit_seasons:
-        # Use mapped season numbers
+    if all_have_explicit:
+        # All entries have explicit season mapping — use them
         posters = []
+        seen_seasons = set()
         for season_entry in all_seasons:
-            tvdb_season_num = season_entry.get('season', {}).get('tvdb')
-            if tvdb_season_num is not None:
-                season_poster = tvdb_season_poster_map.get(int(tvdb_season_num))
-                if season_poster:
-                    posters.append(season_poster)
+            tvdb_season_num = int(season_entry['season']['tvdb'])
+            if tvdb_season_num in seen_seasons:
+                continue  # skip duplicates (e.g. multiple MAL entries for same season)
+            seen_seasons.add(tvdb_season_num)
+            season_poster = tvdb_season_poster_map.get(tvdb_season_num)
+            if season_poster:
+                posters.append(season_poster)
         return posters
     else:
-        # No explicit season mapping — use unique season numbers from videos
+        # No/incomplete explicit mapping — use unique season numbers from videos
         if not videos:
             return []
         season_nums = sorted(set(v.get('season') for v in videos if v.get('season') and v.get('season') > 0))
