@@ -443,12 +443,30 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     # Check for expired cache to reuse translations
     expired_meta = await _get_expired_meta(mal_id)
 
-    # Try TVDB API first (primary source)
-    if Config.TVDB_API_KEY:
+    # Check if this is a movie — skip TVDB (often has wrong mapping for movies)
+    _is_movie = False
+    ids = get_ids_from_mal_id(mal_id)
+    if ids.get('kitsu_id'):
+        try:
+            import aiohttp as _aiohttp
+            async with _aiohttp.ClientSession(timeout=_aiohttp.ClientTimeout(total=3)) as _sess:
+                async with _sess.get(
+                    f"https://kitsu.io/api/edge/anime/{ids['kitsu_id']}",
+                    params={"fields[anime]": "subtype"},
+                    headers={"Accept": "application/vnd.api+json"}
+                ) as _resp:
+                    if _resp.status == 200:
+                        _kdata = (await _resp.json()).get("data", {}).get("attributes", {})
+                        if _kdata.get("subtype") == "movie":
+                            _is_movie = True
+        except Exception:
+            pass
+
+    # Try TVDB API first (primary source) — skip for movies
+    if Config.TVDB_API_KEY and not _is_movie:
         try:
             _t0 = _time.time()
             from app.api.tvdb import get_anime_meta as tvdb_get_meta
-            ids = get_ids_from_mal_id(mal_id)
             # If tvdb_id is missing, try to resolve via AniList relations
             if not ids.get('tvdb_id'):
                 resolved = await _resolve_tvdb_via_anilist(mal_id, ids)
