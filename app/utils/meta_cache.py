@@ -156,6 +156,13 @@ async def _get_cached_videos_with_expired(mal_id: str) -> tuple:
         videos, sp = _unpack_videos_cache(data)
         ts = rows[0]['timestamp']
         ttl = _videos_ttl(videos)
+        # Force refetch if cache is in old format (no season posters) and series has multiple seasons
+        if not sp and isinstance(data, list) and videos:
+            ids = get_ids_from_mal_id(mal_id)
+            if ids.get('tvdb_id'):
+                all_seasons = get_all_seasons_for_tvdb_id(ids['tvdb_id'])
+                if len(all_seasons) > 1:
+                    return None, videos  # treat as expired to trigger refetch with posters
         if time.time() - ts < ttl:
             _videos_mem_cache[mal_id] = (videos, ts, 0, sp)
             return videos, None
