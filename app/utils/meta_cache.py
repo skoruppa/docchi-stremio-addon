@@ -10,7 +10,8 @@ from app.db import execute
 CACHE_TTL = 2592000  # 1 month
 CACHE_TTL_UPCOMING = 43200  # 12 hours for "Upcoming" series (status may change)
 VIDEOS_TTL_AIRING = 10800  # 3 hours for airing series
-VIDEOS_TTL_FINISHED = 2592000  # 1 month for finished series
+VIDEOS_TTL_FINISHED = 86400  # 1 day for finished series (detects new seasons quickly)
+VIDEOS_TTL_MOVIE = 2592000  # 1 month for movies (never changes)
 _MAX_MEM_CACHE = 50  # Max entries in memory (reduced for 512MB environments)
 _mem_cache: dict[str, tuple[dict, float]] = {}  # mal_id -> (meta, timestamp)
 _videos_mem_cache: dict[str, tuple[list, float, int, list]] = {}  # mal_id -> (videos, timestamp, ttl_override, season_posters)
@@ -725,8 +726,8 @@ async def fetch_videos(mal_id: str) -> dict | str:
                         _kdata = (await _resp.json()).get("data", {}).get("attributes", {})
                         if _kdata.get("subtype") == "movie":
                             # Sentinel: empty list cached with _is_movie marker
-                            _videos_mem_cache[mal_id] = ([], int(_time.time()), VIDEOS_TTL_FINISHED, [])
-                            asyncio.ensure_future(set_cached_videos(mal_id, [], VIDEOS_TTL_FINISHED))
+                            _videos_mem_cache[mal_id] = ([], int(_time.time()), VIDEOS_TTL_MOVIE, [])
+                            asyncio.ensure_future(set_cached_videos(mal_id, [], VIDEOS_TTL_MOVIE))
                             return "movie"  # sentinel value for meta route
         except Exception:
             pass
