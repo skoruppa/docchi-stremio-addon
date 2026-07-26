@@ -9,7 +9,7 @@ from app.db import execute
 
 CACHE_TTL = 2592000  # 1 month
 CACHE_TTL_UPCOMING = 43200  # 12 hours for "Upcoming" series (status may change)
-VIDEOS_TTL_AIRING = 10800  # 3 hours for airing series
+VIDEOS_TTL_AIRING = 3600  # 1 hour for airing series
 VIDEOS_TTL_FINISHED = 86400  # 1 day for finished series (detects new seasons quickly)
 VIDEOS_TTL_MOVIE = 2592000  # 1 month for movies (never changes)
 _MAX_MEM_CACHE = 50  # Max entries in memory (reduced for 512MB environments)
