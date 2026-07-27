@@ -43,6 +43,31 @@ _MAX_RPM = 18  # stay slightly under 20
 _WINDOW = 60.0
 
 
+# Patterns that indicate AI prompt leakage in translation output
+_CORRUPTION_PATTERNS = [
+    "Let's count them",
+    "No extra text, no numbering",
+    "We need to translate",
+    "separated by exactly",
+    "preserving proper nouns",
+    "Return translations",
+    "Use natural Polish",
+    "\" in the source",
+    "I'll copy the source",
+    "translate each",
+]
+
+
+def _is_corrupted(text: str) -> bool:
+    """Check if translated text contains AI prompt leakage."""
+    if not text:
+        return False
+    for pattern in _CORRUPTION_PATTERNS:
+        if pattern in text:
+            return True
+    return False
+
+
 def _acquire_rate_slot():
     """Synchronous sliding window check. Returns seconds to wait, or 0 if slot available."""
     now = time.time()
@@ -105,7 +130,11 @@ async def translate_to_polish(text: str) -> str | None:
     """Translate a single text from English to Polish."""
     if not text or not Config.OPENROUTER_API_KEY:
         return None
-    return await _openrouter_request(f"{TRANSLATE_PROMPT}{text}")
+    result = await _openrouter_request(f"{TRANSLATE_PROMPT}{text}")
+    if result and _is_corrupted(result):
+        logging.warning(f"[Translate] Corrupted single translation detected, discarding")
+        return None
+    return result
 
 
 async def batch_translate_to_polish(texts: list[str]) -> list[str | None]:
@@ -143,11 +172,13 @@ async def batch_translate_to_polish(texts: list[str]) -> list[str | None]:
     for i in range(len(texts)):
         if i < len(parts):
             translated = parts[i].strip()
-            translations.append(translated if translated else None)
+            if translated and _is_corrupted(translated):
+                logging.warning(f"[Translate] Corrupted batch translation at index {i}, discarding")
+                translations.append(None)
+            else:
+                translations.append(translated if translated else None)
         else:
             translations.append(None)
-
-    return translations
 
     return translations
 
@@ -196,6 +227,11 @@ async def batch_translate_episodes(episodes: list[dict]) -> list[dict]:
                 elif desc_line is not None and line:
                     desc_line += " " + line
             if desc_line and desc_line.lower() == "empty":
+                desc_line = None
+            # Validate: discard corrupted translations
+            if title_line and _is_corrupted(title_line):
+                title_line = None
+            if desc_line and _is_corrupted(desc_line):
                 desc_line = None
             translations.append({"title": title_line or None, "overview": desc_line or None})
         else:
