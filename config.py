@@ -20,6 +20,7 @@ class Config:
     FANART_API_KEY = os.getenv('FANART_API_KEY', '')  # fanart.tv API key (optional)
     TVDB_API_KEY = os.getenv('TVDB_API_KEY', '')  # TheTVDB API key (v4)
     SIMKL_CLIENT_ID = os.getenv('SIMKL_CLIENT_ID', '')  # Simkl API client ID (for ID mapping fallback)
+    TMDB_API_KEY = os.getenv('TMDB_API_KEY', '')  # TMDB API key v3 (fallback metadata source)
     OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '')  # OpenRouter API key (for AI translation, free tier)
 
     DEBUG = os.getenv('DEBUG', os.getenv('FLASK_DEBUG', False))

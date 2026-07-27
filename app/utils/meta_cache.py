@@ -551,6 +551,39 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
             import logging
             logging.error(f"[TVDB meta] Exception for mal:{mal_id}: {type(e).__name__}: {e}")
             pass
+
+    # Fallback to TMDB if TVDB failed and we have tmdb_id
+    if Config.TMDB_API_KEY and not _is_movie:
+        _tmdb_id = ids.get('tmdb_id')
+        if not _tmdb_id:
+            # Try Simkl for tmdb_id
+            if Config.SIMKL_CLIENT_ID:
+                from app.api.simkl import get_ids_from_mal
+                simkl_result = await get_ids_from_mal(int(mal_id))
+                if simkl_result and simkl_result.get('tmdb_id'):
+                    _tmdb_id = simkl_result['tmdb_id']
+        if _tmdb_id:
+            try:
+                from app.api.tmdb import get_anime_meta as tmdb_get_meta
+                meta = await tmdb_get_meta(
+                    tmdb_id=_tmdb_id,
+                    mal_id=mal_id,
+                    imdb_id=ids.get('imdb_id'),
+                )
+                if meta and meta.get('name'):
+                    is_untranslated = meta.pop('_untranslated', False)
+                    await _fill_genres_from_docchi(meta, mal_id)
+                    if is_untranslated and expired_meta and expired_meta.get('description') and not expired_meta.get('_untranslated_description'):
+                        meta['description'] = expired_meta['description']
+                    elif is_untranslated:
+                        meta['_untranslated_description'] = True
+                    await set_cached_meta(mal_id, meta)
+                    logging.info(f"[TMDB meta] Success for mal:{mal_id} via tmdb_id={_tmdb_id}")
+                    return _with_genre_links(meta), mal_id
+            except Exception as e:
+                import logging
+                logging.error(f"[TMDB meta] Exception for mal:{mal_id}: {type(e).__name__}: {e}")
+
     try:
         from app.api.kitsu import get_anime_meta as kitsu_get_meta
         ids = get_ids_from_mal_id(mal_id)
@@ -1141,8 +1174,25 @@ async def fetch_videos(mal_id: str) -> dict | str:
         except Exception as e:
             logging.error(f"[TVDB] fetch_videos error: {e}", exc_info=True)
 
+    # Fallback to TMDB if TVDB failed
+    if not videos and Config.TMDB_API_KEY:
+        _tmdb_id = ids.get('tmdb_id')
+        if not _tmdb_id and Config.SIMKL_CLIENT_ID:
+            from app.api.simkl import get_ids_from_mal
+            simkl_result = await get_ids_from_mal(int(mal_id))
+            if simkl_result and simkl_result.get('tmdb_id'):
+                _tmdb_id = simkl_result['tmdb_id']
+        if _tmdb_id:
+            try:
+                from app.api.tmdb import get_anime_videos
+                videos = await get_anime_videos(_tmdb_id, mal_id=mal_id)
+                if videos:
+                    logging.info(f"[TMDB] Got {len(videos)} videos for mal:{mal_id} via tmdb_id={_tmdb_id}")
+            except Exception as e:
+                logging.error(f"[TMDB] fetch_videos error: {e}")
+
     # Fallback to Kitsu
-    if ids.get('kitsu_id'):
+    if not videos and ids.get('kitsu_id'):
         try:
             from app.api.kitsu import get_anime_meta as kitsu_get_meta
             meta = await kitsu_get_meta(ids['kitsu_id'], mal_id=mal_id,
