@@ -46,8 +46,9 @@ async def get_anime_meta(tmdb_id: int, mal_id: str = None, imdb_id: str = None) 
     pol_task = _api_get(f"/tv/{tmdb_id}", {"language": "pl-PL"})
     eng_task = _api_get(f"/tv/{tmdb_id}", {"language": "en-US"})
     fanart_task = get_fanart_images(imdb_id=imdb_id, tmdb_id=tmdb_id)
+    videos_task = _api_get(f"/tv/{tmdb_id}/videos", {"language": "en-US"})
 
-    pol_data, eng_data, fanart = await asyncio.gather(pol_task, eng_task, fanart_task)
+    pol_data, eng_data, fanart, videos_data = await asyncio.gather(pol_task, eng_task, fanart_task, videos_task)
     fanart = fanart or {}
 
     data = pol_data or eng_data
@@ -117,6 +118,13 @@ async def get_anime_meta(tmdb_id: int, mal_id: str = None, imdb_id: str = None) 
     if imdb_rating and imdb_id:
         links.append({"name": imdb_rating, "category": "imdb", "url": f"https://imdb.com/title/{imdb_id}"})
 
+    # Trailers from TMDB videos
+    trailers = []
+    if videos_data and videos_data.get("results"):
+        for v in videos_data["results"]:
+            if v.get("site") == "YouTube" and v.get("type") in ("Trailer", "Teaser") and v.get("key"):
+                trailers.append({"source": v["key"], "type": "Trailer"})
+
     result = {
         "id": f"mal:{mal_id}" if mal_id else f"tmdb:{tmdb_id}",
         "type": "series",
@@ -133,7 +141,7 @@ async def get_anime_meta(tmdb_id: int, mal_id: str = None, imdb_id: str = None) 
         "background": background,
         "logo": logo,
         "videos": [],
-        "trailers": [],
+        "trailers": trailers,
         "links": links,
     }
     if _untranslated:
