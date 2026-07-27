@@ -59,11 +59,14 @@ async def get_anime_meta(tmdb_id: int, mal_id: str = None, imdb_id: str = None) 
     # Name: prefer Polish, fallback English
     name = data.get("name") or eng.get("name") or data.get("original_name", "")
 
-    # Description
+    # Description: detect if Polish is actually translated or just English copy
     description = data.get("overview") or None
     _untranslated = False
     if not description and eng.get("overview"):
         description = eng["overview"]
+        _untranslated = True
+    elif description and eng.get("overview") and description == eng["overview"]:
+        # TMDB returned same text for both languages — it's not actually translated
         _untranslated = True
 
     # Poster & background
@@ -189,13 +192,16 @@ async def get_anime_videos(tmdb_id: int, mal_id: str = None) -> list:
             # Title: prefer Polish, fallback English
             title = ep.get("name") or eng_ep.get("name") or f"Episode {ep_num}"
             _untranslated_title = False
-            if title == eng_ep.get("name") and title != f"Episode {ep_num}":
+            # If Polish title matches English exactly (or is generic "Episode X"), it's not translated
+            if eng_ep.get("name") and title == eng_ep.get("name"):
                 _untranslated_title = True
 
             # Overview
             overview = ep.get("overview") or eng_ep.get("overview") or None
             _untranslated_overview = False
-            if overview and overview == eng_ep.get("overview"):
+            if overview and eng_ep.get("overview") and overview == eng_ep.get("overview"):
+                _untranslated_overview = True
+            elif not ep.get("overview") and eng_ep.get("overview"):
                 _untranslated_overview = True
 
             # Air date & availability
