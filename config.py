@@ -22,6 +22,7 @@ class Config:
     SIMKL_CLIENT_ID = os.getenv('SIMKL_CLIENT_ID', '')  # Simkl API client ID (for ID mapping fallback)
     TMDB_API_KEY = os.getenv('TMDB_API_KEY', '')  # TMDB API key v3 (fallback metadata source)
     OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '')  # OpenRouter API key (for AI translation, free tier)
+    VIP_IMDB_IDS = os.getenv('VIP_IMDB_IDS', 'false').lower() in ('true', '1', 'yes')  # Use IMDB IDs in VIP catalogs
 
     DEBUG = os.getenv('DEBUG', os.getenv('FLASK_DEBUG', False))
     DATABASE = "/tmp/database.db"
