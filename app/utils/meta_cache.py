@@ -799,11 +799,11 @@ async def fetch_videos(mal_id: str) -> dict | str:
             # Try to get airs_time/country from cached meta (avoid extra API call)
             cached_meta = await get_cached_meta(mal_id)
             need_extended = not (cached_meta and cached_meta.get("_airsTime"))
+            series_ext = None
             
             if not need_extended:
                 airs_time = cached_meta["_airsTime"]
                 original_country = cached_meta.get("country") or ""
-                series_ext = None
 
             # Get all seasons that share the same tvdb_id
             all_seasons = get_all_seasons_for_tvdb_id(tvdb_id)
