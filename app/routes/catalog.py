@@ -151,6 +151,17 @@ async def addon_catalog(
             for item in response_data
         ]
 
+        # VIP catalogs: use IMDB ID as content ID when available
+        # This allows Stremio to match with cinemeta and other IMDB-based addons
+        if is_vip:
+            from app.utils.anime_mapping import get_ids_from_mal_id
+            for meta in meta_previews:
+                if meta and meta.get('id', '').startswith('mal:'):
+                    mal_id = meta['id'].split(':')[1]
+                    ids = get_ids_from_mal_id(mal_id)
+                    if ids.get('imdb_id'):
+                        meta['id'] = ids['imdb_id']
+
         result = {'metas': list(meta_previews)}
         if cache_time:
             await _catalog_cache.set(cache_key, result, ttl=cache_time)
