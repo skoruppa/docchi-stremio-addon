@@ -273,6 +273,21 @@ async def addon_stream(request: Request, content_type: str, content_id: str):
                     prefix_id = str(prefix_id)
         if prefix_id:
             prefix = 'mal'
+            # Resolve absolute episode number to (mal_id, local_ep) via videos cache
+            # E.g. tt10885406:1:51 → mal:57466 episode 15
+            if episode and int(episode) > 0:
+                from app.utils.meta_cache import fetch_videos
+                result = await fetch_videos(prefix_id)
+                if result != "movie" and result.get("videos"):
+                    videos = result["videos"]
+                    abs_ep = int(episode)
+                    # Find the video at this absolute episode position
+                    target = next((v for v in videos if v.get("episode") == abs_ep), None)
+                    if target and target.get("id"):
+                        vid_parts = target["id"].split(":")
+                        if len(vid_parts) == 3 and vid_parts[0] == "mal":
+                            prefix_id = vid_parts[1]
+                            episode = vid_parts[2]
         else:
             return respond_with({'streams': []}, 2592000)
     elif prefix == 'kitsu':
