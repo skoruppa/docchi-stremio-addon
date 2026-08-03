@@ -16,6 +16,35 @@ meta_router = APIRouter()
 # In-memory response cache: (meta_id, is_vip) -> (response_data, cache_time, timestamp)
 _response_cache: dict[tuple, tuple] = {}
 _RESPONSE_CACHE_TTL = 60  # 1 min in-memory response cache
+
+# Cache for mal_id -> kitsu_id mapping (avoids repeated lookups per request)
+_kitsu_id_cache: dict[str, str | None] = {}
+
+
+def _remap_video_ids_to_kitsu(videos: list):
+    """Remap video IDs from mal:X:Y to kitsu:X:Y in-place.
+    
+    Falls back to mal:X:Y if no Kitsu ID is available for that MAL entry.
+    Uses a module-level cache to avoid repeated mapping lookups.
+    """
+    from app.utils.anime_mapping import get_kitsu_from_mal_id
+
+    for v in videos:
+        vid_id = v.get('id', '')
+        if not vid_id.startswith('mal:'):
+            continue
+        parts = vid_id.split(':')
+        if len(parts) != 3:
+            continue
+        mal_id = parts[1]
+        ep = parts[2]
+
+        if mal_id not in _kitsu_id_cache:
+            _kitsu_id_cache[mal_id] = get_kitsu_from_mal_id(mal_id)
+
+        kitsu_id = _kitsu_id_cache[mal_id]
+        if kitsu_id:
+            v['id'] = f"kitsu:{kitsu_id}:{ep}"
 _MAX_RESPONSE_CACHE = 30  # Max entries to prevent unbounded RAM growth
 
 
@@ -75,6 +104,9 @@ async def addon_meta(request: Request, meta_type: str, meta_id: str):
             app_extras = meta.get('app_extras', {})
             app_extras['seasonPosters'] = season_posters
             meta['app_extras'] = app_extras
+
+    # Remap video IDs from mal:X:Y to kitsu:X:Y where possible
+    _remap_video_ids_to_kitsu(meta.get('videos', []))
 
     # Recompute 'available' dynamically based on current time (cache may have stale values)
     from datetime import datetime, timezone
