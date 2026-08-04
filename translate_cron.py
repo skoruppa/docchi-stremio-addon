@@ -97,7 +97,14 @@ async def main():
     )
 
     for row in (vid_rows or []):
-        videos = orjson.loads(row['videos'])
+        data = orjson.loads(row['videos'])
+        # Handle new dict format {"v": [...], "sp": [...]} and old list format
+        if isinstance(data, dict) and "v" in data:
+            videos = data["v"]
+            season_posters = data.get("sp", [])
+        else:
+            videos = data if isinstance(data, list) else []
+            season_posters = []
         mal_id = str(row['mal_id'])
 
         # Collect all episodes needing translation
@@ -144,7 +151,7 @@ async def main():
             logging.info(f"[Translate] mal:{mal_id} chunk {chunk_start//5+1}: {chunk_ok} fields translated")
 
             # Save after each chunk
-            await set_cached_videos(mal_id, videos)
+            await set_cached_videos(mal_id, videos, 0, season_posters)
             changed = True
 
         if changed:

@@ -13,8 +13,8 @@ from config import Config
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 TIMEOUT = aiohttp.ClientTimeout(total=60)
-MODEL = "openrouter/free"
-FALLBACK_MODEL = "google/gemma-4-26b-a4b-it:free"
+MODEL = "openai/gpt-4.1-nano"
+FALLBACK_MODEL = "google/gemini-2.5-flash"
 
 TRANSLATE_PROMPT = (
     "Translate the following anime synopsis/episode description from English to Polish. "
@@ -168,6 +168,11 @@ async def batch_translate_to_polish(texts: list[str]) -> list[str | None]:
 
     # Parse response by delimiter
     parts = result.split("|||NEXT|||")
+    
+    # Validate: if model returned wrong number of parts, reject entire batch
+    if len(parts) != len(texts):
+        logging.warning(f"[Translate] Batch mismatch: expected {len(texts)} parts, got {len(parts)}. Rejecting batch.")
+        return [None] * len(texts)
     translations = []
     for i in range(len(texts)):
         if i < len(parts):
