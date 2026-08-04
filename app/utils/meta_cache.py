@@ -451,6 +451,12 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                 resolved = await get_tv_sequel_mal_id(int(base_mal_id), season - 1)
                 if resolved:
                     mal_id = str(resolved)
+        # Fallback: try Simkl for IMDB -> MAL resolution
+        if not mal_id and Config.SIMKL_CLIENT_ID:
+            from app.api.simkl import get_ids_from_mal_by_imdb
+            simkl_mal = await get_ids_from_mal_by_imdb(prefix)
+            if simkl_mal:
+                mal_id = str(simkl_mal)
     elif prefix == 'kitsu' and len(parts) > 1:
         from app.routes import mapping
         mal_id = mapping.get_mal_id_from_kitsu_id(parts[1])
