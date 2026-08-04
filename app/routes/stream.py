@@ -271,6 +271,12 @@ async def addon_stream(request: Request, content_type: str, content_id: str):
                 prefix_id = await get_tv_sequel_mal_id(int(base_mal_id), season - 1)
                 if prefix_id:
                     prefix_id = str(prefix_id)
+        # Fallback: try Simkl for IMDB -> MAL resolution
+        if not prefix_id and Config.SIMKL_CLIENT_ID:
+            from app.api.simkl import get_ids_from_mal_by_imdb
+            simkl_mal = await get_ids_from_mal_by_imdb(prefix)
+            if simkl_mal:
+                prefix_id = str(simkl_mal)
         if prefix_id:
             prefix = 'mal'
             # Resolve absolute episode number to (mal_id, local_ep) via videos cache
