@@ -136,3 +136,46 @@ async def get_episode_tvdb_mapping(mal_id: int) -> dict | None:
     except Exception as e:
         logging.warning(f"[Simkl] Failed to get episode mapping for mal:{mal_id}: {e}")
         return None
+
+
+async def get_ids_from_mal_by_imdb(imdb_id: str) -> int | None:
+    """Resolve IMDB ID to MAL ID via Simkl search.
+    
+    Returns MAL ID (int) or None if not found.
+    """
+    if not Config.SIMKL_CLIENT_ID or not imdb_id:
+        return None
+
+    try:
+        async with aiohttp.ClientSession(timeout=TIMEOUT) as session:
+            url = f"{SIMKL_URL}/search/id?imdb={imdb_id}&client_id={Config.SIMKL_CLIENT_ID}"
+            async with session.get(url, headers={"User-Agent": "docchi-stremio/1.0"}) as resp:
+                if resp.status != 200:
+                    return None
+                results = await resp.json()
+
+            if not results:
+                return None
+
+            # Get MAL ID from first result
+            mal_id = results[0].get("ids", {}).get("mal") or results[0].get("mal", {}).get("id")
+            if mal_id:
+                logging.info(f"[Simkl] Resolved imdb:{imdb_id} -> mal:{mal_id}")
+                return int(mal_id)
+            
+            # If not in search result, try full details
+            simkl_id = results[0].get("ids", {}).get("simkl")
+            if simkl_id:
+                details_url = f"{SIMKL_URL}/anime/{simkl_id}?extended=full&client_id={Config.SIMKL_CLIENT_ID}"
+                async with session.get(details_url, headers={"User-Agent": "docchi-stremio/1.0"}) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        mal_id = data.get("ids", {}).get("mal")
+                        if mal_id:
+                            logging.info(f"[Simkl] Resolved imdb:{imdb_id} -> mal:{mal_id} (via details)")
+                            return int(mal_id)
+
+    except Exception as e:
+        logging.warning(f"[Simkl] Failed to resolve imdb:{imdb_id}: {e}")
+
+    return None
