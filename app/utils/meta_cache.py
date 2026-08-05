@@ -670,6 +670,84 @@ async def _fill_genres_from_docchi(meta: dict, mal_id: str):
         pass
 
 
+async def _separate_specials(all_seasons: list) -> tuple[list, list]:
+    """Separate specials/OVAs from regular season entries using Kitsu subtype.
+    
+    Batch-fetches subtypes from Kitsu for all entries that have kitsu_id.
+    Returns (specials, regular_seasons) where specials are sorted by mal_id.
+    """
+    import aiohttp as _aiohttp
+
+    if not all_seasons or len(all_seasons) <= 1:
+        return [], all_seasons
+
+    # Collect kitsu_ids to batch-check
+    entries_with_kitsu = [(i, s) for i, s in enumerate(all_seasons) if s.get('kitsu_id')]
+    if not entries_with_kitsu:
+        return [], all_seasons
+
+    # Batch fetch subtypes from Kitsu (max 20 at once)
+    kitsu_ids = [str(s.get('kitsu_id')) for _, s in entries_with_kitsu]
+    subtype_map = {}  # kitsu_id -> subtype
+
+    try:
+        ids_param = ",".join(kitsu_ids[:20])
+        async with _aiohttp.ClientSession(timeout=_aiohttp.ClientTimeout(total=5)) as session:
+            async with session.get(
+                "https://kitsu.io/api/edge/anime",
+                params={"filter[id]": ids_param, "fields[anime]": "subtype,episodeCount"}
+            ) as resp:
+                if resp.status == 200:
+                    data = (await resp.json()).get("data", [])
+                    for item in data:
+                        kid = item.get("id")
+                        attrs = item.get("attributes", {})
+                        subtype_map[kid] = {
+                            "subtype": attrs.get("subtype"),
+                            "episodeCount": attrs.get("episodeCount"),
+                        }
+    except Exception:
+        return [], all_seasons
+
+    # Separate specials (subtype=special/ova with <=1 episode)
+    specials = []
+    regular = []
+    for season_entry in all_seasons:
+        kitsu_id = str(season_entry.get('kitsu_id', ''))
+        info = subtype_map.get(kitsu_id, {})
+        subtype = info.get("subtype", "")
+        ep_count = info.get("episodeCount") or 0
+
+        if subtype in ("special", "OVA", "ONA") and ep_count <= 1 and season_entry.get('mal_id'):
+            specials.append(season_entry)
+        else:
+            regular.append(season_entry)
+
+    # Sort specials by mal_id (ascending = oldest first = episode 1)
+    specials.sort(key=lambda s: int(s.get('mal_id', 0)))
+
+    return specials, regular
+
+
+def _build_special_videos(specials: list) -> list:
+    """Build video entries for specials (season 0).
+    
+    Each special becomes one episode in season 0, numbered sequentially by mal_id order.
+    """
+    videos = []
+    for i, special in enumerate(specials, 1):
+        mal_id = str(special.get('mal_id', ''))
+        videos.append({
+            "id": f"mal:{mal_id}:1",
+            "title": f"Special {i}",
+            "released": None,
+            "available": True,
+            "season": 0,
+            "episode": i,
+        })
+    return videos
+
+
 def _build_season_posters(series_ext: dict | None, all_seasons: list, videos: list = None) -> list:
     """Build season poster URLs from TVDB extended series data.
     
@@ -819,6 +897,10 @@ async def fetch_videos(mal_id: str) -> dict | str:
 
             # Get all seasons that share the same tvdb_id
             all_seasons = get_all_seasons_for_tvdb_id(tvdb_id)
+
+            # Separate specials/OVAs from regular seasons
+            # Specials go into season 0, numbered by MAL ID order
+            specials, all_seasons = await _separate_specials(all_seasons)
 
             # Fetch series_ext for season posters if we skipped it earlier
             # (short=True is fast and includes seasons with poster images)
@@ -1159,6 +1241,11 @@ async def fetch_videos(mal_id: str) -> dict | str:
                 # Strip general _untranslated flag (keep granular _untranslated_title/_untranslated_overview for cron job)
                 for v in videos:
                     v.pop("_untranslated", None)
+                
+                # Add specials as season 0
+                if specials:
+                    special_videos = _build_special_videos(specials)
+                    videos.extend(special_videos)
                 
                 # Guard against regression: don't overwrite good cache with worse data
                 # If expired cache had titles/thumbnails/overviews and new data doesn't, keep the old
