@@ -81,6 +81,24 @@ async def _api_get(path: str, params: dict = None) -> dict | None:
             if resp.status != 200:
                 return None
             return await resp.json()
+    except (RuntimeError, aiohttp.ServerDisconnectedError, aiohttp.ClientOSError) as e:
+        # SSL/transport error — reset session and retry once
+        logging.warning(f"TVDB session error ({path}): {e}, resetting session")
+        global _session
+        try:
+            await _session.close()
+        except Exception:
+            pass
+        _session = None
+        session = _get_session()
+        try:
+            async with session.get(f"{BASE_URL}{path}", headers=headers, params=params) as resp:
+                if resp.status != 200:
+                    return None
+                return await resp.json()
+        except Exception as e2:
+            logging.error(f"TVDB API retry error ({path}): {e2}")
+            return None
     except Exception as e:
         logging.error(f"TVDB API error ({path}): {e}")
         return None
