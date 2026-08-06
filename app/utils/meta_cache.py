@@ -494,12 +494,14 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
             async with _aiohttp.ClientSession(timeout=_aiohttp.ClientTimeout(total=3)) as _sess:
                 async with _sess.get(
                     f"https://kitsu.io/api/edge/anime/{ids['kitsu_id']}",
-                    params={"fields[anime]": "subtype"},
+                    params={"fields[anime]": "subtype,episodeCount"},
                     headers={"Accept": "application/vnd.api+json"}
                 ) as _resp:
                     if _resp.status == 200:
                         _kdata = (await _resp.json()).get("data", {}).get("attributes", {})
-                        if _kdata.get("subtype") == "movie":
+                        _subtype = _kdata.get("subtype")
+                        _ep_count = _kdata.get("episodeCount") or 0
+                        if _subtype == "movie" or (_subtype in ("special", "OVA", "ONA") and _ep_count <= 1):
                             _is_movie = True
         except Exception:
             pass
@@ -521,6 +523,7 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                     meta['description'] = expired_meta['description']
                 elif is_untranslated:
                     meta['_untranslated_description'] = True
+                await _enrich_poster_from_mal(meta, mal_id)
                 await set_cached_meta(mal_id, meta)
                 return _with_genre_links(meta), mal_id
         except Exception as e:
@@ -557,6 +560,7 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                             meta['description'] = expired_meta['description']
                         else:
                             meta['_untranslated_description'] = True
+                    await _enrich_poster_from_mal(meta, mal_id)
                     await set_cached_meta(mal_id, meta)
                     return _with_genre_links(meta), mal_id
         except Exception as e:
@@ -589,6 +593,7 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                         meta['description'] = expired_meta['description']
                     elif is_untranslated:
                         meta['_untranslated_description'] = True
+                    await _enrich_poster_from_mal(meta, mal_id)
                     await set_cached_meta(mal_id, meta)
                     logging.info(f"[TMDB meta] Success for mal:{mal_id} via tmdb_id={_tmdb_id}")
                     return _with_genre_links(meta), mal_id
@@ -604,6 +609,7 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                                         imdb_id=ids['imdb_id'], tvdb_id=ids['tvdb_id'], tmdb_id=ids['tmdb_id'])
             if meta and meta.get('name'):
                 await _fill_genres_from_docchi(meta, mal_id)
+                await _enrich_poster_from_mal(meta, mal_id)
                 await set_cached_meta(mal_id, meta)
                 return _with_genre_links(meta), mal_id
     except Exception:
@@ -652,6 +658,35 @@ async def _get_episode_counts(mal_ids: list[str]) -> list[int]:
     async with _aiohttp.ClientSession(timeout=_aiohttp.ClientTimeout(total=5)) as session:
         results = await asyncio.gather(*[_fetch_one(session, mid) for mid in mal_ids])
     return list(results)
+
+
+async def _enrich_poster_from_mal(meta: dict, mal_id: str):
+    """Replace Kitsu/expired poster with stable MAL CDN URL when possible.
+    
+    Kitsu posters use signed URLs that expire. MAL CDN URLs are permanent.
+    Only replaces if current poster looks like a Kitsu URL.
+    """
+    if not Config.MAL_CLIENT_ID:
+        return
+    poster = meta.get('poster', '')
+    if not poster or 'cdn.myanimelist.net' in poster:
+        return  # Already MAL CDN or no poster
+    try:
+        import aiohttp as _aiohttp
+        async with _aiohttp.ClientSession(timeout=_aiohttp.ClientTimeout(total=3)) as _sess:
+            async with _sess.get(
+                f"https://api.myanimelist.net/v2/anime/{mal_id}",
+                params={"fields": "main_picture"},
+                headers={"X-MAL-CLIENT-ID": Config.MAL_CLIENT_ID}
+            ) as _resp:
+                if _resp.status == 200:
+                    data = await _resp.json()
+                    pic = data.get("main_picture", {})
+                    mal_poster = pic.get("large") or pic.get("medium")
+                    if mal_poster:
+                        meta['poster'] = mal_poster
+    except Exception:
+        pass
 
 
 async def _fill_genres_from_docchi(meta: dict, mal_id: str):
@@ -842,12 +877,14 @@ async def fetch_videos(mal_id: str) -> dict | str:
             async with _aiohttp.ClientSession(timeout=_aiohttp.ClientTimeout(total=3)) as _sess:
                 async with _sess.get(
                     f"https://kitsu.io/api/edge/anime/{ids['kitsu_id']}",
-                    params={"fields[anime]": "subtype"},
+                    params={"fields[anime]": "subtype,episodeCount"},
                     headers={"Accept": "application/vnd.api+json"}
                 ) as _resp:
                     if _resp.status == 200:
                         _kdata = (await _resp.json()).get("data", {}).get("attributes", {})
-                        if _kdata.get("subtype") == "movie":
+                        _subtype = _kdata.get("subtype")
+                        _ep_count = _kdata.get("episodeCount") or 0
+                        if _subtype == "movie" or (_subtype in ("special", "OVA", "ONA") and _ep_count <= 1):
                             # Sentinel: empty list cached with _is_movie marker
                             _videos_mem_cache[mal_id] = ([], int(_time.time()), VIDEOS_TTL_MOVIE, [])
                             asyncio.ensure_future(set_cached_videos(mal_id, [], VIDEOS_TTL_MOVIE))
