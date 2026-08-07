@@ -485,23 +485,21 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     # Check for expired cache to reuse translations
     expired_meta = await _get_expired_meta(mal_id)
 
-    # Check if this is a movie — skip TVDB (often has wrong mapping for movies)
+    # Check if this is a movie — skip TVDB series (often has wrong mapping for movies)
     _is_movie = False
     ids = get_ids_from_mal_id(mal_id)
-    if ids.get('kitsu_id'):
+    if Config.MAL_CLIENT_ID:
         try:
             import aiohttp as _aiohttp
             async with _aiohttp.ClientSession(timeout=_aiohttp.ClientTimeout(total=3)) as _sess:
                 async with _sess.get(
-                    f"https://kitsu.io/api/edge/anime/{ids['kitsu_id']}",
-                    params={"fields[anime]": "subtype,episodeCount"},
-                    headers={"Accept": "application/vnd.api+json"}
+                    f"https://api.myanimelist.net/v2/anime/{mal_id}",
+                    params={"fields": "media_type"},
+                    headers={"X-MAL-CLIENT-ID": Config.MAL_CLIENT_ID}
                 ) as _resp:
                     if _resp.status == 200:
-                        _kdata = (await _resp.json()).get("data", {}).get("attributes", {})
-                        _subtype = _kdata.get("subtype")
-                        _ep_count = _kdata.get("episodeCount") or 0
-                        if _subtype == "movie":
+                        _mdata = await _resp.json()
+                        if _mdata.get("media_type") == "movie":
                             _is_movie = True
         except Exception:
             pass
@@ -871,20 +869,18 @@ async def fetch_videos(mal_id: str) -> dict | str:
     videos = []
 
     # Movies don't need episode list — Stremio uses behaviorHints.defaultVideoId
-    if ids.get('kitsu_id'):
+    if Config.MAL_CLIENT_ID:
         try:
             import aiohttp as _aiohttp
             async with _aiohttp.ClientSession(timeout=_aiohttp.ClientTimeout(total=3)) as _sess:
                 async with _sess.get(
-                    f"https://kitsu.io/api/edge/anime/{ids['kitsu_id']}",
-                    params={"fields[anime]": "subtype,episodeCount"},
-                    headers={"Accept": "application/vnd.api+json"}
+                    f"https://api.myanimelist.net/v2/anime/{mal_id}",
+                    params={"fields": "media_type"},
+                    headers={"X-MAL-CLIENT-ID": Config.MAL_CLIENT_ID}
                 ) as _resp:
                     if _resp.status == 200:
-                        _kdata = (await _resp.json()).get("data", {}).get("attributes", {})
-                        _subtype = _kdata.get("subtype")
-                        _ep_count = _kdata.get("episodeCount") or 0
-                        if _subtype == "movie":
+                        _mdata = await _resp.json()
+                        if _mdata.get("media_type") == "movie":
                             # Sentinel: empty list cached with _is_movie marker
                             _videos_mem_cache[mal_id] = ([], int(_time.time()), VIDEOS_TTL_MOVIE, [])
                             asyncio.ensure_future(set_cached_videos(mal_id, [], VIDEOS_TTL_MOVIE))
