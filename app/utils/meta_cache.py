@@ -485,8 +485,9 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     # Check for expired cache to reuse translations
     expired_meta = await _get_expired_meta(mal_id)
 
-    # Check if this is a movie — skip TVDB series (often has wrong mapping for movies)
+    # Check if this is a movie or special — skip TVDB series (often has wrong mapping)
     _is_movie = False
+    _is_special = False
     ids = get_ids_from_mal_id(mal_id)
     if Config.MAL_CLIENT_ID:
         try:
@@ -494,13 +495,20 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
             async with _aiohttp.ClientSession(timeout=_aiohttp.ClientTimeout(total=3)) as _sess:
                 async with _sess.get(
                     f"https://api.myanimelist.net/v2/anime/{mal_id}",
-                    params={"fields": "media_type"},
+                    params={"fields": "media_type,num_episodes"},
                     headers={"X-MAL-CLIENT-ID": Config.MAL_CLIENT_ID}
                 ) as _resp:
                     if _resp.status == 200:
                         _mdata = await _resp.json()
-                        if _mdata.get("media_type") == "movie":
+                        _media_type = _mdata.get("media_type")
+                        _num_eps = _mdata.get("num_episodes") or 0
+                        if _media_type == "movie":
                             _is_movie = True
+                        elif _media_type in ("tv_special", "special", "ova", "ona"):
+                            _is_special = True
+                            # Single-episode specials/OVA/ONA treated as movies
+                            if _num_eps <= 1:
+                                _is_movie = True
         except Exception:
             pass
 
@@ -529,7 +537,7 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
             logging.error(f"[TVDB movie] Exception for mal:{mal_id}: {type(e).__name__}: {e}")
 
     # Try TVDB series API (primary source for series)
-    if Config.TVDB_API_KEY and not _is_movie:
+    if Config.TVDB_API_KEY and not _is_movie and not _is_special:
         try:
             _t0 = _time.time()
             from app.api.tvdb import get_anime_meta as tvdb_get_meta
@@ -567,7 +575,7 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
             pass
 
     # Fallback to TMDB if TVDB failed and we have tmdb_id
-    if Config.TMDB_API_KEY and not _is_movie:
+    if Config.TMDB_API_KEY and not _is_movie and not _is_special:
         _tmdb_id = ids.get('tmdb_id')
         if not _tmdb_id:
             # Try Simkl for tmdb_id
@@ -868,19 +876,21 @@ async def fetch_videos(mal_id: str) -> dict | str:
     ids = get_ids_from_mal_id(mal_id)
     videos = []
 
-    # Movies don't need episode list — Stremio uses behaviorHints.defaultVideoId
+    # Movies and single-episode specials don't need episode list
     if Config.MAL_CLIENT_ID:
         try:
             import aiohttp as _aiohttp
             async with _aiohttp.ClientSession(timeout=_aiohttp.ClientTimeout(total=3)) as _sess:
                 async with _sess.get(
                     f"https://api.myanimelist.net/v2/anime/{mal_id}",
-                    params={"fields": "media_type"},
+                    params={"fields": "media_type,num_episodes"},
                     headers={"X-MAL-CLIENT-ID": Config.MAL_CLIENT_ID}
                 ) as _resp:
                     if _resp.status == 200:
                         _mdata = await _resp.json()
-                        if _mdata.get("media_type") == "movie":
+                        _media_type = _mdata.get("media_type")
+                        _num_eps = _mdata.get("num_episodes") or 0
+                        if _media_type == "movie" or (_media_type in ("tv_special", "special", "ova", "ona") and _num_eps <= 1):
                             # Sentinel: empty list cached with _is_movie marker
                             _videos_mem_cache[mal_id] = ([], int(_time.time()), VIDEOS_TTL_MOVIE, [])
                             asyncio.ensure_future(set_cached_videos(mal_id, [], VIDEOS_TTL_MOVIE))
