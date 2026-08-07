@@ -169,10 +169,14 @@ async def batch_translate_to_polish(texts: list[str]) -> list[str | None]:
     # Parse response by delimiter
     parts = result.split("|||NEXT|||")
     
-    # Validate: if model returned wrong number of parts, reject entire batch
+    # Validate: if model returned wrong number of parts, fall back to individual translations
     if len(parts) != len(texts):
-        logging.warning(f"[Translate] Batch mismatch: expected {len(texts)} parts, got {len(parts)}. Rejecting batch.")
-        return [None] * len(texts)
+        logging.warning(f"[Translate] Batch mismatch: expected {len(texts)} parts, got {len(parts)}. Falling back to individual.")
+        results = []
+        for text in texts:
+            r = await translate_to_polish(text)
+            results.append(r)
+        return results
     translations = []
     for i in range(len(texts)):
         if i < len(parts):
@@ -224,14 +228,17 @@ async def batch_translate_episodes(episodes: list[dict]) -> list[dict]:
             desc_line = None
             for line in block.split("\n"):
                 line = line.strip()
-                if line.upper().startswith("TITLE:"):
-                    title_line = line[6:].strip()
-                elif line.upper().startswith("DESC:"):
-                    desc_line = line[5:].strip()
+                if line.upper().startswith("TITLE:") or line.upper().startswith("TYTUŁ:"):
+                    # Handle both English and Polish header
+                    sep = line.index(":") + 1
+                    title_line = line[sep:].strip()
+                elif line.upper().startswith("DESC:") or line.upper().startswith("OPIS:"):
+                    sep = line.index(":") + 1
+                    desc_line = line[sep:].strip()
                     # Collect multi-line descriptions
                 elif desc_line is not None and line:
                     desc_line += " " + line
-            if desc_line and desc_line.lower() == "empty":
+            if desc_line and desc_line.lower() in ("empty", "puste", "pusty", "brak"):
                 desc_line = None
             # Validate: discard corrupted translations
             if title_line and _is_corrupted(title_line):
