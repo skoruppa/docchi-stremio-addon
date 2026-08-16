@@ -2,6 +2,7 @@
 Player utilities including domain mapping and detection.
 """
 
+import re
 import importlib
 import os
 
@@ -11,6 +12,7 @@ def _collect_player_info():
     player_domains = {}
     player_names = {}
     player_handlers = {}
+    player_url_patterns = {}
     players_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'players')
     
     for filename in os.listdir(players_dir):
@@ -38,6 +40,10 @@ def _collect_player_info():
                 names = [module_name]
             player_names[module_name] = names
             
+            # Collect URL patterns for fallback detection
+            if hasattr(module, 'URL_PATTERN'):
+                player_url_patterns[module_name] = getattr(module, 'URL_PATTERN')
+            
             # Collect handler function
             handler_name = f'get_video_from_{module_name}_player'
             if hasattr(module, handler_name):
@@ -46,17 +52,17 @@ def _collect_player_info():
         except Exception:
             pass
     
-    return player_domains, player_names, player_handlers
+    return player_domains, player_names, player_handlers, player_url_patterns
 
 
 # Collect domains, names and handlers from enabled players
-PLAYER_DOMAINS, PLAYER_NAMES, PLAYER_HANDLERS = _collect_player_info()
+PLAYER_DOMAINS, PLAYER_NAMES, PLAYER_HANDLERS, PLAYER_URL_PATTERNS = _collect_player_info()
 
 
 def detect_player(player_obj: dict) -> str:
     """
     Detect player name from player object.
-    Uses player URL, player_hosting field, and NAMES list.
+    Uses player URL, player_hosting field, NAMES list, and URL_PATTERN fallback.
     Returns player name or 'default' if not found.
     """
     url = player_obj.get('player', '').lower()
@@ -83,6 +89,12 @@ def detect_player(player_obj: dict) -> str:
         for name in names:
             if name in hostname:
                 return player_name
+
+    # Fallback: try URL_PATTERN matching for players with rotating domains
+    original_url = player_obj.get('player', '')
+    for player_name, pattern in PLAYER_URL_PATTERNS.items():
+        if re.match(pattern, original_url):
+            return player_name
     
     return 'default'
 
