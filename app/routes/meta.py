@@ -74,7 +74,7 @@ async def addon_meta(request: Request, meta_type: str, meta_id: str):
     from app.utils.meta_cache import _resolve_mal_id
     mal_id = await _resolve_mal_id(meta_id, is_vip)
     if not mal_id:
-        return respond_with({'meta': {}, 'message': 'Could not resolve anime ID'})
+        return respond_with({'meta': {}, 'message': 'Could not resolve anime ID'}, cache_time=0)
 
     logging.info(f"[ROUTE timing] resolve {meta_id} -> mal:{mal_id} in {time.time()-_t_route:.3f}s")
 
@@ -86,7 +86,7 @@ async def addon_meta(request: Request, meta_type: str, meta_id: str):
     logging.info(f"[ROUTE timing] gather done for mal:{mal_id} in {time.time()-_t_route:.3f}s")
 
     if not meta:
-        return respond_with({'meta': {}, 'message': 'Could not fetch anime metadata'})
+        return respond_with({'meta': {}, 'message': 'Could not fetch anime metadata'}, cache_time=0)
 
     meta['id'] = meta_id
 

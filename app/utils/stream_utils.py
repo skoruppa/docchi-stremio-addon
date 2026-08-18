@@ -68,4 +68,9 @@ def respond_with(data: dict, cache_time: int = None) -> JSONResponse:
         headers['CDN-Cache-Control'] = f'public, s-maxage={cache_time}, stale-while-revalidate=60'
         headers['Vercel-CDN-Cache-Control'] = f'public, s-maxage={cache_time}, stale-while-revalidate=60'
         headers['Cloudflare-CDN-Cache-Control'] = f'public, max-age={cache_time}, stale-while-revalidate=60'
+    elif cache_time == 0:
+        headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+        headers['CDN-Cache-Control'] = 'no-store'
+        headers['Vercel-CDN-Cache-Control'] = 'no-store'
+        headers['Cloudflare-CDN-Cache-Control'] = 'no-store'
     return JSONResponse(content=data, headers=headers)
