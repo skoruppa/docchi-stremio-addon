@@ -149,6 +149,107 @@ async def get_anime_meta(tmdb_id: int, mal_id: str = None, imdb_id: str = None) 
     return result
 
 
+async def get_movie_meta(tmdb_id: int, mal_id: str = None, imdb_id: str = None) -> dict | None:
+    """Fetch anime movie metadata from TMDB and return Stremio-compatible meta dict.
+
+    Args:
+        tmdb_id: TMDB movie ID
+        mal_id: MAL ID for content identification
+        imdb_id: IMDB ID for links
+
+    Returns:
+        Stremio meta dict or None
+    """
+    import asyncio
+    from app.utils.common_utils import get_fanart_images
+
+    pol_task = _api_get(f"/movie/{tmdb_id}", {"language": "pl-PL"})
+    eng_task = _api_get(f"/movie/{tmdb_id}", {"language": "en-US"})
+    fanart_task = get_fanart_images(imdb_id=imdb_id, tmdb_id=tmdb_id)
+    videos_task = _api_get(f"/movie/{tmdb_id}/videos", {"language": "en-US"})
+
+    pol_data, eng_data, fanart, videos_data = await asyncio.gather(pol_task, eng_task, fanart_task, videos_task)
+    fanart = fanart or {}
+
+    data = pol_data or eng_data
+    if not data:
+        return None
+
+    eng = eng_data or {}
+
+    # Name: prefer Polish, fallback English
+    name = data.get("title") or eng.get("title") or data.get("original_title", "")
+
+    # Description: detect if Polish is actually translated
+    description = data.get("overview") or None
+    _untranslated = False
+    if not description and eng.get("overview"):
+        description = eng["overview"]
+        _untranslated = True
+    elif description and eng.get("overview") and description == eng["overview"]:
+        _untranslated = True
+
+    # Poster & background
+    poster = f"{IMAGE_BASE}/w500{data['poster_path']}" if data.get("poster_path") else None
+    background = f"{IMAGE_BASE}/original{data['backdrop_path']}" if data.get("backdrop_path") else None
+
+    if fanart.get("poster"):
+        poster = fanart["poster"]
+    if fanart.get("background"):
+        background = fanart["background"]
+    logo = fanart.get("logo")
+
+    # Genres
+    genres = [g["name"] for g in data.get("genres", []) if g.get("name")]
+
+    # Year and release date
+    release_date = data.get("release_date") or eng.get("release_date") or ""
+    year = release_date[:4] if release_date else None
+    released = f"{release_date}T00:00:00.000Z" if release_date else None
+
+    # Runtime
+    runtime = data.get("runtime") or eng.get("runtime")
+
+    # Rating
+    vote_avg = data.get("vote_average")
+    imdb_rating = str(round(vote_avg, 1)) if vote_avg and vote_avg > 0 else None
+
+    # Links
+    links = []
+    if imdb_rating and imdb_id:
+        links.append({"name": imdb_rating, "category": "imdb", "url": f"https://imdb.com/title/{imdb_id}"})
+
+    # Trailers
+    trailers = []
+    if videos_data and videos_data.get("results"):
+        for v in videos_data["results"]:
+            if v.get("site") == "YouTube" and v.get("type") in ("Trailer", "Teaser") and v.get("key"):
+                trailers.append({"source": v["key"], "type": "Trailer"})
+
+    result = {
+        "id": f"mal:{mal_id}" if mal_id else f"tmdb:{tmdb_id}",
+        "type": "movie",
+        "name": name,
+        "genres": genres,
+        "description": description,
+        "year": year,
+        "releaseInfo": year,
+        "released": released,
+        "runtime": f"{runtime}min" if runtime else None,
+        "imdbRating": imdb_rating,
+        "status": "Released" if released else None,
+        "poster": poster,
+        "background": background,
+        "logo": logo,
+        "videos": [],
+        "trailers": trailers,
+        "links": links,
+    }
+    if _untranslated:
+        result["_untranslated"] = True
+    return result
+
+
 async def get_series_episodes(tmdb_id: int, season_number: int = 1, lang: str = "pl-PL") -> list:
     """Fetch episodes for a TMDB series season.
     

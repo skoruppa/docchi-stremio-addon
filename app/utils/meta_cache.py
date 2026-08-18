@@ -536,6 +536,38 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
             import logging
             logging.error(f"[TVDB movie] Exception for mal:{mal_id}: {type(e).__name__}: {e}")
 
+    # Try TMDB movie endpoint for movies (fallback when TVDB movie fails or has no tvdb_id)
+    if Config.TMDB_API_KEY and _is_movie:
+        _tmdb_id = ids.get('tmdb_id')
+        if isinstance(_tmdb_id, list):
+            _tmdb_id = _tmdb_id[0] if _tmdb_id else None
+        if not _tmdb_id and Config.SIMKL_CLIENT_ID:
+            from app.api.simkl import get_ids_from_mal
+            simkl_result = await get_ids_from_mal(int(mal_id))
+            if simkl_result and simkl_result.get('tmdb_id'):
+                _tmdb_id = simkl_result['tmdb_id']
+        if _tmdb_id:
+            try:
+                from app.api.tmdb import get_movie_meta as tmdb_get_movie
+                meta = await tmdb_get_movie(
+                    tmdb_id=int(_tmdb_id),
+                    mal_id=mal_id,
+                    imdb_id=ids.get('imdb_id'),
+                )
+                if meta and meta.get('name'):
+                    is_untranslated = meta.pop('_untranslated', False)
+                    await _fill_genres_from_docchi(meta, mal_id)
+                    if is_untranslated and expired_meta and expired_meta.get('description') and not expired_meta.get('_untranslated_description'):
+                        meta['description'] = expired_meta['description']
+                    elif is_untranslated:
+                        meta['_untranslated_description'] = True
+                    await _enrich_poster_from_mal(meta, mal_id)
+                    await set_cached_meta(mal_id, meta)
+                    logging.info(f"[TMDB movie] Success for mal:{mal_id} via tmdb_id={_tmdb_id}")
+                    return _with_genre_links(meta), mal_id
+            except Exception as e:
+                logging.error(f"[TMDB movie] Exception for mal:{mal_id}: {type(e).__name__}: {e}")
+
     # Try TVDB series API (primary source for series)
     if Config.TVDB_API_KEY and not _is_movie and not _is_special:
         try:
