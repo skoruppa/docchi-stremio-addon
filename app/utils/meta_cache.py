@@ -91,7 +91,7 @@ async def get_cached_meta(mal_id: str):
         meta = orjson.loads(rows[0]['meta'])
         if time.time() - rows[0]['timestamp'] < _meta_ttl(meta):
             return meta
-        await execute("DELETE FROM meta_cache WHERE mal_id=?", (mal_id,))
+        # Expired — don't delete here, _get_expired_meta needs it for translation reuse
     return None
 
 
