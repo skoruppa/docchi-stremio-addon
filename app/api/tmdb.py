@@ -167,8 +167,11 @@ async def get_movie_meta(tmdb_id: int, mal_id: str = None, imdb_id: str = None) 
     eng_task = _api_get(f"/movie/{tmdb_id}", {"language": "en-US"})
     fanart_task = get_fanart_images(imdb_id=imdb_id, tmdb_id=tmdb_id)
     videos_task = _api_get(f"/movie/{tmdb_id}/videos", {"language": "en-US"})
+    credits_task = _api_get(f"/movie/{tmdb_id}/credits")
 
-    pol_data, eng_data, fanart, videos_data = await asyncio.gather(pol_task, eng_task, fanart_task, videos_task)
+    pol_data, eng_data, fanart, videos_data, credits_data = await asyncio.gather(
+        pol_task, eng_task, fanart_task, videos_task, credits_task
+    )
     fanart = fanart or {}
 
     data = pol_data or eng_data
@@ -226,6 +229,27 @@ async def get_movie_meta(tmdb_id: int, mal_id: str = None, imdb_id: str = None) 
             if v.get("site") == "YouTube" and v.get("type") in ("Trailer", "Teaser") and v.get("key"):
                 trailers.append({"source": v["key"], "type": "Trailer"})
 
+    # Cast from credits
+    cast_links = []
+    cast_extras = []
+    if credits_data and credits_data.get("cast"):
+        for member in credits_data["cast"][:10]:
+            person_name = member.get("name")
+            if not person_name:
+                continue
+            cast_links.append({
+                "name": person_name,
+                "category": "Cast",
+                "url": f"stremio:///search?search={person_name.replace(' ', '%20')}"
+            })
+            char_name = member.get("character") or ""
+            photo = f"{IMAGE_BASE}/w185{member['profile_path']}" if member.get("profile_path") else None
+            cast_extras.append({
+                "name": person_name,
+                "character": char_name,
+                "photo": photo,
+            })
+
     result = {
         "id": f"mal:{mal_id}" if mal_id else f"tmdb:{tmdb_id}",
         "type": "movie",
@@ -243,8 +267,11 @@ async def get_movie_meta(tmdb_id: int, mal_id: str = None, imdb_id: str = None) 
         "logo": logo,
         "videos": [],
         "trailers": trailers,
-        "links": links,
+        "links": links + cast_links,
     }
+    # app_extras with cast
+    if cast_extras:
+        result["app_extras"] = {"cast": cast_extras}
     if _untranslated:
         result["_untranslated"] = True
     return result
