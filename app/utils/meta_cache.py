@@ -176,6 +176,7 @@ async def set_cached_videos(mal_id: str, videos: list, ttl_override: int = 0, se
     
     Also propagates cache to all sibling MAL IDs that share the same tvdb_id,
     so translations done for one season are immediately available for all.
+    Won't overwrite a sibling that has more translations (prevents regression).
     """
     cache_data = _pack_videos_cache(videos, season_posters)
     cache_json = orjson.dumps(cache_data).decode()
@@ -190,10 +191,49 @@ async def set_cached_videos(mal_id: str, videos: list, ttl_override: int = 0, se
     # Propagate to sibling MAL IDs sharing the same tvdb_id
     ids = get_ids_from_mal_id(mal_id)
     if ids.get('tvdb_id') and videos:
+        # Count how many translated episodes we have
+        our_translated = sum(1 for v in videos if not v.get('_untranslated_title') and not v.get('_untranslated_overview'))
+        
         siblings = get_all_seasons_for_tvdb_id(ids['tvdb_id'])
         for sibling in siblings:
             sib_mal = str(sibling.get('mal_id'))
             if sib_mal and sib_mal != mal_id:
+                # Check if sibling has better data (more translations)
+                sib_rows = await execute("SELECT videos FROM videos_cache WHERE mal_id=?", (sib_mal,))
+                if sib_rows:
+                    sib_data = orjson.loads(sib_rows[0]['videos'])
+                    sib_vids = sib_data['v'] if isinstance(sib_data, dict) and 'v' in sib_data else (sib_data if isinstance(sib_data, list) else [])
+                    sib_translated = sum(1 for v in sib_vids if not v.get('_untranslated_title') and not v.get('_untranslated_overview'))
+                    if sib_translated > our_translated:
+                        # Sibling has better data — don't overwrite, instead merge their translations into ours
+                        sib_map = {}
+                        for v in sib_vids:
+                            vid_id = v.get('id')
+                            if vid_id and not v.get('_untranslated_title') and v.get('title'):
+                                sib_map.setdefault(vid_id, {})['title'] = v['title']
+                            if vid_id and not v.get('_untranslated_overview') and v.get('overview'):
+                                sib_map.setdefault(vid_id, {})['overview'] = v['overview']
+                        # Apply sibling's translations to our videos
+                        for v in videos:
+                            vid_id = v.get('id')
+                            if vid_id and vid_id in sib_map:
+                                if sib_map[vid_id].get('title') and v.get('_untranslated_title'):
+                                    v['title'] = sib_map[vid_id]['title']
+                                    v.pop('_untranslated_title', None)
+                                if sib_map[vid_id].get('overview') and v.get('_untranslated_overview'):
+                                    v['overview'] = sib_map[vid_id]['overview']
+                                    v.pop('_untranslated_overview', None)
+                        # Re-save our own entry with merged translations
+                        cache_data = _pack_videos_cache(videos, season_posters)
+                        cache_json = orjson.dumps(cache_data).decode()
+                        await execute(
+                            "INSERT OR REPLACE INTO videos_cache (mal_id, videos, timestamp) VALUES (?,?,?)",
+                            (mal_id, cache_json, now)
+                        )
+                        _videos_mem_cache[mal_id] = (videos, now, ttl_override, season_posters or [])
+                        # Now propagate our improved version
+                
+                # Propagate (our data is now equal or better)
                 await execute(
                     "INSERT OR REPLACE INTO videos_cache (mal_id, videos, timestamp) VALUES (?,?,?)",
                     (sib_mal, cache_json, now)
