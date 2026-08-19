@@ -172,13 +172,34 @@ async def _get_cached_videos_with_expired(mal_id: str) -> tuple:
 
 
 async def set_cached_videos(mal_id: str, videos: list, ttl_override: int = 0, season_posters: list = None):
-    """Cache videos list by MAL ID. If ttl_override > 0, use that instead of computed TTL."""
+    """Cache videos list by MAL ID. If ttl_override > 0, use that instead of computed TTL.
+    
+    Also propagates cache to all sibling MAL IDs that share the same tvdb_id,
+    so translations done for one season are immediately available for all.
+    """
     cache_data = _pack_videos_cache(videos, season_posters)
+    cache_json = orjson.dumps(cache_data).decode()
+    now = int(time.time())
+
     await execute(
         "INSERT OR REPLACE INTO videos_cache (mal_id, videos, timestamp) VALUES (?,?,?)",
-        (mal_id, orjson.dumps(cache_data).decode(), int(time.time()))
+        (mal_id, cache_json, now)
     )
-    _videos_mem_cache[mal_id] = (videos, int(time.time()), ttl_override, season_posters or [])
+    _videos_mem_cache[mal_id] = (videos, now, ttl_override, season_posters or [])
+
+    # Propagate to sibling MAL IDs sharing the same tvdb_id
+    ids = get_ids_from_mal_id(mal_id)
+    if ids.get('tvdb_id') and videos:
+        siblings = get_all_seasons_for_tvdb_id(ids['tvdb_id'])
+        for sibling in siblings:
+            sib_mal = str(sibling.get('mal_id'))
+            if sib_mal and sib_mal != mal_id:
+                await execute(
+                    "INSERT OR REPLACE INTO videos_cache (mal_id, videos, timestamp) VALUES (?,?,?)",
+                    (sib_mal, cache_json, now)
+                )
+                _videos_mem_cache[sib_mal] = (videos, now, ttl_override, season_posters or [])
+
     _evict_mem_cache()
 
 
