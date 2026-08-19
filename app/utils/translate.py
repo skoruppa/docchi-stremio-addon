@@ -24,17 +24,21 @@ TRANSLATE_PROMPT = (
 )
 
 BATCH_TRANSLATE_PROMPT = (
-    "Below are multiple anime episodes in English. Each episode has a TITLE and optionally a DESCRIPTION.\n"
-    "Translate each episode's title and description from English to Polish.\n"
-    "IMPORTANT: Always translate the TITLE to Polish, even if it looks like a proper noun or foreign word.\n"
-    "Only keep character names and place names unchanged in descriptions.\n"
-    "Use natural Polish that fits anime/manga context.\n\n"
-    "Return each episode in this EXACT format:\n"
-    "TITLE: <translated title>\n"
-    "DESC: <translated description>\n"
+    "Translate anime episode titles and descriptions from English to Polish.\n"
+    "Always translate titles to Polish. Keep character names and place names unchanged.\n\n"
+    "INPUT:\n"
+    "TITLE: The Boy Who Became Wind\n"
+    "DESC: Tanjiro begins his journey to find a cure.\n"
     "---\n"
-    "If the description is empty, return DESC: empty\n"
-    "Do NOT add numbering, episode numbers, or any extra text.\n\n"
+    "TITLE: A New Dawn\n"
+    "DESC: empty\n\n"
+    "OUTPUT:\n"
+    "TITLE: Chłopiec, który stał się wiatrem\n"
+    "DESC: Tanjiro rozpoczyna podróż w poszukiwaniu lekarstwa.\n"
+    "---\n"
+    "TITLE: Nowy świt\n"
+    "DESC: empty\n\n"
+    "Now translate the following. Use EXACTLY the format above (TITLE: and DESC: headers, --- separator):\n\n"
 )
 
 # Rate limiting: sliding window, 20 RPM max
@@ -228,14 +232,14 @@ async def batch_translate_episodes(episodes: list[dict]) -> list[dict]:
             desc_line = None
             for line in block.split("\n"):
                 line = line.strip()
+                if not line:
+                    continue
                 if line.upper().startswith("TITLE:") or line.upper().startswith("TYTUŁ:") or line.upper().startswith("TITUL:"):
-                    # Handle both English and Polish header
                     sep = line.index(":") + 1
                     title_line = line[sep:].strip()
                 elif line.upper().startswith("DESC:") or line.upper().startswith("OPIS:"):
                     sep = line.index(":") + 1
                     desc_line = line[sep:].strip()
-                    # Collect multi-line descriptions
                 elif desc_line is not None and line:
                     desc_line += " " + line
             if desc_line and desc_line.lower() in ("empty", "puste", "pusty", "brak"):
