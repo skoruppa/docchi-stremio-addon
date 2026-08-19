@@ -48,8 +48,8 @@ async def get_anime_meta(kitsu_id: str, mal_id: str = None, imdb_id: str = None,
     episodes.sort(key=lambda e: e["attributes"].get("number") or 0)
 
     subtype = attrs.get("subtype", "")
-    content_type = "movie" if subtype == "movie" else "series"
     episode_count = attrs.get("episodeCount") or 0
+    content_type = "movie" if (subtype == "movie" or (subtype in ("special", "OVA", "ONA") and episode_count <= 1)) else "series"
 
     videos = _build_videos(kitsu_id, subtype, episodes, episode_count, attrs.get("startDate"), mal_id)
 
