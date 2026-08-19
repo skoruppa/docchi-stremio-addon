@@ -966,6 +966,31 @@ async def fetch_videos(mal_id: str) -> dict | str:
             if entry:
                 prev_translations[vid_id] = entry
 
+    # If no prev_translations from own cache, try sibling mal_ids (same tvdb_id)
+    # This reuses translations already done under a sibling's cache
+    if not prev_translations and ids.get('tvdb_id'):
+        siblings = get_all_seasons_for_tvdb_id(ids['tvdb_id'])
+        for sibling in siblings:
+            sib_mal = str(sibling.get('mal_id'))
+            if sib_mal and sib_mal != mal_id:
+                sib_rows = await execute("SELECT videos FROM videos_cache WHERE mal_id=?", (sib_mal,))
+                if sib_rows:
+                    sib_data = orjson.loads(sib_rows[0]['videos'])
+                    sib_videos = sib_data['v'] if isinstance(sib_data, dict) and 'v' in sib_data else (sib_data if isinstance(sib_data, list) else [])
+                    for v in sib_videos:
+                        vid_id = v.get("id")
+                        if not vid_id:
+                            continue
+                        entry = {}
+                        if v.get("title") and not v.get("_untranslated_title"):
+                            entry["title"] = v["title"]
+                        if v.get("overview") and not v.get("_untranslated_overview"):
+                            entry["overview"] = v["overview"]
+                        if entry:
+                            prev_translations[vid_id] = entry
+                    if prev_translations:
+                        break  # found translations from a sibling, no need to check more
+
     # Try TVDB first with multi-season support
     # If tvdb_id is missing, try to resolve it via AniList relations (PREQUEL chain)
     if Config.TVDB_API_KEY and not ids.get('tvdb_id'):
