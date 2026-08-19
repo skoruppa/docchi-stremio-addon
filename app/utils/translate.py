@@ -228,7 +228,7 @@ async def batch_translate_episodes(episodes: list[dict]) -> list[dict]:
             desc_line = None
             for line in block.split("\n"):
                 line = line.strip()
-                if line.upper().startswith("TITLE:") or line.upper().startswith("TYTUŁ:"):
+                if line.upper().startswith("TITLE:") or line.upper().startswith("TYTUŁ:") or line.upper().startswith("TITUL:"):
                     # Handle both English and Polish header
                     sep = line.index(":") + 1
                     title_line = line[sep:].strip()
