@@ -708,6 +708,12 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                                         imdb_id=ids['imdb_id'], tvdb_id=ids['tvdb_id'], tmdb_id=ids['tmdb_id'])
             if meta and meta.get('name'):
                 await _fill_genres_from_docchi(meta, mal_id)
+                # Kitsu only has English descriptions — mark for translation
+                if meta.get('description'):
+                    if expired_meta and expired_meta.get('description') and not expired_meta.get('_untranslated_description'):
+                        meta['description'] = expired_meta['description']
+                    else:
+                        meta['_untranslated_description'] = True
                 await _enrich_poster_from_mal(meta, mal_id)
                 await set_cached_meta(mal_id, meta)
                 return _with_genre_links(meta), mal_id
@@ -721,6 +727,12 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
             meta = await mal_get_meta(mal_id)
             if meta:
                 await _fill_genres_from_docchi(meta, mal_id)
+                # MAL only has English descriptions — mark for translation
+                if meta.get('description'):
+                    if expired_meta and expired_meta.get('description') and not expired_meta.get('_untranslated_description'):
+                        meta['description'] = expired_meta['description']
+                    else:
+                        meta['_untranslated_description'] = True
                 await set_cached_meta(mal_id, meta)
                 return _with_genre_links(meta), mal_id
         except Exception:
