@@ -39,9 +39,10 @@ async def main():
     total_meta_to_translate = count_rows[0]['cnt'] if count_rows else 0
     logging.info(f"[Translate] Found {total_meta_to_translate} meta entries to translate")
     total_meta_translated = 0
+    consecutive_failures = 0
     while True:
         meta_rows = await execute(
-            "SELECT mal_id, meta FROM meta_cache WHERE meta LIKE '%_untranslated_description%' LIMIT 10"
+            "SELECT mal_id, meta FROM meta_cache WHERE meta LIKE '%_untranslated_description%' LIMIT 5"
         )
         if not meta_rows:
             break
@@ -60,7 +61,20 @@ async def main():
         if not texts:
             break
 
-        translations = await batch_translate_to_polish(texts)
+        # Deduplicate: translate unique texts only, then map back
+        unique_texts = list(dict.fromkeys(texts))  # preserves order, removes dupes
+        translations_map = {}
+        if len(unique_texts) < len(texts):
+            logging.info(f"[Translate] Deduped {len(texts)} -> {len(unique_texts)} unique texts")
+        
+        unique_translations = await batch_translate_to_polish(unique_texts)
+        for text, translated in zip(unique_texts, unique_translations):
+            if translated:
+                translations_map[text] = translated
+        
+        # Map translations back to original order
+        translations = [translations_map.get(t) for t in texts]
+
         page_translated = 0
         for (mal_id, meta), translated in zip(metas, translations):
             if translated:
@@ -72,9 +86,13 @@ async def main():
 
         total_meta_translated += page_translated
         if page_translated == 0:
-            # All models failed — stop trying meta
-            logging.warning("[Translate] Meta translation failed, stopping meta phase")
-            break
+            consecutive_failures += 1
+            if consecutive_failures >= 3:
+                logging.warning("[Translate] 3 consecutive failures, stopping meta phase")
+                break
+            logging.warning(f"[Translate] Batch failed ({consecutive_failures}/3), continuing...")
+        else:
+            consecutive_failures = 0
 
         # Rate limit pause between pages
         await asyncio.sleep(3)
@@ -107,7 +125,48 @@ async def main():
             season_posters = []
         mal_id = str(row['mal_id'])
 
-        # Collect all episodes needing translation
+        # Before translating, check siblings for existing translations
+        from app.utils.anime_mapping import get_ids_from_mal_id, get_all_seasons_for_tvdb_id
+        ids = get_ids_from_mal_id(mal_id)
+        if ids.get('tvdb_id'):
+            siblings = get_all_seasons_for_tvdb_id(ids['tvdb_id'])
+            for sibling in siblings:
+                sib_mal = str(sibling.get('mal_id'))
+                if sib_mal and sib_mal != mal_id:
+                    sib_rows = await execute('SELECT videos FROM videos_cache WHERE mal_id=?', (sib_mal,))
+                    if sib_rows:
+                        sib_data = orjson.loads(sib_rows[0]['videos'])
+                        sib_vids = sib_data['v'] if isinstance(sib_data, dict) and 'v' in sib_data else (sib_data if isinstance(sib_data, list) else [])
+                        # Build lookup: vid_id -> translated fields
+                        sib_map = {}
+                        for sv in sib_vids:
+                            sv_id = sv.get('id')
+                            if sv_id:
+                                if sv.get('title') and not sv.get('_untranslated_title'):
+                                    sib_map.setdefault(sv_id, {})['title'] = sv['title']
+                                if sv.get('overview') and not sv.get('_untranslated_overview'):
+                                    sib_map.setdefault(sv_id, {})['overview'] = sv['overview']
+                        # Apply sibling translations to current videos
+                        if sib_map:
+                            applied = 0
+                            for v in videos:
+                                vid_id = v.get('id')
+                                if vid_id and vid_id in sib_map:
+                                    sib = sib_map[vid_id]
+                                    if sib.get('title') and v.get('_untranslated_title'):
+                                        v['title'] = sib['title']
+                                        v.pop('_untranslated_title', None)
+                                        applied += 1
+                                    if sib.get('overview') and v.get('_untranslated_overview'):
+                                        v['overview'] = sib['overview']
+                                        v.pop('_untranslated_overview', None)
+                                        applied += 1
+                            if applied:
+                                logging.info(f"[Translate] mal:{mal_id} - reused {applied} translations from sibling mal:{sib_mal}")
+                                await set_cached_videos(mal_id, videos, 0, season_posters)
+                            break  # one sibling is enough
+
+        # Collect all episodes needing translation (after sibling reuse)
         to_translate = []
         for i, v in enumerate(videos):
             needs_title = v.get("_untranslated_title") and v.get("title")
