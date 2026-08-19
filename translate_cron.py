@@ -114,7 +114,24 @@ async def main():
         "SELECT mal_id, videos FROM videos_cache WHERE videos LIKE '%_untranslated_%'"
     )
 
+    # Deduplicate: only process one mal_id per tvdb_id to avoid translating same data multiple times
+    from app.utils.anime_mapping import get_ids_from_mal_id
+    seen_tvdb_ids = set()
+    deduplicated_rows = []
     for row in (vid_rows or []):
+        mal_id = str(row['mal_id'])
+        ids = get_ids_from_mal_id(mal_id)
+        tvdb_id = ids.get('tvdb_id')
+        if tvdb_id:
+            if tvdb_id in seen_tvdb_ids:
+                continue
+            seen_tvdb_ids.add(tvdb_id)
+        deduplicated_rows.append(row)
+
+    if len(deduplicated_rows) < total_vids_to_translate:
+        logging.info(f"[Translate] Deduplicated: {total_vids_to_translate} -> {len(deduplicated_rows)} unique entries")
+
+    for row in deduplicated_rows:
         data = orjson.loads(row['videos'])
         # Handle new dict format {"v": [...], "sp": [...]} and old list format
         if isinstance(data, dict) and "v" in data:
