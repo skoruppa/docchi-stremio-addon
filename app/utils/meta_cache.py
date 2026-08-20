@@ -670,6 +670,8 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     # Fallback to TMDB if TVDB failed and we have tmdb_id
     if Config.TMDB_API_KEY and not _is_movie and not _is_special:
         _tmdb_id = ids.get('tmdb_id')
+        if isinstance(_tmdb_id, list):
+            _tmdb_id = _tmdb_id[0] if _tmdb_id else None
         if not _tmdb_id:
             # Try Simkl for tmdb_id
             if Config.SIMKL_CLIENT_ID:
