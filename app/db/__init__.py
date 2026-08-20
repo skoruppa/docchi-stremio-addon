@@ -70,7 +70,10 @@ async def execute(sql: str, params=()) -> list:
                 cols = list(rs.columns)
                 return [_Row(zip(cols, row)) for row in rs.rows]
         except Exception as e:
-            logging.error(f"Turso execute failed, falling back to SQLite: {e}")
+            logging.error(f"Turso execute failed: {e}")
+            # Don't fallback to local SQLite when Turso is configured
+            # (local DB is empty on serverless — fallback would lose data)
+            return []
     rows = connection.execute(sql, params).fetchall()
     connection.commit()
     return [_Row(row) for row in rows]
