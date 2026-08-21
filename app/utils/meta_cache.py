@@ -382,6 +382,18 @@ async def _resolve_mal_id(content_id: str, is_vip: bool = False) -> str | None:
             simkl_mal = await get_ids_from_mal_by_imdb(prefix)
             if simkl_mal:
                 mal_id = str(simkl_mal)
+        # Fallback: scan resolved: keys in Redis (from previous Simkl/AniList lookups)
+        if not mal_id:
+            from app.utils.anime_mapping import _redis_client
+            if _redis_client:
+                import json as _json
+                # Check if imdb: was created by _cache_resolved_mapping
+                imdb_data = _redis_client.get(f"imdb:{prefix}")
+                if imdb_data:
+                    items = _json.loads(imdb_data)
+                    items = items if isinstance(items, list) else [items]
+                    if items and items[0].get('mal_id'):
+                        mal_id = str(items[0]['mal_id'])
         return mal_id
     elif prefix == 'kitsu' and len(parts) > 1:
         from app.routes import mapping
@@ -446,7 +458,8 @@ async def _resolve_tvdb_via_anilist(mal_id: str, ids: dict) -> dict | None:
 
 def _cache_resolved_mapping(mal_id: str, resolved: dict):
     """Cache a resolved mapping in Redis for future lookups (TTL 7 days).
-    Uses a separate key prefix to avoid being overwritten by load_mapping."""
+    Uses a separate key prefix to avoid being overwritten by load_mapping.
+    Also creates reverse imdb: lookup key for IMDB -> MAL resolution."""
     import json as _json
     from app.utils.anime_mapping import _redis_client
     if not _redis_client:
@@ -463,6 +476,12 @@ def _cache_resolved_mapping(mal_id: str, resolved: dict):
         season = resolved.get('tvdb_season') or 1
         mini['season'] = {'tvdb': int(season)}
         _redis_client.setex(f"resolved:mal:{mal_id}", 86400 * 7, _json.dumps(mini))
+        # Create reverse IMDB -> MAL lookup if imdb_id available
+        if resolved.get('imdb_id'):
+            imdb_id = resolved['imdb_id']
+            existing = _redis_client.get(f"imdb:{imdb_id}")
+            if not existing:
+                _redis_client.setex(f"imdb:{imdb_id}", 86400 * 7, _json.dumps([mini]))
     except Exception:
         pass
 
