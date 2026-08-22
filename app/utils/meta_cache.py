@@ -1035,6 +1035,9 @@ async def fetch_videos(mal_id: str) -> dict | str:
                 entry["overview"] = v["overview"]
             if entry:
                 prev_translations[vid_id] = entry
+        logging.info(f"[TVDB] mal:{mal_id} built prev_translations from expired cache: {len(prev_translations)} entries (from {len(expired_videos)} expired eps)")
+    else:
+        logging.info(f"[TVDB] mal:{mal_id} no expired_videos available for prev_translations")
 
     # If no prev_translations from own cache, try sibling mal_ids (same tvdb_id)
     # This reuses translations already done under a sibling's cache
@@ -1412,6 +1415,7 @@ async def fetch_videos(mal_id: str) -> dict | str:
                 has_untranslated = any(v.get("_untranslated") for v in videos)
                 
                 # Restore previous translations for episodes that were already translated
+                restored_count = 0
                 if prev_translations:
                     for v in videos:
                         vid_id = v.get("id")
@@ -1421,14 +1425,17 @@ async def fetch_videos(mal_id: str) -> dict | str:
                                 v["title"] = prev["title"]
                                 v.pop("_untranslated_title", None)
                                 v.pop("_untranslated", None)
+                                restored_count += 1
                             if prev.get("overview") and v.get("_untranslated_overview"):
                                 v["overview"] = prev["overview"]
                                 v.pop("_untranslated_overview", None)
                                 v.pop("_untranslated", None)
+                                restored_count += 1
                     # Recount after merge
                     has_untranslated = any(v.get("_untranslated") for v in videos)
                 
-                logging.info(f"[TVDB] has_untranslated={has_untranslated}, total_videos={len(videos)}, total_time={_time.time()-_t0:.2f}s")
+                still_untranslated = sum(1 for v in videos if v.get("_untranslated_title") or v.get("_untranslated_overview"))
+                logging.info(f"[TVDB] mal:{mal_id} prev_translations={len(prev_translations)}, restored={restored_count}, still_untranslated={still_untranslated}, total_videos={len(videos)}, time={_time.time()-_t0:.2f}s")
                 # Strip general _untranslated flag (keep granular _untranslated_title/_untranslated_overview for cron job)
                 for v in videos:
                     v.pop("_untranslated", None)
