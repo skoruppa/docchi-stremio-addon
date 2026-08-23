@@ -97,7 +97,8 @@ async def addon_meta(request: Request, meta_type: str, meta_id: str):
         meta['behaviorHints'] = meta.get('behaviorHints', {})
         meta['behaviorHints']['defaultVideoId'] = meta_id
     else:
-        meta['videos'] = videos_result.get('videos', [])
+        # Deep copy videos to avoid mutating cached data (mem_cache holds same references)
+        meta['videos'] = [dict(v) for v in videos_result.get('videos', [])]
         season_posters = videos_result.get('seasonPosters', [])
         if season_posters:
             meta['seasonPosters'] = season_posters
