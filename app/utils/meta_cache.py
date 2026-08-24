@@ -141,7 +141,9 @@ async def _get_cached_videos_with_expired(mal_id: str) -> tuple:
     - If cache is valid: returns (videos, None)
     - If cache is expired: returns (None, expired_videos) for reuse as prev_translations
     - If no cache at all: returns (None, None)
-    Single DB query instead of two.
+    
+    Always reads expired data from DB (not mem_cache) to avoid using
+    in-memory objects that may have been mutated by _remap_video_ids_to_kitsu.
     """
     if mal_id in _videos_mem_cache:
         videos, ts, ttl_override, _ = _videos_mem_cache[mal_id]
@@ -149,7 +151,7 @@ async def _get_cached_videos_with_expired(mal_id: str) -> tuple:
         if time.time() - ts < ttl:
             return videos, None
         del _videos_mem_cache[mal_id]
-        return None, videos  # expired but reusable
+        # Fall through to DB read for expired data (mem_cache may have mutated IDs)
 
     rows = await execute("SELECT videos, timestamp FROM videos_cache WHERE mal_id=?", (mal_id,))
     if rows:
