@@ -158,7 +158,7 @@ async def cron_translate(request: Request):
 
     # 1. Translate untranslated meta descriptions
     meta_rows = await execute(
-        "SELECT mal_id, meta FROM meta_cache WHERE meta LIKE '%_untranslated_description%' LIMIT 5"
+        r"SELECT mal_id, meta FROM meta_cache WHERE meta LIKE '%\_untranslated\_description%' ESCAPE '\' LIMIT 5"
     )
 
     if meta_rows:
@@ -184,7 +184,7 @@ async def cron_translate(request: Request):
 
     # 2. Translate untranslated video episodes (titles + overviews)
     vid_rows = await execute(
-        "SELECT mal_id, videos FROM videos_cache WHERE videos LIKE '%_untranslated_%' LIMIT 10"
+        r"SELECT mal_id, videos FROM videos_cache WHERE videos LIKE '%\_untranslated\_%' ESCAPE '\' LIMIT 10"
     )
 
     for row in (vid_rows or []):

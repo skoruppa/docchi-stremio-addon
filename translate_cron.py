@@ -34,7 +34,7 @@ async def main():
     # 1. Translate ALL untranslated meta descriptions first (in pages of 10)
     logging.info("[Translate] Checking for untranslated meta descriptions...")
     count_rows = await execute(
-        "SELECT COUNT(*) as cnt FROM meta_cache WHERE meta LIKE '%_untranslated_description%'"
+        r"SELECT COUNT(*) as cnt FROM meta_cache WHERE meta LIKE '%\_untranslated\_description%' ESCAPE '\'"
     )
     total_meta_to_translate = count_rows[0]['cnt'] if count_rows else 0
     logging.info(f"[Translate] Found {total_meta_to_translate} meta entries to translate")
@@ -42,7 +42,7 @@ async def main():
     consecutive_failures = 0
     while True:
         meta_rows = await execute(
-            "SELECT mal_id, meta FROM meta_cache WHERE meta LIKE '%_untranslated_description%' LIMIT 5"
+            r"SELECT mal_id, meta FROM meta_cache WHERE meta LIKE '%\_untranslated\_description%' ESCAPE '\' LIMIT 5"
         )
         if not meta_rows:
             break
@@ -106,12 +106,12 @@ async def main():
     # 2. Translate untranslated video episodes
     logging.info("[Translate] Checking for untranslated video episodes...")
     count_rows = await execute(
-        "SELECT COUNT(*) as cnt FROM videos_cache WHERE videos LIKE '%_untranslated_%'"
+        r"SELECT COUNT(*) as cnt FROM videos_cache WHERE videos LIKE '%\_untranslated\_%' ESCAPE '\'"
     )
     total_vids_to_translate = count_rows[0]['cnt'] if count_rows else 0
     logging.info(f"[Translate] Found {total_vids_to_translate} entries with untranslated episodes")
     vid_rows = await execute(
-        "SELECT mal_id, videos FROM videos_cache WHERE videos LIKE '%_untranslated_%'"
+        r"SELECT mal_id, videos FROM videos_cache WHERE videos LIKE '%\_untranslated\_%' ESCAPE '\'"
     )
 
     # Deduplicate: only process one mal_id per tvdb_id to avoid translating same data multiple times
