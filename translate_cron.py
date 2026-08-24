@@ -239,5 +239,83 @@ async def main():
     logging.info(f"[Translate] Finished: {translated_meta} meta + {translated_videos} video fields translated")
 
 
+async def translate_single(mal_id: str):
+    """Translate a single mal_id's videos and print diagnostics."""
+    from app.db import execute
+    from app.utils.translate import batch_translate_episodes
+    from app.utils.meta_cache import set_cached_videos
+    import orjson
+
+    logging.info(f"[Translate] Single mode: mal:{mal_id}")
+
+    rows = await execute('SELECT videos, timestamp FROM videos_cache WHERE mal_id=?', (mal_id,))
+    if not rows:
+        logging.error(f"mal:{mal_id} not found in videos_cache")
+        return
+
+    import time
+    age_min = (time.time() - rows[0]['timestamp']) / 60
+    data = orjson.loads(rows[0]['videos'])
+    videos = data['v'] if isinstance(data, dict) and 'v' in data else data
+    season_posters = data.get('sp', []) if isinstance(data, dict) else []
+
+    logging.info(f"  Cache age: {age_min:.0f}min, {len(videos)} eps")
+
+    # Show current state
+    for v in videos:
+        ut = 'U' if v.get('_untranslated_title') else ' '
+        uo = 'U' if v.get('_untranslated_overview') else ' '
+        logging.info(f"  {v.get('id')} T:{ut} O:{uo} \"{v.get('title', '')[:50]}\"")
+
+    # Collect episodes to translate
+    to_translate = []
+    for i, v in enumerate(videos):
+        needs_title = v.get("_untranslated_title") and v.get("title")
+        needs_overview = v.get("_untranslated_overview") and v.get("overview")
+        if needs_title or needs_overview:
+            to_translate.append((i, {
+                "title": v["title"] if needs_title else None,
+                "overview": v["overview"] if needs_overview else None,
+            }))
+
+    if not to_translate:
+        logging.info("  Nothing to translate!")
+        return
+
+    logging.info(f"  Translating {len(to_translate)} episodes...")
+
+    for chunk_start in range(0, len(to_translate), 5):
+        chunk = to_translate[chunk_start:chunk_start + 5]
+        episode_data = [ep_data for _, ep_data in chunk]
+        results = await batch_translate_episodes(episode_data)
+
+        for (vid_idx, _), translated in zip(chunk, results):
+            if translated.get("title"):
+                videos[vid_idx]["title"] = translated["title"]
+                videos[vid_idx].pop("_untranslated_title", None)
+                logging.info(f"    Translated: {videos[vid_idx]['id']} -> \"{translated['title'][:50]}\"")
+            if translated.get("overview"):
+                videos[vid_idx]["overview"] = translated["overview"]
+                videos[vid_idx].pop("_untranslated_overview", None)
+
+    await set_cached_videos(mal_id, videos, 0, season_posters)
+    logging.info(f"  Saved to Turso. Verifying...")
+
+    # Read back and verify
+    rows2 = await execute('SELECT videos FROM videos_cache WHERE mal_id=?', (mal_id,))
+    data2 = orjson.loads(rows2[0]['videos'])
+    vids2 = data2['v'] if isinstance(data2, dict) and 'v' in data2 else data2
+    n_u = sum(1 for v in vids2 if v.get('_untranslated_title') or v.get('_untranslated_overview'))
+    logging.info(f"  After save: {n_u} still untranslated")
+    for v in vids2:
+        ut = 'U' if v.get('_untranslated_title') else ' '
+        logging.info(f"  {v.get('id')} T:{ut} \"{v.get('title', '')[:50]}\"")
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    import sys
+    if len(sys.argv) > 1:
+        target_mal = sys.argv[1]
+        asyncio.run(translate_single(target_mal))
+    else:
+        asyncio.run(main())
