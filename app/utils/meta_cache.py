@@ -836,16 +836,29 @@ async def _fill_genres_from_docchi(meta: dict, mal_id: str):
         pass
 
 
+# Cache for _separate_specials results: tvdb_id -> (specials, regular_seasons, timestamp)
+_specials_cache: dict[int, tuple[list, list, float]] = {}
+_SPECIALS_CACHE_TTL = 86400  # 1 day
+
+
 async def _separate_specials(all_seasons: list) -> tuple[list, list]:
     """Separate specials/OVAs from regular season entries using Kitsu subtype.
     
     Batch-fetches subtypes from Kitsu for all entries that have kitsu_id.
     Returns (specials, regular_seasons) where specials are sorted by mal_id.
+    Results are cached in memory for 1 day (specials rarely change).
     """
     import aiohttp as _aiohttp
 
     if not all_seasons or len(all_seasons) <= 1:
         return [], all_seasons
+
+    # Check in-memory cache (keyed by first entry's tvdb_id)
+    tvdb_id = all_seasons[0].get('tvdb_id') if all_seasons else None
+    if tvdb_id and tvdb_id in _specials_cache:
+        cached_specials, cached_regular, ts = _specials_cache[tvdb_id]
+        if time.time() - ts < _SPECIALS_CACHE_TTL:
+            return cached_specials, cached_regular
 
     # Collect kitsu_ids to batch-check
     entries_with_kitsu = [(i, s) for i, s in enumerate(all_seasons) if s.get('kitsu_id')]
@@ -891,6 +904,10 @@ async def _separate_specials(all_seasons: list) -> tuple[list, list]:
 
     # Sort specials by mal_id (ascending = oldest first = episode 1)
     specials.sort(key=lambda s: int(s.get('mal_id', 0)))
+
+    # Cache result
+    if tvdb_id:
+        _specials_cache[tvdb_id] = (specials, regular, time.time())
 
     return specials, regular
 
