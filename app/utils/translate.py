@@ -129,6 +129,10 @@ async def _openrouter_request(prompt_text: str, model_override: str = None) -> s
                     if choices:
                         content = choices[0].get("message", {}).get("content", "")
                         if content and content.strip():
+                            # Detect content filter refusal
+                            lower = content.strip().lower()
+                            if lower.startswith("sorry") or lower.startswith("i can't") or lower.startswith("i cannot") or "i'm not able to" in lower:
+                                return "__CONTENT_REFUSED__"
                             return content.strip()
                     # Empty response, try fallback
                     continue
@@ -230,6 +234,8 @@ async def batch_translate_episodes(episodes: list[dict]) -> list[dict]:
     result = await _openrouter_request(prompt)
     if not result:
         return [{"title": None, "overview": None}] * len(episodes)
+    if result == "__CONTENT_REFUSED__":
+        return [{"title": "__CONTENT_REFUSED__", "overview": "__CONTENT_REFUSED__"}] * len(episodes)
 
     # Parse structured response
     blocks = result.split("---")

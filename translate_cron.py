@@ -207,8 +207,12 @@ async def main():
 
             results = await batch_translate_episodes(episode_data)
 
-            if not results or all(r.get("title") is None and r.get("overview") is None for r in results):
-                # Retry with uncensored model (content filter may have blocked NSFW content)
+            # Check if content was refused (NSFW filter) vs general failure
+            content_refused = results and any(r.get("title") == "__CONTENT_REFUSED__" for r in results)
+            all_failed = not results or all(r.get("title") is None and r.get("overview") is None for r in results)
+
+            if content_refused:
+                # Retry with uncensored model
                 from app.utils.translate import _openrouter_request, BATCH_TRANSLATE_PROMPT
                 parts = []
                 for ep in episode_data:
@@ -218,8 +222,7 @@ async def main():
                 prompt = BATCH_TRANSLATE_PROMPT + "\n---\n".join(parts)
                 
                 raw = await _openrouter_request(prompt, model_override="cognitivecomputations/dolphin-mistral-24b-venice-edition")
-                if raw and not raw.lower().startswith("sorry"):
-                    # Parse response
+                if raw and raw != "__CONTENT_REFUSED__":
                     blocks = raw.split("---")
                     results = []
                     for idx in range(len(episode_data)):
@@ -245,10 +248,13 @@ async def main():
                         else:
                             results.append({"title": None, "overview": None})
                     logging.info(f"[Translate] Uncensored model succeeded for mal:{mal_id}")
-                
-                if not results or all(r.get("title") is None and r.get("overview") is None for r in results):
-                    logging.warning(f"[Translate] All models failed for mal:{mal_id}, skipping entry for now")
-                    break
+                    all_failed = all(r.get("title") is None and r.get("overview") is None for r in results)
+                else:
+                    all_failed = True
+
+            if all_failed:
+                logging.warning(f"[Translate] All models failed for mal:{mal_id}, skipping entry for now")
+                break
 
             chunk_ok = 0
             for (vid_idx, _), translated in zip(chunk, results):
