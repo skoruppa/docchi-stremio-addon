@@ -208,18 +208,47 @@ async def main():
             results = await batch_translate_episodes(episode_data)
 
             if not results or all(r.get("title") is None and r.get("overview") is None for r in results):
-                # Retry with titles only (overview may trigger content filter)
-                titles_only = [{"title": ep.get("title"), "overview": None} for ep in episode_data]
-                if any(ep.get("title") for ep in titles_only):
-                    results = await batch_translate_episodes(titles_only)
+                # Retry with uncensored model (content filter may have blocked NSFW content)
+                from app.utils.translate import _openrouter_request, BATCH_TRANSLATE_PROMPT
+                parts = []
+                for ep in episode_data:
+                    title = ep.get("title") or ""
+                    overview = ep.get("overview") or ""
+                    parts.append(f"TITLE: {title if title else 'empty'}\nDESC: {overview if overview else 'empty'}")
+                prompt = BATCH_TRANSLATE_PROMPT + "\n---\n".join(parts)
+                
+                raw = await _openrouter_request(prompt, model_override="cognitivecomputations/dolphin-mistral-24b-venice-edition")
+                if raw and not raw.lower().startswith("sorry"):
+                    # Parse response
+                    blocks = raw.split("---")
+                    results = []
+                    for idx in range(len(episode_data)):
+                        if idx < len(blocks):
+                            block = blocks[idx].strip()
+                            title_line = None
+                            desc_line = None
+                            for line in block.split("\n"):
+                                line = line.strip()
+                                if not line:
+                                    continue
+                                if line.upper().startswith("TITLE:") or line.upper().startswith("TYTUŁ:") or line.upper().startswith("TITUL:"):
+                                    sep = line.index(":") + 1
+                                    title_line = line[sep:].strip()
+                                elif line.upper().startswith("DESC:") or line.upper().startswith("OPIS:"):
+                                    sep = line.index(":") + 1
+                                    desc_line = line[sep:].strip()
+                            if title_line and title_line.lower() in ("empty", "puste", "pusty", "brak"):
+                                title_line = None
+                            if desc_line and desc_line.lower() in ("empty", "puste", "pusty", "brak"):
+                                desc_line = None
+                            results.append({"title": title_line, "overview": desc_line})
+                        else:
+                            results.append({"title": None, "overview": None})
+                    logging.info(f"[Translate] Uncensored model succeeded for mal:{mal_id}")
+                
                 if not results or all(r.get("title") is None and r.get("overview") is None for r in results):
                     logging.warning(f"[Translate] All models failed for mal:{mal_id}, skipping entry for now")
                     break
-                else:
-                    # Mark overviews as permanently untranslatable (remove flag to stop retrying)
-                    for (vid_idx, _) in chunk:
-                        if videos[vid_idx].get("_untranslated_overview"):
-                            videos[vid_idx].pop("_untranslated_overview", None)
 
             chunk_ok = 0
             for (vid_idx, _), translated in zip(chunk, results):

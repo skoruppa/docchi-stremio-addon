@@ -91,7 +91,7 @@ def _acquire_rate_slot():
     return 0
 
 
-async def _openrouter_request(prompt_text: str) -> str | None:
+async def _openrouter_request(prompt_text: str, model_override: str = None) -> str | None:
     """Make a single rate-limited request to OpenRouter API with fallback model."""
     if not Config.OPENROUTER_API_KEY:
         return None
@@ -106,7 +106,8 @@ async def _openrouter_request(prompt_text: str) -> str | None:
         "Content-Type": "application/json",
     }
 
-    for model in [MODEL, FALLBACK_MODEL, "nvidia/nemotron-3-super-120b-a12b:free"]:
+    models = [model_override] if model_override else [MODEL, FALLBACK_MODEL, "nvidia/nemotron-3-super-120b-a12b:free"]
+    for model in models:
         payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt_text}],
