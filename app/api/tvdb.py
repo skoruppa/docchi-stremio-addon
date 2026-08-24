@@ -422,12 +422,14 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
         name = translation.get("name") or name
         description = translation.get("overview")
 
-    # If name is still non-Latin (e.g. Japanese), get English name
+    # If name is still non-Latin (e.g. Japanese) or same as original (no Polish available), get English
     eng_translation = None
-    if not name or _is_non_latin(name):
+    if not name or _is_non_latin(name) or (not translation or not translation.get("name")):
         eng_translation = await get_series_translation(tvdb_id, "eng")
         if eng_translation and eng_translation.get("name"):
-            name = eng_translation["name"]
+            # Use English only if we don't have Polish
+            if not translation or not translation.get("name"):
+                name = eng_translation["name"]
 
     # If no Polish description, use English and mark for batch translation later
     _description_untranslated = False
