@@ -25,16 +25,24 @@ TRANSLATE_PROMPT = (
 
 BATCH_TRANSLATE_PROMPT = (
     "Translate anime episode titles and descriptions from English to Polish.\n"
-    "Always translate titles to Polish. Keep character names and place names unchanged.\n\n"
+    "Always translate titles to Polish. Keep character names and place names unchanged.\n"
+    "If TITLE is 'empty', return TITLE: empty (do NOT put the description there).\n"
+    "If DESC is 'empty', return DESC: empty.\n\n"
     "INPUT:\n"
     "TITLE: The Boy Who Became Wind\n"
     "DESC: Tanjiro begins his journey to find a cure.\n"
+    "---\n"
+    "TITLE: empty\n"
+    "DESC: The hero fights against impossible odds to save his friends.\n"
     "---\n"
     "TITLE: A New Dawn\n"
     "DESC: empty\n\n"
     "OUTPUT:\n"
     "TITLE: Chłopiec, który stał się wiatrem\n"
     "DESC: Tanjiro rozpoczyna podróż w poszukiwaniu lekarstwa.\n"
+    "---\n"
+    "TITLE: empty\n"
+    "DESC: Bohater walczy z niemożliwymi przeciwnościami, aby uratować przyjaciół.\n"
     "---\n"
     "TITLE: Nowy świt\n"
     "DESC: empty\n\n"
@@ -214,7 +222,7 @@ async def batch_translate_episodes(episodes: list[dict]) -> list[dict]:
     for ep in episodes:
         title = ep.get("title") or ""
         overview = ep.get("overview") or ""
-        parts.append(f"TITLE: {title}\nDESC: {overview if overview else 'empty'}")
+        parts.append(f"TITLE: {title if title else 'empty'}\nDESC: {overview if overview else 'empty'}")
     
     prompt = BATCH_TRANSLATE_PROMPT + "\n---\n".join(parts)
 
@@ -244,6 +252,8 @@ async def batch_translate_episodes(episodes: list[dict]) -> list[dict]:
                     desc_line += " " + line
             if desc_line and desc_line.lower() in ("empty", "puste", "pusty", "brak"):
                 desc_line = None
+            if title_line and title_line.lower() in ("empty", "puste", "pusty", "brak"):
+                title_line = None
             # Validate: discard corrupted translations
             if title_line and _is_corrupted(title_line):
                 title_line = None
