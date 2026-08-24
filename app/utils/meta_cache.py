@@ -1023,13 +1023,19 @@ async def fetch_videos(mal_id: str) -> dict | str:
         except Exception:
             pass
 
-    # Build prev_translations from DB (always fresh read to get latest cron translations)
+    # Build prev_translations from DB data
+    # _get_cached_videos_with_expired already read from DB, use expired_videos if available
+    # Otherwise do a fresh DB read (handles case where cron translated after mem_cache was loaded)
     prev_translations = {}  # vid_id -> {"title": ..., "overview": ...}
-    prev_rows = await execute("SELECT videos FROM videos_cache WHERE mal_id=?", (mal_id,))
-    if prev_rows:
-        prev_data = orjson.loads(prev_rows[0]['videos'])
-        prev_vids = prev_data['v'] if isinstance(prev_data, dict) and 'v' in prev_data else (prev_data if isinstance(prev_data, list) else [])
-        for v in prev_vids:
+    prev_source = expired_videos
+    if not prev_source:
+        prev_rows = await execute("SELECT videos FROM videos_cache WHERE mal_id=?", (mal_id,))
+        if prev_rows:
+            prev_data = orjson.loads(prev_rows[0]['videos'])
+            prev_source = prev_data['v'] if isinstance(prev_data, dict) and 'v' in prev_data else (prev_data if isinstance(prev_data, list) else [])
+    
+    if prev_source:
+        for v in prev_source:
             vid_id = v.get("id")
             if not vid_id:
                 continue
@@ -1040,9 +1046,9 @@ async def fetch_videos(mal_id: str) -> dict | str:
                 entry["overview"] = v["overview"]
             if entry:
                 prev_translations[vid_id] = entry
-        logging.info(f"[TVDB] mal:{mal_id} built prev_translations from DB: {len(prev_translations)} entries (from {len(prev_vids)} eps)")
+        logging.info(f"[TVDB] mal:{mal_id} prev_translations: {len(prev_translations)} entries (from {len(prev_source)} eps)")
     else:
-        logging.info(f"[TVDB] mal:{mal_id} no prev data in DB for prev_translations")
+        logging.info(f"[TVDB] mal:{mal_id} no prev data for prev_translations")
 
     # If no prev_translations from own cache, try sibling mal_ids (same tvdb_id)
     # This reuses translations already done under a sibling's cache
