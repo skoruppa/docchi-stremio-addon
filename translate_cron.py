@@ -208,8 +208,18 @@ async def main():
             results = await batch_translate_episodes(episode_data)
 
             if not results or all(r.get("title") is None and r.get("overview") is None for r in results):
-                logging.warning(f"[Translate] All models failed for mal:{mal_id}, skipping entry for now")
-                break
+                # Retry with titles only (overview may trigger content filter)
+                titles_only = [{"title": ep.get("title"), "overview": None} for ep in episode_data]
+                if any(ep.get("title") for ep in titles_only):
+                    results = await batch_translate_episodes(titles_only)
+                if not results or all(r.get("title") is None and r.get("overview") is None for r in results):
+                    logging.warning(f"[Translate] All models failed for mal:{mal_id}, skipping entry for now")
+                    break
+                else:
+                    # Mark overviews as permanently untranslatable (remove flag to stop retrying)
+                    for (vid_idx, _) in chunk:
+                        if videos[vid_idx].get("_untranslated_overview"):
+                            videos[vid_idx].pop("_untranslated_overview", None)
 
             chunk_ok = 0
             for (vid_idx, _), translated in zip(chunk, results):
