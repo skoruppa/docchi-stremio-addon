@@ -1103,14 +1103,15 @@ async def fetch_videos(mal_id: str) -> dict | str:
             # Get all seasons that share the same tvdb_id
             all_seasons = get_all_seasons_for_tvdb_id(tvdb_id)
 
-            # Separate specials/OVAs from regular seasons
-            # Specials go into season 0, numbered by MAL ID order
-            specials, all_seasons = await _separate_specials(all_seasons)
-
-            # Fetch series_ext for season posters if we skipped it earlier
-            # (short=True is fast and includes seasons with poster images)
-            if series_ext is None and len(all_seasons) > 1:
-                series_ext = await get_series_extended(tvdb_id, short=True)
+            # Separate specials and fetch series_ext in parallel (both independent)
+            specials_task = _separate_specials(all_seasons)
+            ext_task = get_series_extended(tvdb_id, short=True) if (series_ext is None and len(all_seasons) > 1) else None
+            
+            if ext_task:
+                specials_result, series_ext = await asyncio.gather(specials_task, ext_task)
+            else:
+                specials_result = await specials_task
+            specials, all_seasons = specials_result
             
             # If current mal_id was resolved via AniList (not in local mapping),
             # add it to all_seasons so it gets its proper season
