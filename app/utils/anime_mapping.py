@@ -229,6 +229,14 @@ def get_mal_id_from_imdb_id(imdb_id: str, season: int = None) -> Optional[str]:
             return str(items[0].get('mal_id')) if items[0].get('mal_id') else None
         return None
     
+    # No season specified: prefer entry with season=1, then any with season, then first
+    for item in items:
+        tvdb_season = item.get('season', {}).get('tvdb')
+        if tvdb_season and int(tvdb_season) == 1:
+            return str(item.get('mal_id')) if item.get('mal_id') else None
+    for item in items:
+        if item.get('season', {}).get('tvdb'):
+            return str(item.get('mal_id')) if item.get('mal_id') else None
     return str(items[0].get('mal_id')) if items[0].get('mal_id') else None
 
 async def get_slug_from_imdb_id(imdb_id: str, season: int = None) -> Optional[str]:
