@@ -227,19 +227,30 @@ async def set_cached_videos(mal_id: str, videos: list, ttl_override: int = 0, se
     )
     _videos_mem_cache[mal_id] = (videos, now, ttl_override, season_posters or [])
 
-    # Propagate to siblings
+    # Propagate to siblings in background (don't block response)
     if ids.get('tvdb_id') and videos:
         siblings = get_all_seasons_for_tvdb_id(ids['tvdb_id'])
-        for sibling in siblings:
-            sib_mal = str(sibling.get('mal_id'))
-            if sib_mal and sib_mal != mal_id:
-                await execute(
-                    "INSERT OR REPLACE INTO videos_cache (mal_id, videos, timestamp) VALUES (?,?,?)",
-                    (sib_mal, cache_json, now)
-                )
+        sib_mal_ids = [str(s.get('mal_id')) for s in siblings if s.get('mal_id') and str(s.get('mal_id')) != mal_id]
+        if sib_mal_ids:
+            # Update mem_cache immediately (free)
+            for sib_mal in sib_mal_ids:
                 _videos_mem_cache[sib_mal] = (videos, now, ttl_override, season_posters or [])
+            # DB writes in background
+            asyncio.ensure_future(_propagate_to_siblings(sib_mal_ids, cache_json, now))
 
     _evict_mem_cache()
+
+
+async def _propagate_to_siblings(sib_mal_ids: list[str], cache_json: str, now: int):
+    """Background task: propagate videos cache to sibling mal_ids."""
+    for sib_mal in sib_mal_ids:
+        try:
+            await execute(
+                "INSERT OR REPLACE INTO videos_cache (mal_id, videos, timestamp) VALUES (?,?,?)",
+                (sib_mal, cache_json, now)
+            )
+        except Exception:
+            pass
 
 
 def _pack_videos_cache(videos: list, season_posters: list = None) -> dict | list:
