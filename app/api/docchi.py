@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import aiohttp
 from urllib.parse import urlencode, quote
@@ -22,10 +23,14 @@ class DocchiAPI:
         """Make HTTP request with proper session management"""
         timeout = aiohttp.ClientTimeout(total=TIMEOUT)
         connector = aiohttp.TCPConnector(limit=100, limit_per_host=10)
-        async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
-            async with session.get(url) as resp:
-                resp.raise_for_status()
-                return await resp.json(content_type=None)
+        try:
+            async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+                async with session.get(url) as resp:
+                    resp.raise_for_status()
+                    return await resp.json(content_type=None)
+        except (asyncio.TimeoutError, asyncio.CancelledError) as e:
+            logging.error(f"Docchi API timeout ({url}): {e}")
+            raise aiohttp.ClientError(f"Timeout requesting {url}") from e
 
     async def close(self):
         """Close the session"""
