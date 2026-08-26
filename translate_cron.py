@@ -417,17 +417,75 @@ async def translate_single(mal_id: str, force: bool = False):
 
 
 async def _fetch_english_description(mal_id: str) -> str | None:
-    """Fetch the original English description for a MAL ID from TVDB."""
+    """Fetch the original English description for a MAL ID.
+    
+    Tries sources in order: TVDB → TMDB → AniList → MAL.
+    """
+    import aiohttp
     from app.utils.anime_mapping import load_mapping, get_ids_from_mal_id
     from config import Config
     load_mapping()
     ids = get_ids_from_mal_id(mal_id)
-    
+
+    # 1. TVDB
     if Config.TVDB_API_KEY and ids.get('tvdb_id'):
-        from app.api.tvdb import _api_get
-        data = await _api_get(f"/series/{ids['tvdb_id']}/translations/eng")
-        if data and data.get('data'):
-            return data['data'].get('overview')
+        try:
+            from app.api.tvdb import _api_get
+            data = await _api_get(f"/series/{ids['tvdb_id']}/translations/eng")
+            if data and data.get('data', {}).get('overview'):
+                return data['data']['overview']
+        except Exception:
+            pass
+
+    # 2. TMDB
+    tmdb_id = ids.get('tmdb_id')
+    if Config.TMDB_API_KEY and tmdb_id:
+        if isinstance(tmdb_id, list):
+            tmdb_id = tmdb_id[0] if tmdb_id else None
+        if tmdb_id:
+            try:
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as sess:
+                    async with sess.get(
+                        f"https://api.themoviedb.org/3/tv/{tmdb_id}",
+                        params={"api_key": Config.TMDB_API_KEY, "language": "en-US"}
+                    ) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            if data.get('overview'):
+                                return data['overview']
+            except Exception:
+                pass
+
+    # 3. AniList
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as sess:
+            query = 'query ($idMal: Int) { Media(idMal: $idMal, type: ANIME) { description(asHtml: false) } }'
+            async with sess.post('https://graphql.anilist.co',
+                                 json={'query': query, 'variables': {'idMal': int(mal_id)}}) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    desc = data.get('data', {}).get('Media', {}).get('description')
+                    if desc:
+                        return desc
+    except Exception:
+        pass
+
+    # 4. MAL
+    if Config.MAL_CLIENT_ID:
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as sess:
+                async with sess.get(
+                    f"https://api.myanimelist.net/v2/anime/{mal_id}",
+                    params={"fields": "synopsis"},
+                    headers={"X-MAL-CLIENT-ID": Config.MAL_CLIENT_ID}
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        if data.get('synopsis'):
+                            return data['synopsis']
+        except Exception:
+            pass
+
     return None
 
 
