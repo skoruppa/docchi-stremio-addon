@@ -25,7 +25,13 @@ TRANSLATE_PROMPT = (
 
 BATCH_TRANSLATE_PROMPT = (
     "Translate anime episode titles and descriptions from English to Polish.\n"
+    "Use natural Polish that fits anime/manga context. Translate contextually, not literally.\n"
+    "Important: translate based on meaning, not word-for-word. Examples:\n"
+    "- 'draw a bow' = 'naciągnąć łuk' (NOT 'rysować łuk')\n"
+    "- 'court' in royal context = 'dwór' (NOT 'sąd')\n"
+    "- 'vessel' in supernatural context = 'naczynie' (NOT 'statek')\n\n"
     "Always translate titles to Polish. Keep character names and place names unchanged.\n"
+    "Treat each episode independently — do NOT let one episode's phrasing influence another.\n"
     "If TITLE is 'empty', return TITLE: empty (do NOT put the description there).\n"
     "If DESC is 'empty', return DESC: empty.\n\n"
     "INPUT:\n"

@@ -516,11 +516,28 @@ async def _fetch_english_episodes(mal_id: str) -> list:
     return result
 
 
+async def _cleanup():
+    """Close persistent sessions to avoid 'Unclosed client session' warnings."""
+    from app.db import _turso_client
+    if _turso_client and not _turso_client.closed:
+        await _turso_client.close()
+    from app.api.tvdb import _session as tvdb_session
+    if tvdb_session and not tvdb_session.closed:
+        await tvdb_session.close()
+
+
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) > 1:
-        target_mal = sys.argv[1]
-        force = '--force' in sys.argv
-        asyncio.run(translate_single(target_mal, force=force))
-    else:
-        asyncio.run(main())
+
+    async def _run():
+        try:
+            if len(sys.argv) > 1:
+                target_mal = sys.argv[1]
+                force = '--force' in sys.argv
+                await translate_single(target_mal, force=force)
+            else:
+                await main()
+        finally:
+            await _cleanup()
+
+    asyncio.run(_run())
