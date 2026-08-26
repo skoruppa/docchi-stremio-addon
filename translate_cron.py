@@ -416,6 +416,21 @@ async def translate_single(mal_id: str, force: bool = False):
         logging.info(f"  {v.get('id')} T:{ut} \"{v.get('title', '')[:50]}\"")
 
 
+def _clean_description(text: str) -> str:
+    """Clean HTML tags and source attribution from description text."""
+    import re
+    if not text:
+        return text
+    # Remove HTML tags
+    text = re.sub(r'<br\s*/?>', '\n', text)
+    text = re.sub(r'<[^>]+>', '', text)
+    # Remove source attribution like "(Source: Crunchyroll)" or "(Źródło: ...)"
+    text = re.sub(r'\s*\((?:Source|Źródło|Written by)[^)]*\)\s*$', '', text, flags=re.IGNORECASE)
+    # Clean up whitespace
+    text = re.sub(r'\n{3,}', '\n\n', text).strip()
+    return text
+
+
 async def _fetch_english_description(mal_id: str) -> str | None:
     """Fetch the original English description for a MAL ID.
     
@@ -433,7 +448,7 @@ async def _fetch_english_description(mal_id: str) -> str | None:
             from app.api.tvdb import _api_get
             data = await _api_get(f"/series/{ids['tvdb_id']}/translations/eng")
             if data and data.get('data', {}).get('overview'):
-                return data['data']['overview']
+                return _clean_description(data['data']['overview'])
         except Exception:
             pass
 
@@ -452,7 +467,7 @@ async def _fetch_english_description(mal_id: str) -> str | None:
                         if resp.status == 200:
                             data = await resp.json()
                             if data.get('overview'):
-                                return data['overview']
+                                return _clean_description(data['overview'])
             except Exception:
                 pass
 
@@ -466,7 +481,7 @@ async def _fetch_english_description(mal_id: str) -> str | None:
                     data = await resp.json()
                     desc = data.get('data', {}).get('Media', {}).get('description')
                     if desc:
-                        return desc
+                        return _clean_description(desc)
     except Exception:
         pass
 
@@ -482,7 +497,7 @@ async def _fetch_english_description(mal_id: str) -> str | None:
                     if resp.status == 200:
                         data = await resp.json()
                         if data.get('synopsis'):
-                            return data['synopsis']
+                            return _clean_description(data['synopsis'])
         except Exception:
             pass
 
