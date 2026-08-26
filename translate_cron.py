@@ -284,18 +284,53 @@ async def main():
     logging.info(f"[Translate] Finished: {translated_meta} meta + {translated_videos} video fields translated")
 
 
-async def translate_single(mal_id: str):
-    """Translate a single mal_id's videos and print diagnostics."""
+async def translate_single(mal_id: str, force: bool = False):
+    """Translate a single mal_id's meta description and videos.
+    
+    With --force: re-translates everything (even already translated content)
+    using the original English text fetched from TVDB.
+    Without --force: only translates entries marked as _untranslated.
+    """
     from app.db import execute
-    from app.utils.translate import batch_translate_episodes
-    from app.utils.meta_cache import set_cached_videos
+    from app.utils.translate import batch_translate_episodes, translate_to_polish
+    from app.utils.meta_cache import set_cached_videos, set_cached_meta, get_cached_meta
     import orjson
 
-    logging.info(f"[Translate] Single mode: mal:{mal_id}")
+    logging.info(f"[Translate] Single mode: mal:{mal_id} (force={force})")
 
+    # --- 1. Meta description ---
+    meta_rows = await execute('SELECT meta FROM meta_cache WHERE mal_id=?', (mal_id,))
+    if meta_rows:
+        meta = orjson.loads(meta_rows[0]['meta'])
+        needs_meta = force or meta.get('_untranslated_description')
+        if needs_meta:
+            if force:
+                # Fetch original English description from TVDB/source
+                eng_desc = await _fetch_english_description(mal_id)
+                if eng_desc:
+                    logging.info(f"  [Meta] English desc: {eng_desc[:80]}...")
+                    translated = await translate_to_polish(eng_desc)
+                else:
+                    logging.warning(f"  [Meta] Could not fetch English description, using cached")
+                    translated = await translate_to_polish(meta.get('description', ''))
+            else:
+                translated = await translate_to_polish(meta.get('description', ''))
+            if translated:
+                meta['description'] = translated
+                meta.pop('_untranslated_description', None)
+                await set_cached_meta(mal_id, meta)
+                logging.info(f"  [Meta] Translated: {translated[:80]}...")
+            else:
+                logging.warning(f"  [Meta] Translation failed")
+        else:
+            logging.info(f"  [Meta] Already translated, skipping (use --force to re-translate)")
+    else:
+        logging.warning(f"  [Meta] No meta cache for mal:{mal_id}")
+
+    # --- 2. Videos/episodes ---
     rows = await execute('SELECT videos, timestamp FROM videos_cache WHERE mal_id=?', (mal_id,))
     if not rows:
-        logging.error(f"mal:{mal_id} not found in videos_cache")
+        logging.error(f"  [Videos] Not found in videos_cache")
         return
 
     import time
@@ -304,7 +339,16 @@ async def translate_single(mal_id: str):
     videos = data['v'] if isinstance(data, dict) and 'v' in data else data
     season_posters = data.get('sp', []) if isinstance(data, dict) else []
 
-    logging.info(f"  Cache age: {age_min:.0f}min, {len(videos)} eps")
+    logging.info(f"  [Videos] Cache age: {age_min:.0f}min, {len(videos)} eps")
+
+    if force:
+        # Fetch original English episodes from TVDB
+        eng_episodes = await _fetch_english_episodes(mal_id)
+        eng_map = {}  # vid_id -> {"title": ..., "overview": ...}
+        for ep in eng_episodes:
+            vid_id = ep.get('id')
+            if vid_id:
+                eng_map[vid_id] = ep
 
     # Show current state
     for v in videos:
@@ -315,13 +359,25 @@ async def translate_single(mal_id: str):
     # Collect episodes to translate
     to_translate = []
     for i, v in enumerate(videos):
-        needs_title = v.get("_untranslated_title") and v.get("title")
-        needs_overview = v.get("_untranslated_overview") and v.get("overview")
-        if needs_title or needs_overview:
-            to_translate.append((i, {
-                "title": v["title"] if needs_title else None,
-                "overview": v["overview"] if needs_overview else None,
-            }))
+        if force:
+            # Use English source text when forcing
+            vid_id = v.get('id')
+            eng = eng_map.get(vid_id, {}) if force else {}
+            title_src = eng.get('title') or v.get('title')
+            overview_src = eng.get('overview') or v.get('overview')
+            if title_src or overview_src:
+                to_translate.append((i, {
+                    "title": title_src,
+                    "overview": overview_src,
+                }))
+        else:
+            needs_title = v.get("_untranslated_title") and v.get("title")
+            needs_overview = v.get("_untranslated_overview") and v.get("overview")
+            if needs_title or needs_overview:
+                to_translate.append((i, {
+                    "title": v["title"] if needs_title else None,
+                    "overview": v["overview"] if needs_overview else None,
+                }))
 
     if not to_translate:
         logging.info("  Nothing to translate!")
@@ -343,8 +399,11 @@ async def translate_single(mal_id: str):
                 videos[vid_idx]["overview"] = translated["overview"]
                 videos[vid_idx].pop("_untranslated_overview", None)
 
-    await set_cached_videos(mal_id, videos, 0, season_posters)
-    logging.info(f"  Saved to Turso. Verifying...")
+        # Save after each chunk
+        await set_cached_videos(mal_id, videos, 0, season_posters)
+        await asyncio.sleep(3)
+
+    logging.info(f"  Saved. Verifying...")
 
     # Read back and verify
     rows2 = await execute('SELECT videos FROM videos_cache WHERE mal_id=?', (mal_id,))
@@ -357,10 +416,53 @@ async def translate_single(mal_id: str):
         logging.info(f"  {v.get('id')} T:{ut} \"{v.get('title', '')[:50]}\"")
 
 
+async def _fetch_english_description(mal_id: str) -> str | None:
+    """Fetch the original English description for a MAL ID from TVDB."""
+    from app.utils.anime_mapping import load_mapping, get_ids_from_mal_id
+    from config import Config
+    load_mapping()
+    ids = get_ids_from_mal_id(mal_id)
+    
+    if Config.TVDB_API_KEY and ids.get('tvdb_id'):
+        from app.api.tvdb import _api_get
+        data = await _api_get(f"/series/{ids['tvdb_id']}/translations/eng")
+        if data and data.get('data'):
+            return data['data'].get('overview')
+    return None
+
+
+async def _fetch_english_episodes(mal_id: str) -> list:
+    """Fetch original English episode data for a MAL ID from TVDB."""
+    from app.utils.anime_mapping import load_mapping, get_ids_from_mal_id
+    from config import Config
+    load_mapping()
+    ids = get_ids_from_mal_id(mal_id)
+    
+    if not (Config.TVDB_API_KEY and ids.get('tvdb_id')):
+        return []
+    
+    from app.api.tvdb import get_series_episodes
+    tvdb_season = int(ids['tvdb_season']) if ids.get('tvdb_season') else 1
+    episodes = await get_series_episodes(ids['tvdb_id'], season_number=tvdb_season, lang='eng')
+    
+    # Map to video IDs matching the cache format
+    result = []
+    for ep in episodes:
+        ep_num = ep.get('number') or ep.get('absoluteNumber')
+        if ep_num:
+            result.append({
+                'id': f"mal:{mal_id}:{ep_num}",
+                'title': ep.get('name'),
+                'overview': ep.get('overview'),
+            })
+    return result
+
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:
         target_mal = sys.argv[1]
-        asyncio.run(translate_single(target_mal))
+        force = '--force' in sys.argv
+        asyncio.run(translate_single(target_mal, force=force))
     else:
         asyncio.run(main())

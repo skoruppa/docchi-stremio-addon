@@ -13,8 +13,8 @@ from config import Config
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 TIMEOUT = aiohttp.ClientTimeout(total=60)
-MODEL = "openai/gpt-4.1-nano"
-FALLBACK_MODEL = "google/gemini-2.5-flash"
+MODEL = "tencent/hy-mt2-30b-a3b"
+FALLBACK_MODEL = "openai/gpt-4.1-nano"
 
 TRANSLATE_PROMPT = (
     "Translate the following anime synopsis/episode description from English to Polish. "

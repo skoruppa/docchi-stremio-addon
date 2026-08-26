@@ -1,4 +1,5 @@
 import sqlite3
+import asyncio
 import logging
 import threading
 from config import Config
@@ -53,6 +54,9 @@ class _Row(dict):
 # Pre-import libsql_client at module level if Turso is configured
 _libsql_client = None
 _turso_url = None
+_turso_client = None  # Persistent Turso client (reused across requests)
+_turso_lock = asyncio.Lock()  # Protects client creation
+
 if Config.TURSO_URL and Config.TURSO_TOKEN:
     try:
         import libsql_client as _libsql_client
@@ -61,19 +65,50 @@ if Config.TURSO_URL and Config.TURSO_TOKEN:
         _libsql_client = None
 
 
-async def execute(sql: str, params=()) -> list:
-    """Unified async execute for Turso or SQLite. Returns list of _Row."""
-    if _libsql_client and _turso_url:
+def _get_turso_client():
+    """Get or create a persistent Turso client. Must be called from async context."""
+    global _turso_client
+    if _turso_client is None or _turso_client.closed:
+        _turso_client = _libsql_client.create_client(url=_turso_url, auth_token=Config.TURSO_TOKEN)
+    return _turso_client
+
+
+def _reset_turso_client():
+    """Reset the Turso client after persistent failures."""
+    global _turso_client
+    if _turso_client is not None:
         try:
-            async with _libsql_client.create_client(url=_turso_url, auth_token=Config.TURSO_TOKEN) as client:
+            asyncio.ensure_future(_turso_client.close())
+        except Exception:
+            pass
+    _turso_client = None
+
+
+async def execute(sql: str, params=()) -> list:
+    """Unified async execute for Turso or SQLite.
+    
+    Uses a persistent Turso client to avoid opening a new HTTP connection per query.
+    Retries up to 3 times on transient errors, resetting the client on failure.
+    """
+    if _libsql_client and _turso_url:
+        last_error = None
+        for attempt in range(3):
+            try:
+                client = _get_turso_client()
                 rs = await client.execute(sql, list(params))
                 cols = list(rs.columns)
                 return [_Row(zip(cols, row)) for row in rs.rows]
-        except Exception as e:
-            logging.error(f"Turso execute failed: {e}")
-            # Don't fallback to local SQLite when Turso is configured
-            # (local DB is empty on serverless — fallback would lose data)
-            return []
+            except Exception as e:
+                last_error = e
+                _reset_turso_client()
+                if attempt < 2:
+                    wait = 0.5 * (attempt + 1)
+                    logging.warning(f"Turso execute failed (attempt {attempt+1}/3): {e}, retrying in {wait}s...")
+                    await asyncio.sleep(wait)
+        logging.error(f"Turso execute failed after 3 attempts: {last_error}")
+        # Don't fallback to local SQLite when Turso is configured
+        # (local DB is empty on serverless — fallback would lose data)
+        return []
     rows = connection.execute(sql, params).fetchall()
     connection.commit()
     return [_Row(row) for row in rows]
