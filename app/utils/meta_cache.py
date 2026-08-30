@@ -946,8 +946,7 @@ def _build_season_posters(series_ext: dict | None, all_seasons: list, videos: li
     """Build season poster URLs from TVDB extended series data.
     
     Extracts poster images from "Aired Order" seasons (type.id == 1) and
-    maps them to seasons. Uses season numbers from videos if all_seasons
-    entries lack tvdb_season info.
+    maps them to seasons. Season 0 (Specials) is included first if available.
     
     Returns list of poster URLs ordered by season, or empty list if unavailable.
     """
@@ -963,7 +962,7 @@ def _build_season_posters(series_ext: dict | None, all_seasons: list, videos: li
         # Only use "Aired Order" seasons (type id=1)
         if isinstance(s_type, dict) and s_type.get("id") != 1:
             continue
-        if s_num is not None and s_num > 0 and s_image:
+        if s_num is not None and s_image:
             if not s_image.startswith("http"):
                 s_image = f"https://artworks.thetvdb.com{s_image}"
             tvdb_season_poster_map[int(s_num)] = s_image
@@ -972,30 +971,37 @@ def _build_season_posters(series_ext: dict | None, all_seasons: list, videos: li
         return []
 
     # Determine which season numbers to use
-    # Prefer explicit tvdb_season from mapping entries, but ONLY if ALL entries have it
-    # Mixed situations (some with, some without) mean the mapping is incomplete
     all_have_explicit = all(
         s.get('season', {}).get('tvdb') for s in all_seasons
     )
 
     if all_have_explicit:
-        # All entries have explicit season mapping — use them
         posters = []
         seen_seasons = set()
+
+        # Add season 0 (Specials) first if it has a poster
+        if 0 in tvdb_season_poster_map:
+            posters.append(tvdb_season_poster_map[0])
+            seen_seasons.add(0)
+
         for season_entry in all_seasons:
             tvdb_season_num = int(season_entry['season']['tvdb'])
             if tvdb_season_num in seen_seasons:
-                continue  # skip duplicates (e.g. multiple MAL entries for same season)
+                continue
             seen_seasons.add(tvdb_season_num)
             season_poster = tvdb_season_poster_map.get(tvdb_season_num)
             if season_poster:
                 posters.append(season_poster)
         return posters
     else:
-        # No/incomplete explicit mapping — use unique season numbers from videos
         if not videos:
             return []
-        season_nums = sorted(set(v.get('season') for v in videos if v.get('season') and v.get('season') > 0))
+        season_nums = sorted(set(v.get('season') for v in videos if v.get('season') is not None and v.get('season') >= 0))
+
+        # Ensure season 0 is first if it has a poster
+        if 0 not in season_nums and 0 in tvdb_season_poster_map:
+            season_nums.insert(0, 0)
+
         posters = []
         for s_num in season_nums:
             season_poster = tvdb_season_poster_map.get(s_num)
