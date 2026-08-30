@@ -2,7 +2,7 @@ name: Translate Cron
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # every 5 minutes
+    - cron: '*/30 * * * *'  # every 30 minutes
   workflow_dispatch:  # manual trigger
 
 jobs:
@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: Trigger translation cron
         run: |
-          response=$(curl -s -w "\n%{http_code}" \
+          response=$(curl -s -w "\n%{http_code}" --max-time 300 \
             -H "X-Internal-Key: ${{ secrets.VIP_PATH }}" \
             "${{ secrets.APP_URL }}/internal/cron/translate")
           http_code=$(echo "$response" | tail -1)
