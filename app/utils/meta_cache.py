@@ -979,8 +979,9 @@ def _build_season_posters(series_ext: dict | None, all_seasons: list, videos: li
         posters = []
         seen_seasons = set()
 
-        # Add season 0 (Specials) first if it has a poster
-        if 0 in tvdb_season_poster_map:
+        # Add season 0 (Specials) first if videos contain season 0 episodes
+        has_season_0 = videos and any(v.get('season') == 0 for v in videos)
+        if has_season_0 and 0 in tvdb_season_poster_map:
             posters.append(tvdb_season_poster_map[0])
             seen_seasons.add(0)
 
@@ -997,10 +998,6 @@ def _build_season_posters(series_ext: dict | None, all_seasons: list, videos: li
         if not videos:
             return []
         season_nums = sorted(set(v.get('season') for v in videos if v.get('season') is not None and v.get('season') >= 0))
-
-        # Ensure season 0 is first if it has a poster
-        if 0 not in season_nums and 0 in tvdb_season_poster_map:
-            season_nums.insert(0, 0)
 
         posters = []
         for s_num in season_nums:
