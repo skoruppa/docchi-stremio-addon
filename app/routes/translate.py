@@ -13,6 +13,16 @@ from app.utils.translate import batch_translate_to_polish, batch_translate_episo
 translate_router = APIRouter()
 
 
+def _check_internal_auth(request: Request):
+    """Verify internal API key. Accepts INTERNAL_API_KEY or falls back to VIP_PATH for backward compat."""
+    key = request.headers.get('X-Internal-Key', '')
+    if Config.INTERNAL_API_KEY and key == Config.INTERNAL_API_KEY:
+        return
+    if not Config.INTERNAL_API_KEY and key == Config.VIP_PATH:
+        return  # backward compat: if INTERNAL_API_KEY not set, accept VIP_PATH
+    raise HTTPException(status_code=403)
+
+
 @translate_router.post('/internal/translate/videos')
 async def translate_videos(request: Request):
     """Translate video overviews and titles for a given mal_id.
@@ -20,8 +30,7 @@ async def translate_videos(request: Request):
     Expects JSON: {mal_id: str}
     Loads videos from cache, translates untranslated fields, saves back.
     """
-    if request.headers.get('X-Internal-Key') != Config.VIP_PATH:
-        raise HTTPException(status_code=403)
+    _check_internal_auth(request)
 
     data = await request.json()
     mal_id = data.get('mal_id')
@@ -77,8 +86,7 @@ async def translate_meta(request: Request):
 
     Expects JSON: {mal_id: str, description: str}
     """
-    if request.headers.get('X-Internal-Key') != Config.VIP_PATH:
-        raise HTTPException(status_code=403)
+    _check_internal_auth(request)
 
     data = await request.json()
     mal_id = data.get('mal_id')
@@ -109,8 +117,7 @@ async def translate_batch_meta(request: Request):
 
     Expects JSON array: [{mal_id: str, description: str}, ...]
     """
-    if request.headers.get('X-Internal-Key') != Config.VIP_PATH:
-        raise HTTPException(status_code=403)
+    _check_internal_auth(request)
 
     items = await request.json()
     if not items or not isinstance(items, list):
@@ -142,10 +149,7 @@ async def cron_translate(request: Request):
     Called by GitHub Actions. Finds entries with _untranslated flags and translates them.
     Processes in batches with rate limiting. Safe to call repeatedly.
     """
-    # Auth: accept X-Internal-Key header
-    if request.headers.get('X-Internal-Key') != Config.VIP_PATH:
-        if not request.headers.get('Authorization', '').startswith('Bearer'):
-            raise HTTPException(status_code=403)
+    _check_internal_auth(request)
 
     import asyncio
     import time

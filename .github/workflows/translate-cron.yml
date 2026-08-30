@@ -12,7 +12,7 @@ jobs:
       - name: Trigger translation cron
         run: |
           response=$(curl -s -w "\n%{http_code}" --max-time 300 \
-            -H "X-Internal-Key: ${{ secrets.VIP_PATH }}" \
+            -H "X-Internal-Key: ${{ secrets.INTERNAL_API_KEY }}" \
             "${{ secrets.APP_URL }}/internal/cron/translate")
           http_code=$(echo "$response" | tail -1)
           body=$(echo "$response" | head -n -1)
