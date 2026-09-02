@@ -148,10 +148,38 @@ async def cron_translate(request: Request):
 
     Called by GitHub Actions. Finds entries with _untranslated flags and translates them.
     Processes in batches with rate limiting. Safe to call repeatedly.
+    Returns immediately — translations run in background (survives client disconnect/timeout).
     """
     _check_internal_auth(request)
 
     import asyncio
+
+    # Check how much work there is
+    from app.db import execute
+    meta_count = await execute("SELECT COUNT(*) as cnt FROM translation_queue WHERE queue_type='meta'")
+    vid_count = await execute("SELECT COUNT(*) as cnt FROM translation_queue WHERE queue_type='videos'")
+    meta_pending = meta_count[0]['cnt'] if meta_count else 0
+    vid_pending = vid_count[0]['cnt'] if vid_count else 0
+
+    if meta_pending == 0 and vid_pending == 0:
+        return {'status': 'ok', 'message': 'nothing to translate', 'meta_pending': 0, 'videos_pending': 0}
+
+    # Run translations in background task (survives client disconnect)
+    asyncio.ensure_future(_run_cron_translate())
+
+    return {'status': 'started', 'meta_pending': meta_pending, 'videos_pending': vid_pending}
+
+
+async def _run_cron_translate():
+    """Background task: translate all pending entries."""
+    try:
+        await _do_cron_translate()
+    except Exception as e:
+        logging.error(f"[Cron] Background translate failed: {type(e).__name__}: {e}")
+
+
+async def _do_cron_translate():
+    """Actual translation logic."""
     import time
     import orjson as _orjson
     from app.db import execute
@@ -374,4 +402,3 @@ async def cron_translate(request: Request):
         await asyncio.sleep(5)
 
     logging.info(f"[Cron] Finished: {translated_meta} meta + {translated_videos} video fields")
-    return {'status': 'ok', 'meta': translated_meta, 'videos': translated_videos}
