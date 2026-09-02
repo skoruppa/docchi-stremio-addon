@@ -42,6 +42,7 @@ connection.executescript("""
     CREATE TABLE IF NOT EXISTS translation_queue (
         mal_id TEXT PRIMARY KEY,
         queue_type TEXT NOT NULL DEFAULT 'both',
+        tvdb_id INTEGER,
         created_at INTEGER
     );
 """)

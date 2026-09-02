@@ -62,18 +62,24 @@ async def lifespan(app: FastAPI):
         CREATE TABLE IF NOT EXISTS translation_queue (
             mal_id TEXT PRIMARY KEY,
             queue_type TEXT NOT NULL DEFAULT 'both',
+            tvdb_id INTEGER,
             created_at INTEGER
         )
     """)
+    # Add tvdb_id column if missing (migration from old schema)
+    try:
+        await execute("ALTER TABLE translation_queue ADD COLUMN tvdb_id INTEGER")
+    except Exception:
+        pass  # column already exists
     # Populate translation_queue from existing data (one-time migration)
     existing = await execute("SELECT COUNT(*) as cnt FROM translation_queue")
     if not existing or existing[0]['cnt'] == 0:
         logging.info("[Startup] Populating translation_queue from existing cache...")
-        meta_count = await execute(
+        await execute(
             r"INSERT OR IGNORE INTO translation_queue (mal_id, queue_type, created_at) "
             r"SELECT mal_id, 'meta', timestamp FROM meta_cache WHERE meta LIKE '%_untranslated_description%'"
         )
-        vid_count = await execute(
+        await execute(
             r"INSERT OR IGNORE INTO translation_queue (mal_id, queue_type, created_at) "
             r"SELECT mal_id, 'videos', timestamp FROM videos_cache WHERE videos LIKE '%_untranslated_%'"
         )

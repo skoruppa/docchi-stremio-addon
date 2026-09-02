@@ -36,9 +36,14 @@ async def main():
         CREATE TABLE IF NOT EXISTS translation_queue (
             mal_id TEXT PRIMARY KEY,
             queue_type TEXT NOT NULL DEFAULT 'both',
+            tvdb_id INTEGER,
             created_at INTEGER
         )
     """)
+    try:
+        await execute("ALTER TABLE translation_queue ADD COLUMN tvdb_id INTEGER")
+    except Exception:
+        pass
     existing = await execute("SELECT COUNT(*) as cnt FROM translation_queue")
     if not existing or existing[0]['cnt'] == 0:
         logging.info("[Translate] Populating translation_queue from existing cache...")
@@ -132,28 +137,20 @@ async def main():
     )
     total_vids_to_translate = count_rows[0]['cnt'] if count_rows else 0
     logging.info(f"[Translate] Found {total_vids_to_translate} entries with untranslated episodes")
+
+    # Fetch deduplicated: one mal_id per tvdb_id (MIN picks the first), plus all without tvdb_id
     vid_rows = await execute(
-        "SELECT v.mal_id, v.videos FROM videos_cache v INNER JOIN translation_queue q ON v.mal_id=q.mal_id WHERE q.queue_type='videos'"
+        "SELECT v.mal_id, v.videos FROM videos_cache v INNER JOIN ("
+        "  SELECT MIN(mal_id) as mal_id FROM translation_queue WHERE queue_type='videos' AND tvdb_id IS NOT NULL GROUP BY tvdb_id"
+        "  UNION ALL"
+        "  SELECT mal_id FROM translation_queue WHERE queue_type='videos' AND tvdb_id IS NULL"
+        ") q ON v.mal_id=q.mal_id"
     )
 
-    # Deduplicate: only process one mal_id per tvdb_id to avoid translating same data multiple times
-    from app.utils.anime_mapping import get_ids_from_mal_id
-    seen_tvdb_ids = set()
-    deduplicated_rows = []
+    if vid_rows and len(vid_rows) < total_vids_to_translate:
+        logging.info(f"[Translate] Deduplicated: {total_vids_to_translate} -> {len(vid_rows)} unique entries")
+
     for row in (vid_rows or []):
-        mal_id = str(row['mal_id'])
-        ids = get_ids_from_mal_id(mal_id)
-        tvdb_id = ids.get('tvdb_id')
-        if tvdb_id:
-            if tvdb_id in seen_tvdb_ids:
-                continue
-            seen_tvdb_ids.add(tvdb_id)
-        deduplicated_rows.append(row)
-
-    if len(deduplicated_rows) < total_vids_to_translate:
-        logging.info(f"[Translate] Deduplicated: {total_vids_to_translate} -> {len(deduplicated_rows)} unique entries")
-
-    for row in deduplicated_rows:
         data = orjson.loads(row['videos'])
         # Handle new dict format {"v": [...], "sp": [...]} and old list format
         if isinstance(data, dict) and "v" in data:

@@ -248,8 +248,8 @@ async def set_cached_videos(mal_id: str, videos: list, ttl_override: int = 0, se
     needs_videos = any(v.get('_untranslated_title') or v.get('_untranslated_overview') for v in videos)
     if needs_videos:
         await execute(
-            "INSERT OR REPLACE INTO translation_queue (mal_id, queue_type, created_at) VALUES (?,?,?)",
-            (mal_id, 'videos', now)
+            "INSERT OR REPLACE INTO translation_queue (mal_id, queue_type, tvdb_id, created_at) VALUES (?,?,?,?)",
+            (mal_id, 'videos', ids.get('tvdb_id'), now)
         )
     else:
         await execute(

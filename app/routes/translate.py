@@ -214,7 +214,11 @@ async def cron_translate(request: Request):
 
     # 2. Translate untranslated video episodes
     vid_rows = await execute(
-        "SELECT v.mal_id, v.videos FROM videos_cache v INNER JOIN translation_queue q ON v.mal_id=q.mal_id WHERE q.queue_type='videos'"
+        "SELECT v.mal_id, v.videos FROM videos_cache v INNER JOIN ("
+        "  SELECT MIN(mal_id) as mal_id FROM translation_queue WHERE queue_type='videos' AND tvdb_id IS NOT NULL GROUP BY tvdb_id"
+        "  UNION ALL"
+        "  SELECT mal_id FROM translation_queue WHERE queue_type='videos' AND tvdb_id IS NULL"
+        ") q ON v.mal_id=q.mal_id"
     )
 
     # Deduplicate: only process one mal_id per tvdb_id
