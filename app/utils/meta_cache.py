@@ -272,13 +272,26 @@ async def set_cached_videos(mal_id: str, videos: list, ttl_override: int = 0, se
 
 
 async def _propagate_to_siblings(sib_mal_ids: list[str], cache_json: str, now: int):
-    """Background task: propagate videos cache to sibling mal_ids."""
+    """Background task: propagate videos cache to sibling mal_ids.
+    Also cleans up translation_queue for siblings if data is fully translated."""
+    import orjson as _orjson
+    # Check if propagated data still needs translation
+    data = _orjson.loads(cache_json)
+    vids = data['v'] if isinstance(data, dict) and 'v' in data else (data if isinstance(data, list) else [])
+    still_needs = any(v.get('_untranslated_title') or v.get('_untranslated_overview') for v in vids)
+
     for sib_mal in sib_mal_ids:
         try:
             await execute(
                 "INSERT OR REPLACE INTO videos_cache (mal_id, videos, timestamp) VALUES (?,?,?)",
                 (sib_mal, cache_json, now)
             )
+            # Clean up queue if data is fully translated
+            if not still_needs:
+                await execute(
+                    "DELETE FROM translation_queue WHERE mal_id=? AND queue_type='videos'",
+                    (sib_mal,)
+                )
         except Exception:
             pass
 

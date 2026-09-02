@@ -300,6 +300,22 @@ async def main():
         # Respect rate limits — pause between entries (OpenRouter: 20 RPM free tier)
         await asyncio.sleep(5)
 
+    # Cleanup: remove stale queue entries where videos are already translated
+    stale = await execute(
+        "SELECT q.mal_id, v.videos FROM translation_queue q "
+        "INNER JOIN videos_cache v ON q.mal_id=v.mal_id "
+        "WHERE q.queue_type='videos'"
+    )
+    cleaned = 0
+    for row in (stale or []):
+        data = orjson.loads(row['videos'])
+        vids = data['v'] if isinstance(data, dict) and 'v' in data else (data if isinstance(data, list) else [])
+        if not any(v.get('_untranslated_title') or v.get('_untranslated_overview') for v in vids):
+            await execute("DELETE FROM translation_queue WHERE mal_id=? AND queue_type='videos'", (str(row['mal_id']),))
+            cleaned += 1
+    if cleaned:
+        logging.info(f"[Translate] Cleaned {cleaned} stale queue entries")
+
     logging.info(f"[Translate] Finished: {translated_meta} meta + {translated_videos} video fields translated")
 
 
