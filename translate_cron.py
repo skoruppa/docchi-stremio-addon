@@ -31,10 +31,32 @@ async def main():
     translated_videos = 0
     now = int(time.time())
 
+    # Ensure translation_queue exists and is populated
+    await execute("""
+        CREATE TABLE IF NOT EXISTS translation_queue (
+            mal_id TEXT PRIMARY KEY,
+            queue_type TEXT NOT NULL DEFAULT 'both',
+            created_at INTEGER
+        )
+    """)
+    existing = await execute("SELECT COUNT(*) as cnt FROM translation_queue")
+    if not existing or existing[0]['cnt'] == 0:
+        logging.info("[Translate] Populating translation_queue from existing cache...")
+        await execute(
+            r"INSERT OR IGNORE INTO translation_queue (mal_id, queue_type, created_at) "
+            r"SELECT mal_id, 'meta', timestamp FROM meta_cache WHERE meta LIKE '%_untranslated_description%'"
+        )
+        await execute(
+            r"INSERT OR IGNORE INTO translation_queue (mal_id, queue_type, created_at) "
+            r"SELECT mal_id, 'videos', timestamp FROM videos_cache WHERE videos LIKE '%_untranslated_%'"
+        )
+        count_after = await execute("SELECT COUNT(*) as cnt FROM translation_queue")
+        logging.info(f"[Translate] Queue populated: {count_after[0]['cnt']} entries")
+
     # 1. Translate ALL untranslated meta descriptions first (in pages of 10)
     logging.info("[Translate] Checking for untranslated meta descriptions...")
     count_rows = await execute(
-        r"SELECT COUNT(*) as cnt FROM meta_cache WHERE meta LIKE '%\_untranslated\_description%' ESCAPE '\'"
+        "SELECT COUNT(*) as cnt FROM translation_queue WHERE queue_type='meta'"
     )
     total_meta_to_translate = count_rows[0]['cnt'] if count_rows else 0
     logging.info(f"[Translate] Found {total_meta_to_translate} meta entries to translate")
@@ -42,7 +64,7 @@ async def main():
     consecutive_failures = 0
     while True:
         meta_rows = await execute(
-            r"SELECT mal_id, meta FROM meta_cache WHERE meta LIKE '%\_untranslated\_description%' ESCAPE '\' LIMIT 5"
+            "SELECT m.mal_id, m.meta FROM meta_cache m INNER JOIN translation_queue q ON m.mal_id=q.mal_id WHERE q.queue_type='meta' LIMIT 5"
         )
         if not meta_rows:
             break
@@ -106,12 +128,12 @@ async def main():
     # 2. Translate untranslated video episodes
     logging.info("[Translate] Checking for untranslated video episodes...")
     count_rows = await execute(
-        r"SELECT COUNT(*) as cnt FROM videos_cache WHERE videos LIKE '%\_untranslated\_%' ESCAPE '\'"
+        "SELECT COUNT(*) as cnt FROM translation_queue WHERE queue_type='videos'"
     )
     total_vids_to_translate = count_rows[0]['cnt'] if count_rows else 0
     logging.info(f"[Translate] Found {total_vids_to_translate} entries with untranslated episodes")
     vid_rows = await execute(
-        r"SELECT mal_id, videos FROM videos_cache WHERE videos LIKE '%\_untranslated\_%' ESCAPE '\'"
+        "SELECT v.mal_id, v.videos FROM videos_cache v INNER JOIN translation_queue q ON v.mal_id=q.mal_id WHERE q.queue_type='videos'"
     )
 
     # Deduplicate: only process one mal_id per tvdb_id to avoid translating same data multiple times

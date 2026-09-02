@@ -49,7 +49,7 @@ templates = Jinja2Templates(directory="templates")
 async def lifespan(app: FastAPI):
     # Startup
     load_mapping()
-    # Ensure season_episodes_cache table exists (Turso migration)
+    # Ensure tables exist (Turso migration)
     from app.db import execute
     await execute("""
         CREATE TABLE IF NOT EXISTS season_episodes_cache (
@@ -58,6 +58,27 @@ async def lifespan(app: FastAPI):
             timestamp INTEGER
         )
     """)
+    await execute("""
+        CREATE TABLE IF NOT EXISTS translation_queue (
+            mal_id TEXT PRIMARY KEY,
+            queue_type TEXT NOT NULL DEFAULT 'both',
+            created_at INTEGER
+        )
+    """)
+    # Populate translation_queue from existing data (one-time migration)
+    existing = await execute("SELECT COUNT(*) as cnt FROM translation_queue")
+    if not existing or existing[0]['cnt'] == 0:
+        logging.info("[Startup] Populating translation_queue from existing cache...")
+        meta_count = await execute(
+            r"INSERT OR IGNORE INTO translation_queue (mal_id, queue_type, created_at) "
+            r"SELECT mal_id, 'meta', timestamp FROM meta_cache WHERE meta LIKE '%_untranslated_description%'"
+        )
+        vid_count = await execute(
+            r"INSERT OR IGNORE INTO translation_queue (mal_id, queue_type, created_at) "
+            r"SELECT mal_id, 'videos', timestamp FROM videos_cache WHERE videos LIKE '%_untranslated_%'"
+        )
+        count_after = await execute("SELECT COUNT(*) as cnt FROM translation_queue")
+        logging.info(f"[Startup] Translation queue populated: {count_after[0]['cnt']} entries")
     logging.info(f"Starting Docchi Stremio Addon v{__version__}")
     yield
     # Shutdown (nothing needed)

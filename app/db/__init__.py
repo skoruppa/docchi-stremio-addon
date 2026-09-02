@@ -39,6 +39,11 @@ connection.executescript("""
         episodes TEXT,
         timestamp INTEGER
     );
+    CREATE TABLE IF NOT EXISTS translation_queue (
+        mal_id TEXT PRIMARY KEY,
+        queue_type TEXT NOT NULL DEFAULT 'both',
+        created_at INTEGER
+    );
 """)
 connection.commit()
 

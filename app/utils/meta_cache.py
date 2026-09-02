@@ -104,7 +104,11 @@ async def _get_expired_meta(mal_id: str) -> dict | None:
 
 
 async def set_cached_meta(mal_id: str, meta: dict):
-    """Cache metadata by MAL ID with timestamp (videos excluded)."""
+    """Cache metadata by MAL ID with timestamp (videos excluded).
+    
+    Manages translation_queue: adds entry if meta needs translation,
+    removes if fully translated.
+    """
     meta_to_cache = {k: v for k, v in meta.items() if k != 'videos'}
     _mem_cache[mal_id] = (meta_to_cache, int(time.time()))
     _evict_mem_cache()
@@ -112,6 +116,19 @@ async def set_cached_meta(mal_id: str, meta: dict):
         "INSERT OR REPLACE INTO meta_cache (mal_id, meta, timestamp) VALUES (?,?,?)",
         (mal_id, orjson.dumps(meta_to_cache).decode(), int(time.time()))
     )
+    # Update translation queue
+    needs_meta = bool(meta_to_cache.get('_untranslated_description'))
+    if needs_meta:
+        await execute(
+            "INSERT OR REPLACE INTO translation_queue (mal_id, queue_type, created_at) VALUES (?,?,?)",
+            (mal_id, 'meta', int(time.time()))
+        )
+    else:
+        # Only remove if videos are also translated (check queue_type)
+        await execute(
+            "DELETE FROM translation_queue WHERE mal_id=? AND queue_type='meta'",
+            (mal_id,)
+        )
 
 
 async def get_cached_videos(mal_id: str) -> list | None:
@@ -226,6 +243,19 @@ async def set_cached_videos(mal_id: str, videos: list, ttl_override: int = 0, se
         (mal_id, cache_json, now)
     )
     _videos_mem_cache[mal_id] = (videos, now, ttl_override, season_posters or [])
+
+    # Update translation queue
+    needs_videos = any(v.get('_untranslated_title') or v.get('_untranslated_overview') for v in videos)
+    if needs_videos:
+        await execute(
+            "INSERT OR REPLACE INTO translation_queue (mal_id, queue_type, created_at) VALUES (?,?,?)",
+            (mal_id, 'videos', now)
+        )
+    else:
+        await execute(
+            "DELETE FROM translation_queue WHERE mal_id=? AND queue_type='videos'",
+            (mal_id,)
+        )
 
     # Propagate to siblings in background (don't block response)
     if ids.get('tvdb_id') and videos:

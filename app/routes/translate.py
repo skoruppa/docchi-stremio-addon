@@ -166,7 +166,7 @@ async def cron_translate(request: Request):
     # 1. Translate ALL untranslated meta descriptions (in pages of 5)
     while True:
         meta_rows = await execute(
-            r"SELECT mal_id, meta FROM meta_cache WHERE meta LIKE '%\_untranslated\_description%' ESCAPE '\' LIMIT 5"
+            "SELECT m.mal_id, m.meta FROM meta_cache m INNER JOIN translation_queue q ON m.mal_id=q.mal_id WHERE q.queue_type='meta' LIMIT 5"
         )
         if not meta_rows:
             break
@@ -214,7 +214,7 @@ async def cron_translate(request: Request):
 
     # 2. Translate untranslated video episodes
     vid_rows = await execute(
-        r"SELECT mal_id, videos FROM videos_cache WHERE videos LIKE '%\_untranslated\_%' ESCAPE '\'"
+        "SELECT v.mal_id, v.videos FROM videos_cache v INNER JOIN translation_queue q ON v.mal_id=q.mal_id WHERE q.queue_type='videos'"
     )
 
     # Deduplicate: only process one mal_id per tvdb_id
