@@ -26,6 +26,8 @@ TRANSLATE_PROMPT = (
 BATCH_TRANSLATE_PROMPT = (
     "Translate anime episode titles and descriptions from English to Polish.\n"
     "Use natural Polish that fits anime/manga context. Translate contextually, not literally.\n"
+    "Pay attention to Polish grammar — ensure correct gender agreement "
+    "(e.g. 'kometa' is feminine: 'moja cudowna kometa', NOT 'mój cudowny kometa').\n"
     "Important: translate based on meaning, not word-for-word. Examples:\n"
     "- 'draw a bow' = 'naciągnąć łuk' (NOT 'rysować łuk')\n"
     "- 'court' in royal context = 'dwór' (NOT 'sąd')\n"
