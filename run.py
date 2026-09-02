@@ -66,14 +66,9 @@ async def lifespan(app: FastAPI):
             created_at INTEGER
         )
     """)
-    # Add tvdb_id column if missing (migration from old schema)
-    try:
-        await execute("ALTER TABLE translation_queue ADD COLUMN tvdb_id INTEGER")
-    except Exception:
-        pass  # column already exists
     # Populate translation_queue from existing data (one-time migration)
-    existing = await execute("SELECT COUNT(*) as cnt FROM translation_queue")
-    if not existing or existing[0]['cnt'] == 0:
+    marker = await execute("SELECT 1 FROM translation_queue WHERE mal_id='__migrated__'")
+    if not marker:
         logging.info("[Startup] Populating translation_queue from existing cache...")
         await execute(
             r"INSERT OR IGNORE INTO translation_queue (mal_id, queue_type, created_at) "
@@ -83,7 +78,10 @@ async def lifespan(app: FastAPI):
             r"INSERT OR IGNORE INTO translation_queue (mal_id, queue_type, created_at) "
             r"SELECT mal_id, 'videos', timestamp FROM videos_cache WHERE videos LIKE '%_untranslated_%'"
         )
-        count_after = await execute("SELECT COUNT(*) as cnt FROM translation_queue")
+        await execute(
+            "INSERT OR REPLACE INTO translation_queue (mal_id, queue_type, created_at) VALUES ('__migrated__', 'marker', 0)"
+        )
+        count_after = await execute("SELECT COUNT(*) as cnt FROM translation_queue WHERE mal_id != '__migrated__'")
         logging.info(f"[Startup] Translation queue populated: {count_after[0]['cnt']} entries")
     logging.info(f"Starting Docchi Stremio Addon v{__version__}")
     yield

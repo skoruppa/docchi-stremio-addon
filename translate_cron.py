@@ -40,12 +40,9 @@ async def main():
             created_at INTEGER
         )
     """)
-    try:
-        await execute("ALTER TABLE translation_queue ADD COLUMN tvdb_id INTEGER")
-    except Exception:
-        pass
-    existing = await execute("SELECT COUNT(*) as cnt FROM translation_queue")
-    if not existing or existing[0]['cnt'] == 0:
+    # One-time migration: populate queue from existing cache (uses marker row to avoid re-running)
+    marker = await execute("SELECT 1 FROM translation_queue WHERE mal_id='__migrated__'")
+    if not marker:
         logging.info("[Translate] Populating translation_queue from existing cache...")
         await execute(
             r"INSERT OR IGNORE INTO translation_queue (mal_id, queue_type, created_at) "
@@ -55,7 +52,10 @@ async def main():
             r"INSERT OR IGNORE INTO translation_queue (mal_id, queue_type, created_at) "
             r"SELECT mal_id, 'videos', timestamp FROM videos_cache WHERE videos LIKE '%_untranslated_%'"
         )
-        count_after = await execute("SELECT COUNT(*) as cnt FROM translation_queue")
+        await execute(
+            "INSERT OR REPLACE INTO translation_queue (mal_id, queue_type, created_at) VALUES ('__migrated__', 'marker', 0)"
+        )
+        count_after = await execute("SELECT COUNT(*) as cnt FROM translation_queue WHERE mal_id != '__migrated__'")
         logging.info(f"[Translate] Queue populated: {count_after[0]['cnt']} entries")
 
     # 1. Translate ALL untranslated meta descriptions first (in pages of 10)
