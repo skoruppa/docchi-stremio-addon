@@ -185,5 +185,5 @@ if __name__ == '__main__':
         _sys.exit(0)
 
     import uvicorn
-    logging.info(f"Starting Docchi Stremio Addon v{__version__} on http://0.0.0.0:5000")
-    uvicorn.run(app, host='0.0.0.0', port=5000, access_log=False)
+    logging.info(f"Starting Docchi Stremio Addon v{__version__} on http://0.0.0.0:{Config.PORT}")
+    uvicorn.run(app, host='0.0.0.0', port=int(Config.PORT), access_log=False)
