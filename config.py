@@ -26,7 +26,7 @@ class Config:
     VIP_IMDB_IDS = os.getenv('VIP_IMDB_IDS', 'false').lower() in ('true', '1', 'yes')  # Use IMDB IDs in VIP catalogs
 
     DEBUG = os.getenv('DEBUG', os.getenv('FLASK_DEBUG', False))
-    DATABASE = "/tmp/database.db"
+    DATABASE = os.getenv('DATABASE', '/tmp/database.db')
     
     # Redis for anime mapping
     USE_REDIS = os.getenv('USE_REDIS', 'false').lower() in ('true', '1', 'yes')
