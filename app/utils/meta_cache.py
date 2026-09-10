@@ -421,7 +421,7 @@ async def _resolve_mal_id(content_id: str, is_vip: bool = False) -> str | None:
 
     if prefix == 'mal' and len(parts) > 1:
         return parts[1]
-    elif prefix.startswith('tt') and is_vip and len(parts) >= 1:
+    elif prefix.startswith('tt') and len(parts) >= 1:
         from app.routes import mapping
         season = int(parts[1]) if len(parts) > 1 else None
         mal_id = mapping.get_mal_id_from_imdb_id(prefix, season)
@@ -573,7 +573,7 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
 
     if prefix == 'mal' and len(parts) > 1:
         mal_id = parts[1]
-    elif prefix.startswith('tt') and is_vip and len(parts) >= 1:
+    elif prefix.startswith('tt') and len(parts) >= 1:
         from app.routes import mapping
         season = int(parts[1]) if len(parts) > 1 else None
         mal_id = mapping.get_mal_id_from_imdb_id(prefix, season)

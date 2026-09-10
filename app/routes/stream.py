@@ -255,7 +255,7 @@ async def addon_stream(request: Request, content_type: str, content_id: str):
     episode = '1'
 
     # Handle different ID formats
-    if prefix.startswith('tt') and is_vip:
+    if prefix.startswith('tt'):
         if len(parts) == 1:
             episode = '1'
         elif len(parts) == 3:
