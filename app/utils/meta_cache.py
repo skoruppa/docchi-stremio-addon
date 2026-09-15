@@ -478,7 +478,10 @@ async def _resolve_mal_id(content_id: str, is_vip: bool = False) -> str | None:
 
 
 def _resolve_mal_from_tvdb(tvdb_id: int, season: int = None) -> str | None:
-    """Resolve tvdb_id (+ optional season) to mal_id from local mapping."""
+    """Resolve tvdb_id (+ optional season) to mal_id from local mapping.
+    
+    Prefers entries with explicit tvdb_season over those without (OVA/specials).
+    """
     from app.utils.anime_mapping import get_all_seasons_for_tvdb_id
     seasons = get_all_seasons_for_tvdb_id(tvdb_id)
     if not seasons:
@@ -488,7 +491,11 @@ def _resolve_mal_from_tvdb(tvdb_id: int, season: int = None) -> str | None:
             s_num = int(s.get('season', {}).get('tvdb', 0)) if s.get('season', {}).get('tvdb') else 0
             if s_num == season and s.get('mal_id'):
                 return str(s['mal_id'])
-    # Fallback: first entry with mal_id
+    # No specific season requested (or not found): prefer entries WITH tvdb_season
+    for s in seasons:
+        if s.get('season', {}).get('tvdb') and s.get('mal_id'):
+            return str(s['mal_id'])
+    # Last resort: any entry with mal_id
     for s in seasons:
         if s.get('mal_id'):
             return str(s['mal_id'])
