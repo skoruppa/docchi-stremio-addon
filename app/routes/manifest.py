@@ -47,7 +47,7 @@ MANIFEST = {
 
     'behaviorHints': {'configurable': False},
     'resources': ['catalog', 'meta', 'stream'],
-    'idPrefixes': ['mal', 'kitsu'],
+    'idPrefixes': ['mal', 'kitsu', 'tt', 'tvdb'],
     "stremioAddonsConfig": {
         "issuer": "https://stremio-addons.net",
         "signature": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0.._T2DcWi9u658Np-4PJmH3A.TQRRcCrhHuY4NCyyfK_RhV8htIVzS4mA-NlAply7ix1E81487ORg113u6gpAJa4181kQNIBoem_vyh42ox9CKBaKG1OePGzkKdBtrntEywVtFn3gjKU6FpWyNXs3obuB.YzRd5NZjmqb3FQlAgpSS9g"
@@ -58,7 +58,7 @@ MANIFEST_VIP = {
     **MANIFEST,
     'id': 'com.skoruppa.docchi-stremio-addon-vip',
     'name': 'Docchi.pl Addon VIP',
-    'idPrefixes': ['mal', 'kitsu', 'tt']
+    'idPrefixes': ['mal', 'kitsu', 'tt', 'tvdb']
 }
 
 
