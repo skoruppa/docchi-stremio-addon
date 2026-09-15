@@ -90,6 +90,13 @@ async def addon_meta(request: Request, meta_type: str, meta_id: str):
 
     meta['id'] = meta_id
 
+    # Add imdb_id for Stremio compatibility (links to IMDB ratings, other addons)
+    if not meta.get('imdb_id') and mal_id:
+        from app.utils.anime_mapping import get_ids_from_mal_id
+        ids = get_ids_from_mal_id(mal_id)
+        if ids.get('imdb_id'):
+            meta['imdb_id'] = ids['imdb_id']
+
     # Handle movies vs series
     if videos_result == "movie":
         meta['type'] = 'movie'
