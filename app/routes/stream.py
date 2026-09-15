@@ -304,6 +304,46 @@ async def addon_stream(request: Request, content_type: str, content_id: str):
             episode = parts[2] if len(parts) > 2 else '1'
         else:
             return respond_with({'streams': []})
+    elif prefix == 'tvdb':
+        from app.utils.anime_mapping import get_all_seasons_for_tvdb_id
+        from app.utils.meta_cache import _resolve_mal_from_tvdb
+        tvdb_id = int(parts[1])
+        season = int(parts[2]) if len(parts) > 2 else None
+        episode_num = int(parts[3]) if len(parts) > 3 else 1
+        resolved_mal = _resolve_mal_from_tvdb(tvdb_id, season)
+        # Fallback: Simkl
+        if not resolved_mal and Config.SIMKL_CLIENT_ID:
+            from app.api.simkl import get_ids_from_mal_by_tvdb
+            simkl_mal = await get_ids_from_mal_by_tvdb(tvdb_id)
+            if simkl_mal:
+                resolved_mal = str(simkl_mal)
+        # Fallback: AniList SEQUEL chain
+        if not resolved_mal and season and season > 1:
+            base_mal = _resolve_mal_from_tvdb(tvdb_id, 1)
+            if base_mal:
+                from app.api.anilist import get_tv_sequel_mal_id
+                sequel = await get_tv_sequel_mal_id(int(base_mal), season - 1)
+                if sequel:
+                    resolved_mal = str(sequel)
+        if resolved_mal:
+            prefix = 'mal'
+            prefix_id = resolved_mal
+            episode = str(episode_num)
+            # Resolve absolute episode via videos cache (same as IMDB)
+            if episode and int(episode) > 0:
+                from app.utils.meta_cache import fetch_videos
+                result = await fetch_videos(prefix_id)
+                if result != "movie" and result.get("videos"):
+                    videos = result["videos"]
+                    abs_ep = int(episode)
+                    target = next((v for v in videos if v.get("episode") == abs_ep), None)
+                    if target and target.get("id"):
+                        vid_parts = target["id"].split(":")
+                        if len(vid_parts) == 3 and vid_parts[0] == "mal":
+                            prefix_id = vid_parts[1]
+                            episode = vid_parts[2]
+        else:
+            return respond_with({'streams': []}, 2592000)
 
     else:
         prefix_id = parts[1]

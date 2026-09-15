@@ -454,6 +454,44 @@ async def _resolve_mal_id(content_id: str, is_vip: bool = False) -> str | None:
     elif prefix == 'kitsu' and len(parts) > 1:
         from app.routes import mapping
         return mapping.get_mal_id_from_kitsu_id(parts[1])
+    elif prefix == 'tvdb' and len(parts) > 1:
+        from app.utils.anime_mapping import get_all_seasons_for_tvdb_id
+        tvdb_id = int(parts[1])
+        season = int(parts[2]) if len(parts) > 2 else None
+        mal_id = _resolve_mal_from_tvdb(tvdb_id, season)
+        # Fallback: Simkl tvdb -> mal
+        if not mal_id and Config.SIMKL_CLIENT_ID:
+            from app.api.simkl import get_ids_from_mal_by_tvdb
+            simkl_mal = await get_ids_from_mal_by_tvdb(tvdb_id)
+            if simkl_mal:
+                mal_id = str(simkl_mal)
+        # Fallback: AniList SEQUEL chain if season > 1
+        if not mal_id and season and season > 1:
+            base_mal = _resolve_mal_from_tvdb(tvdb_id, 1)
+            if base_mal:
+                from app.api.anilist import get_tv_sequel_mal_id
+                resolved = await get_tv_sequel_mal_id(int(base_mal), season - 1)
+                if resolved:
+                    mal_id = str(resolved)
+        return mal_id
+    return None
+
+
+def _resolve_mal_from_tvdb(tvdb_id: int, season: int = None) -> str | None:
+    """Resolve tvdb_id (+ optional season) to mal_id from local mapping."""
+    from app.utils.anime_mapping import get_all_seasons_for_tvdb_id
+    seasons = get_all_seasons_for_tvdb_id(tvdb_id)
+    if not seasons:
+        return None
+    if season:
+        for s in seasons:
+            s_num = int(s.get('season', {}).get('tvdb', 0)) if s.get('season', {}).get('tvdb') else 0
+            if s_num == season and s.get('mal_id'):
+                return str(s['mal_id'])
+    # Fallback: first entry with mal_id
+    for s in seasons:
+        if s.get('mal_id'):
+            return str(s['mal_id'])
     return None
 
 
@@ -593,6 +631,22 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     elif prefix == 'kitsu' and len(parts) > 1:
         from app.routes import mapping
         mal_id = mapping.get_mal_id_from_kitsu_id(parts[1])
+    elif prefix == 'tvdb' and len(parts) > 1:
+        tvdb_id = int(parts[1])
+        season = int(parts[2]) if len(parts) > 2 else None
+        mal_id = _resolve_mal_from_tvdb(tvdb_id, season)
+        if not mal_id and Config.SIMKL_CLIENT_ID:
+            from app.api.simkl import get_ids_from_mal_by_tvdb
+            simkl_mal = await get_ids_from_mal_by_tvdb(tvdb_id)
+            if simkl_mal:
+                mal_id = str(simkl_mal)
+        if not mal_id and season and season > 1:
+            base_mal = _resolve_mal_from_tvdb(tvdb_id, 1)
+            if base_mal:
+                from app.api.anilist import get_tv_sequel_mal_id
+                resolved = await get_tv_sequel_mal_id(int(base_mal), season - 1)
+                if resolved:
+                    mal_id = str(resolved)
     
     if not mal_id:
         return None, None
