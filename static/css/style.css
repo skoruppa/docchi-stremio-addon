@@ -274,3 +274,35 @@ a:hover {
     box-shadow: 0 0 0 0.25rem rgba(7, 191, 103, 0.25);
     border-color: var(--docchi-main);
 }
+
+.id-mode-option {
+    cursor: pointer;
+    display: block;
+}
+
+.id-mode-option input[type="radio"] {
+    display: none;
+}
+
+.id-mode-label {
+    display: inline-block;
+    padding: 0.4rem 1.4rem;
+    border-radius: 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: var(--docchi-text);
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.id-mode-option input[type="radio"]:checked + .id-mode-label {
+    background-color: var(--docchi-main);
+    border-color: var(--docchi-main);
+    color: var(--docchi-white);
+}
+
+.id-mode-label:hover {
+    border-color: var(--docchi-main);
+    color: var(--docchi-white);
+}
