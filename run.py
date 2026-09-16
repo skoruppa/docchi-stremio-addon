@@ -117,14 +117,21 @@ async def log_requests(request: Request, call_next):
 # Static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Register routers (normal)
+# Register routers (normal — mal mode)
 app.include_router(manifest_router)
 app.include_router(catalog_router)
 app.include_router(meta_router)
 app.include_router(stream_router)
 app.include_router(translate_router)
 
-# Register routers with VIP prefix
+# Register routers with ID mode prefixes
+for _id_mode in ('imdb', 'tvdb'):
+    app.include_router(manifest_router, prefix=f"/{_id_mode}")
+    app.include_router(catalog_router, prefix=f"/{_id_mode}")
+    app.include_router(meta_router, prefix=f"/{_id_mode}")
+    app.include_router(stream_router, prefix=f"/{_id_mode}")
+
+# Register routers with VIP prefix (backward compat — imdb mode)
 app.include_router(manifest_router, prefix=f"/{Config.VIP_PATH}")
 app.include_router(catalog_router, prefix=f"/{Config.VIP_PATH}")
 app.include_router(meta_router, prefix=f"/{Config.VIP_PATH}")
@@ -134,22 +141,36 @@ app.include_router(stream_router, prefix=f"/{Config.VIP_PATH}")
 # Template routes
 @app.get('/')
 @app.get('/configure')
+@app.get('/imdb')
+@app.get('/imdb/configure')
+@app.get('/tvdb')
+@app.get('/tvdb/configure')
 async def index(request: Request):
-    """Render the index page"""
-    manifest_url = f'{Config.PROTOCOL}://{Config.REDIRECT_URL}/manifest.json'
-    manifest_magnet = f'stremio://{Config.REDIRECT_URL}/manifest.json'
+    """Render the index/configure page"""
+    # Detect ID mode from URL
+    path = request.url.path
+    id_mode = 'mal'
+    for mode in ('imdb', 'tvdb'):
+        if path.startswith(f'/{mode}'):
+            id_mode = mode
+            break
+
+    prefix = f'/{id_mode}' if id_mode != 'mal' else ''
+    manifest_url = f'{Config.PROTOCOL}://{Config.REDIRECT_URL}{prefix}/manifest.json'
+    manifest_magnet = f'stremio://{Config.REDIRECT_URL}{prefix}/manifest.json'
     return templates.TemplateResponse(request, "index.html", {
         "logged_in": True,
         "manifest_url": manifest_url,
         "manifest_magnet": manifest_magnet,
         "version": __version__,
+        "id_mode": id_mode,
     })
 
 
 @app.get(f'/{Config.VIP_PATH}')
 @app.get(f'/{Config.VIP_PATH}/configure')
 async def index_vip(request: Request):
-    """Render the VIP index page"""
+    """Render the VIP index page (backward compat — imdb mode)"""
     manifest_url = f'{Config.PROTOCOL}://{Config.REDIRECT_URL}/{Config.VIP_PATH}/manifest.json'
     manifest_magnet = f'stremio://{Config.REDIRECT_URL}/{Config.VIP_PATH}/manifest.json'
     return templates.TemplateResponse(request, "index.html", {
@@ -157,6 +178,7 @@ async def index_vip(request: Request):
         "manifest_url": manifest_url,
         "manifest_magnet": manifest_magnet,
         "version": __version__,
+        "id_mode": "imdb",
     })
 
 

@@ -19,6 +19,25 @@ function copy_to_clipboard() {
     }
 }
 
+function updateIdMode(mode) {
+    const base = window.location.origin;
+    const prefix = mode === 'mal' ? '' : '/' + mode;
+    const manifestUrl = base + prefix + '/manifest.json';
+    const manifestMagnet = 'stremio://' + window.location.host + prefix + '/manifest.json';
+    
+    document.getElementById('manifest_url').value = manifestUrl;
+    
+    // Update install button
+    const installBtn = document.querySelector('[onclick*="manifest.json"]');
+    if (installBtn) {
+        installBtn.setAttribute('onclick', "location.href='" + manifestMagnet + "'");
+    }
+    
+    // Update URL without reload
+    const newPath = prefix ? prefix + '/configure' : '/configure';
+    window.history.replaceState({}, '', newPath);
+}
+
 function showToast(message) {
     const toast = document.getElementById('toast');
     const toastMessage = document.getElementById('toast-message');

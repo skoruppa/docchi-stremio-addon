@@ -134,8 +134,18 @@ async def addon_catalog(
     cache_time = _set_cache_time(catalog_id)
     is_vip = Config.VIP_PATH in request.url.path
 
+    # Detect ID mode from URL prefix
+    path = request.url.path
+    id_mode = 'mal'  # default
+    for mode in ('imdb', 'tvdb'):
+        if f'/{mode}/' in path:
+            id_mode = mode
+            break
+    if is_vip and id_mode == 'mal':
+        id_mode = 'imdb'  # VIP backward compat
+
     # Check aiocache
-    cache_key = f"{catalog_type}:{catalog_id}:{genre}:{search}:{is_vip}"
+    cache_key = f"{catalog_type}:{catalog_id}:{genre}:{search}:{id_mode}"
     cached = await _catalog_cache.get(cache_key)
     if cached is not None:
         return respond_with(cached, cache_time)
@@ -151,16 +161,17 @@ async def addon_catalog(
             for item in response_data
         ]
 
-        # VIP catalogs: use IMDB ID as content ID when available
-        # This allows Stremio to match with cinemeta and other IMDB-based addons
-        if is_vip and Config.VIP_IMDB_IDS:
+        # Remap content IDs to requested format
+        if id_mode != 'mal':
             from app.utils.anime_mapping import get_ids_from_mal_id
             for meta in meta_previews:
                 if meta and meta.get('id', '').startswith('mal:'):
                     mal_id = meta['id'].split(':')[1]
                     ids = get_ids_from_mal_id(mal_id)
-                    if ids.get('imdb_id'):
+                    if id_mode == 'imdb' and ids.get('imdb_id'):
                         meta['id'] = ids['imdb_id']
+                    elif id_mode == 'tvdb' and ids.get('tvdb_id'):
+                        meta['id'] = f"tvdb:{ids['tvdb_id']}"
 
         result = {'metas': list(meta_previews)}
         if cache_time:

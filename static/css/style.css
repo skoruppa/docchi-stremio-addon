@@ -258,3 +258,19 @@ a:hover {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
 }
+
+
+.form-check-input:checked {
+    background-color: var(--docchi-main);
+    border-color: var(--docchi-main);
+}
+
+.form-check-input {
+    background-color: var(--docchi-bg2);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.form-check-input:focus {
+    box-shadow: 0 0 0 0.25rem rgba(7, 191, 103, 0.25);
+    border-color: var(--docchi-main);
+}

@@ -45,7 +45,7 @@ MANIFEST = {
         }
     ],
 
-    'behaviorHints': {'configurable': False},
+    'behaviorHints': {'configurable': True, 'configurationRequired': False},
     'resources': ['catalog', 'meta', 'stream'],
     'idPrefixes': ['mal', 'kitsu', 'tt', 'tvdb'],
     "stremioAddonsConfig": {
@@ -54,22 +54,35 @@ MANIFEST = {
       }
 }
 
-MANIFEST_VIP = {
-    **MANIFEST,
-    'id': 'com.skoruppa.docchi-stremio-addon-vip',
-    'name': 'Docchi.pl Addon VIP',
-    'idPrefixes': ['mal', 'kitsu', 'tt', 'tvdb']
-}
+# Valid ID modes for catalog output
+VALID_ID_MODES = {'mal', 'imdb', 'tvdb'}
+
+
+def get_manifest_for_mode(id_mode: str) -> dict:
+    """Get manifest adjusted for the selected ID mode."""
+    manifest = dict(MANIFEST)
+    if id_mode == 'imdb':
+        manifest = {**manifest, 'id': 'com.skoruppa.docchi-stremio-addon-imdb', 'idPrefixes': ['tt', 'mal', 'kitsu', 'tvdb']}
+    elif id_mode == 'tvdb':
+        manifest = {**manifest, 'id': 'com.skoruppa.docchi-stremio-addon-tvdb', 'idPrefixes': ['tvdb', 'mal', 'kitsu', 'tt']}
+    return manifest
 
 
 @manifest_router.get('/manifest.json')
 async def addon_manifest(request: Request):
-    """
-    Provides the manifest for the addon
-    :return: JSON response
-    """
+    """Provides the manifest for the addon"""
     from config import Config
 
-    is_vip = Config.VIP_PATH in request.url.path
-    manifest = MANIFEST_VIP if is_vip else MANIFEST
+    # Detect ID mode from URL prefix
+    path = request.url.path
+    id_mode = 'mal'  # default
+    for mode in VALID_ID_MODES:
+        if f'/{mode}/' in path:
+            id_mode = mode
+            break
+    # VIP path = imdb mode (backward compat)
+    if Config.VIP_PATH in path and id_mode == 'mal':
+        id_mode = 'imdb'
+
+    manifest = get_manifest_for_mode(id_mode)
     return respond_with(manifest, 7200)
