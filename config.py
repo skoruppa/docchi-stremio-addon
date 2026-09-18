@@ -14,6 +14,8 @@ class Config:
     PROXIFY_STREAMS = os.getenv('PROXIFY_STREAMS', 'false').lower() in ('true', '1', 'yes')  # proxify needed streams
     STREAM_PROXY_URL = os.getenv('STREAM_PROXY_URL', "")  # MediaFlow Proxy
     STREAM_PROXY_PASSWORD = os.getenv('STREAM_PROXY_PASSWORD', "")  # MediaFlowProxy API_PASSWORD
+    STREAM_PROXY_URL_FALLBACK = os.getenv('STREAM_PROXY_URL_FALLBACK', "")  # Fallback proxy (if primary fails/403)
+    STREAM_PROXY_PASSWORD_FALLBACK = os.getenv('STREAM_PROXY_PASSWORD_FALLBACK', "")  # Fallback proxy password
     VIP_PATH = os.getenv('VIP_PATH', 'vip')  # Secret path for VIP users with proxy access
     FORCE_VIP_PLAYERS = os.getenv('FORCE_VIP_PLAYERS', 'false').lower() in ('true', '1', 'yes')  # Make VIP-only players available for all users
     MAL_CLIENT_ID = os.getenv('MAL_CLIENT_ID', '')  # MyAnimeList API Client ID
