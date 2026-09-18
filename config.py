@@ -25,6 +25,7 @@ class Config:
     TMDB_API_KEY = os.getenv('TMDB_API_KEY', '')  # TMDB API key v3 (fallback metadata source)
     OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '')  # OpenRouter API key (for AI translation, free tier)
     INTERNAL_API_KEY = os.getenv('INTERNAL_API_KEY', '')  # Secret key for internal endpoints (cron, translate)
+    GDRIVE_COOKIE = os.getenv('GDRIVE_COOKIE', '')  # Google Drive cookies (SID, HSID, SSID, APISID, SAPISID) for higher download limits
     VIP_IMDB_IDS = os.getenv('VIP_IMDB_IDS', 'false').lower() in ('true', '1', 'yes')  # Use IMDB IDs in VIP catalogs
 
     DEBUG = os.getenv('DEBUG', os.getenv('FLASK_DEBUG', False))
