@@ -125,7 +125,7 @@ app.include_router(stream_router)
 app.include_router(translate_router)
 
 # Register routers with ID mode prefixes
-for _id_mode in ('imdb', 'tvdb'):
+for _id_mode in ('kitsu', 'imdb', 'tvdb'):
     app.include_router(manifest_router, prefix=f"/{_id_mode}")
     app.include_router(catalog_router, prefix=f"/{_id_mode}")
     app.include_router(meta_router, prefix=f"/{_id_mode}")
@@ -141,6 +141,8 @@ app.include_router(stream_router, prefix=f"/{Config.VIP_PATH}")
 # Template routes
 @app.get('/')
 @app.get('/configure')
+@app.get('/kitsu')
+@app.get('/kitsu/configure')
 @app.get('/imdb')
 @app.get('/imdb/configure')
 @app.get('/tvdb')
@@ -150,7 +152,7 @@ async def index(request: Request):
     # Detect ID mode from URL
     path = request.url.path
     id_mode = 'mal'
-    for mode in ('imdb', 'tvdb'):
+    for mode in ('kitsu', 'imdb', 'tvdb'):
         if path.startswith(f'/{mode}'):
             id_mode = mode
             break

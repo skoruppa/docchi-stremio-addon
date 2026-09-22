@@ -71,6 +71,10 @@
                                             <input type="radio" name="idMode" id="idMal" value="mal" {% if id_mode == 'mal' %}checked{% endif %} onchange="updateIdMode(this.value)">
                                             <span class="id-mode-label">MAL</span>
                                         </label>
+                                        <label class="id-mode-option" for="idKitsu">
+                                            <input type="radio" name="idMode" id="idKitsu" value="kitsu" {% if id_mode == 'kitsu' %}checked{% endif %} onchange="updateIdMode(this.value)">
+                                            <span class="id-mode-label">Kitsu</span>
+                                        </label>
                                         <label class="id-mode-option" for="idImdb">
                                             <input type="radio" name="idMode" id="idImdb" value="imdb" {% if id_mode == 'imdb' %}checked{% endif %} onchange="updateIdMode(this.value)">
                                             <span class="id-mode-label">IMDB</span>
@@ -80,9 +84,6 @@
                                             <span class="id-mode-label">TVDB</span>
                                         </label>
                                     </div>
-                                    <p class="text-muted small mt-3 mb-0 text-center">
-                                        IMDB/TVDB — lepsza integracja z innymi dodatkami (cinemeta, opensubtitles)
-                                    </p>
                                 </div>
                             </div>
                         </div>

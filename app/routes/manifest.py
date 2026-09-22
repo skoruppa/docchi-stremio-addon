@@ -55,16 +55,18 @@ MANIFEST = {
 }
 
 # Valid ID modes for catalog output
-VALID_ID_MODES = {'mal', 'imdb', 'tvdb'}
+VALID_ID_MODES = {'mal', 'kitsu', 'imdb', 'tvdb'}
 
 
 def get_manifest_for_mode(id_mode: str) -> dict:
     """Get manifest adjusted for the selected ID mode."""
     manifest = dict(MANIFEST)
-    if id_mode == 'imdb':
-        manifest = {**manifest, 'id': 'com.skoruppa.docchi-stremio-addon-imdb', 'idPrefixes': ['tt', 'mal', 'kitsu', 'tvdb']}
+    if id_mode == 'kitsu':
+        manifest = {**manifest, 'id': 'com.skoruppa.docchi-stremio-addon-kitsu', 'idPrefixes': ['kitsu', 'mal', 'tt', 'tvdb']}
+    elif id_mode == 'imdb':
+        manifest = {**manifest, 'id': 'com.skoruppa.docchi-stremio-addon-imdb', 'idPrefixes': ['tt', 'kitsu', 'mal', 'tvdb']}
     elif id_mode == 'tvdb':
-        manifest = {**manifest, 'id': 'com.skoruppa.docchi-stremio-addon-tvdb', 'idPrefixes': ['tvdb', 'mal', 'kitsu', 'tt']}
+        manifest = {**manifest, 'id': 'com.skoruppa.docchi-stremio-addon-tvdb', 'idPrefixes': ['tvdb', 'kitsu', 'mal', 'tt']}
     return manifest
 
 

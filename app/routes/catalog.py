@@ -137,7 +137,7 @@ async def addon_catalog(
     # Detect ID mode from URL prefix
     path = request.url.path
     id_mode = 'mal'  # default
-    for mode in ('imdb', 'tvdb'):
+    for mode in ('kitsu', 'imdb', 'tvdb'):
         if f'/{mode}/' in path:
             id_mode = mode
             break
@@ -168,10 +168,18 @@ async def addon_catalog(
                 if meta and meta.get('id', '').startswith('mal:'):
                     mal_id = meta['id'].split(':')[1]
                     ids = get_ids_from_mal_id(mal_id)
-                    if id_mode == 'imdb' and ids.get('imdb_id'):
-                        meta['id'] = ids['imdb_id']
-                    elif id_mode == 'tvdb' and ids.get('tvdb_id'):
-                        meta['id'] = f"tvdb:{ids['tvdb_id']}"
+                    if id_mode == 'kitsu' and ids.get('kitsu_id'):
+                        meta['id'] = f"kitsu:{ids['kitsu_id']}"
+                    elif id_mode == 'imdb':
+                        if ids.get('imdb_id'):
+                            meta['id'] = ids['imdb_id']
+                        elif ids.get('kitsu_id'):
+                            meta['id'] = f"kitsu:{ids['kitsu_id']}"
+                    elif id_mode == 'tvdb':
+                        if ids.get('tvdb_id'):
+                            meta['id'] = f"tvdb:{ids['tvdb_id']}"
+                        elif ids.get('kitsu_id'):
+                            meta['id'] = f"kitsu:{ids['kitsu_id']}"
 
         result = {'metas': list(meta_previews)}
         if cache_time:
