@@ -162,6 +162,10 @@ async def addon_meta(request: Request, meta_type: str, meta_id: str):
         cache_time = 43200  # 12h — finished, fully translated
 
     # Store in response cache
+    # Fallback: use poster as background if no background available
+    if not meta.get('background') and meta.get('poster'):
+        meta['background'] = meta['poster']
+
     response_data = {'meta': meta}
     if len(_response_cache) >= _MAX_RESPONSE_CACHE:
         # Evict oldest entry
