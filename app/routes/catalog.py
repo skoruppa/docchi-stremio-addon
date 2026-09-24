@@ -181,6 +181,11 @@ async def addon_catalog(
                         elif ids.get('kitsu_id'):
                             meta['id'] = f"kitsu:{ids['kitsu_id']}"
 
+        # Fallback: use poster as background when no backdrop available
+        for meta in meta_previews:
+            if meta and not meta.get('background') and meta.get('poster'):
+                meta['background'] = meta['poster']
+
         result = {'metas': list(meta_previews)}
         if cache_time:
             await _catalog_cache.set(cache_key, result, ttl=cache_time)
