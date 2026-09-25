@@ -126,6 +126,12 @@ async def get_anime_meta(kitsu_id: str, mal_id: str = None, imdb_id: str = None,
     background = cover_img.get("original")
     logo = None
 
+    # Strip signed URL params from Kitsu S3 URLs (they expire after 15min but base URL works publicly)
+    if poster and '?' in poster and 'X-Amz-' in poster:
+        poster = poster.split('?')[0]
+    if background and '?' in background and 'X-Amz-' in background:
+        background = background.split('?')[0]
+
     fanart = await get_fanart_images(imdb_id=imdb_id, tvdb_id=tvdb_id, tmdb_id=tmdb_id)
     logo = fanart.get("logo")
     background = fanart.get("background") or background
@@ -186,13 +192,16 @@ def _build_videos(kitsu_id: str, subtype: str, episodes: list, episode_count: in
             title = (titles.get("en_us") or titles.get("en") or
                      titles.get("en_jp") or a.get("canonicalTitle") or f"Episode {num}")
             vid_id = f"mal:{mal_id}:{num}" if mal_id else (f"kitsu:{kitsu_id}" if (len(episodes) == 1 and subtype in ("movie", "special", "OVA", "ONA")) else f"kitsu:{kitsu_id}:{num}")
+            thumb = (a.get("thumbnail") or {}).get("original")
+            if thumb and '?' in thumb and 'X-Amz-' in thumb:
+                thumb = thumb.split('?')[0]
             videos.append({
                 "id": vid_id,
                 "title": title,
                 "released": ep_date.isoformat() + "Z",
                 "season": 1,
                 "episode": num,
-                "thumbnail": (a.get("thumbnail") or {}).get("original"),
+                "thumbnail": thumb,
                 "overview": _clean_desc(a.get("synopsis")),
             })
         return videos
