@@ -223,17 +223,34 @@ def get_mal_id_from_imdb_id(imdb_id: str, season: int = None) -> Optional[str]:
             tvdb_season = item.get('season', {}).get('tvdb')
             if tvdb_season and int(tvdb_season) == int(season):
                 return str(item.get('mal_id')) if item.get('mal_id') else None
-        # Fallback: if only one entry exists and has no season info, use it
-        # (covers long-running series like One Piece that aren't split by season)
-        if len(items) == 1 and not items[0].get('season', {}).get('tvdb'):
+
+        # For season 1 (or any season with no direct match): prefer entries without season info
+        # These are typically the main/base series (e.g. Dragon Ball, One Piece)
+        # Entries with tvdb_season=0 are specials/extras, skip them
+        no_season_entries = [
+            it for it in items
+            if not it.get('season', {}).get('tvdb')
+        ]
+        if no_season_entries:
+            return str(no_season_entries[0].get('mal_id')) if no_season_entries[0].get('mal_id') else None
+
+        # Fallback: if only one entry exists (regardless of season info), use it
+        if len(items) == 1:
             return str(items[0].get('mal_id')) if items[0].get('mal_id') else None
         return None
     
-    # No season specified: prefer entry with season=1, then any with season, then first
+    # No season specified: prefer entry with season=1, then no-season entry, then first
     for item in items:
         tvdb_season = item.get('season', {}).get('tvdb')
         if tvdb_season and int(tvdb_season) == 1:
             return str(item.get('mal_id')) if item.get('mal_id') else None
+    # Prefer entries without season info (main series)
+    no_season_entries = [
+        it for it in items
+        if not it.get('season', {}).get('tvdb')
+    ]
+    if no_season_entries:
+        return str(no_season_entries[0].get('mal_id')) if no_season_entries[0].get('mal_id') else None
     for item in items:
         if item.get('season', {}).get('tvdb'):
             return str(item.get('mal_id')) if item.get('mal_id') else None
