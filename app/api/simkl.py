@@ -1,4 +1,9 @@
-"""Simkl API client for resolving anime ID mappings."""
+"""Simkl API client for resolving anime ID mappings.
+
+Uses /redirect (301) for cheap ID resolution, then CF-cached detail endpoints.
+See https://api.simkl.org/api-reference/redirect
+"""
+import re
 import logging
 import aiohttp
 from config import Config
@@ -6,34 +11,61 @@ from config import Config
 SIMKL_URL = "https://api.simkl.com"
 TIMEOUT = aiohttp.ClientTimeout(total=10)
 
+# Common params required by every Simkl request
+def _params(**extra) -> dict:
+    return {"client_id": Config.SIMKL_CLIENT_ID, "app-name": "docchi-stremio", "app-version": "1.0", **extra}
+
+HEADERS = {"User-Agent": "docchi-stremio/1.0"}
+
+
+async def _resolve_simkl_id(session: aiohttp.ClientSession, **id_params) -> tuple[int | None, str | None]:
+    """Resolve any external ID to (simkl_id, type) via /redirect.
+    
+    Returns (simkl_id, type_str) or (None, None).
+    type_str is 'movies', 'tv', or 'anime'.
+    """
+    params = _params(to="simkl", **id_params)
+    try:
+        async with session.get(
+            f"{SIMKL_URL}/redirect",
+            params=params,
+            headers=HEADERS,
+            allow_redirects=False,
+            timeout=aiohttp.ClientTimeout(total=5),
+        ) as resp:
+            if resp.status not in (301, 302):
+                return None, None
+            location = resp.headers.get("Location", "")
+            # Parse: https://simkl.com/anime/12345/slug-name
+            m = re.search(r"simkl\.com/(anime|tv|movies)/(\d+)", location)
+            if m:
+                return int(m.group(2)), m.group(1)
+    except Exception as e:
+        logging.warning(f"[Simkl] /redirect failed: {e}")
+    return None, None
+
 
 async def get_ids_from_mal(mal_id: int) -> dict | None:
     """Resolve all external IDs for an anime by MAL ID via Simkl.
 
-    Returns dict with tvdb_id, imdb_id, tmdb_id, tvdb_season, or None if not found.
+    Uses /redirect + /anime/{id} (CF-cached) instead of /search/id.
+    Returns dict with tvdb_id, imdb_id, tmdb_id, tvdb_season, or None.
     """
     if not Config.SIMKL_CLIENT_ID:
         return None
 
     try:
         async with aiohttp.ClientSession(timeout=TIMEOUT) as session:
-            # Step 1: Search by MAL ID to get Simkl ID
-            search_url = f"{SIMKL_URL}/search/id?mal={mal_id}&client_id={Config.SIMKL_CLIENT_ID}"
-            async with session.get(search_url, headers={"User-Agent": "docchi-stremio/1.0"}) as resp:
-                if resp.status != 200:
-                    return None
-                results = await resp.json()
-
-            if not results:
-                return None
-
-            simkl_id = results[0].get("ids", {}).get("simkl")
+            simkl_id, _ = await _resolve_simkl_id(session, mal=mal_id)
             if not simkl_id:
                 return None
 
-            # Step 2: Get full details with extended IDs and season info
-            details_url = f"{SIMKL_URL}/anime/{simkl_id}?extended=full&client_id={Config.SIMKL_CLIENT_ID}"
-            async with session.get(details_url, headers={"User-Agent": "docchi-stremio/1.0"}) as resp:
+            details_url = f"{SIMKL_URL}/anime/{simkl_id}"
+            async with session.get(
+                details_url,
+                params=_params(extended="full"),
+                headers=HEADERS,
+            ) as resp:
                 if resp.status != 200:
                     return None
                 data = await resp.json()
@@ -42,7 +74,7 @@ async def get_ids_from_mal(mal_id: int) -> dict | None:
             tvdb_id = int(ids["tvdb"]) if ids.get("tvdb") else None
             imdb_id = ids.get("imdb")
             tmdb_id = int(ids["tmdb"]) if ids.get("tmdb") else None
-            tvdb_season = data.get("season")  # Simkl provides TVDB season number directly
+            tvdb_season = data.get("season")
 
             if not tvdb_id and not imdb_id and not tmdb_id:
                 return None
@@ -69,41 +101,22 @@ async def get_episode_tvdb_mapping(mal_id: int) -> dict | None:
 
     Returns dict mapping absolute episode number -> {'season': int, 'episode': int},
     plus 'simkl_id' and 'total_episodes'. Returns None if not found.
-
-    Example result:
-        {
-            'simkl_id': 41066,
-            'total_episodes': 366,
-            'mapping': {
-                1: {'season': 1, 'episode': 1},
-                2: {'season': 1, 'episode': 2},
-                ...
-                21: {'season': 2, 'episode': 1},
-            }
-        }
     """
     if not Config.SIMKL_CLIENT_ID:
         return None
 
     try:
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
-            # Step 1: Get Simkl ID from MAL ID
-            search_url = f"{SIMKL_URL}/search/id?mal={mal_id}&client_id={Config.SIMKL_CLIENT_ID}"
-            async with session.get(search_url, headers={"User-Agent": "docchi-stremio/1.0"}) as resp:
-                if resp.status != 200:
-                    return None
-                results = await resp.json()
-
-            if not results:
-                return None
-
-            simkl_id = results[0].get("ids", {}).get("simkl")
+            simkl_id, _ = await _resolve_simkl_id(session, mal=mal_id)
             if not simkl_id:
                 return None
 
-            # Step 2: Get all episodes with TVDB coordinates
-            episodes_url = f"{SIMKL_URL}/anime/episodes/{simkl_id}?client_id={Config.SIMKL_CLIENT_ID}"
-            async with session.get(episodes_url, headers={"User-Agent": "docchi-stremio/1.0"}) as resp:
+            episodes_url = f"{SIMKL_URL}/anime/episodes/{simkl_id}"
+            async with session.get(
+                episodes_url,
+                params=_params(),
+                headers=HEADERS,
+            ) as resp:
                 if resp.status != 200:
                     return None
                 episodes = await resp.json()
@@ -111,7 +124,6 @@ async def get_episode_tvdb_mapping(mal_id: int) -> dict | None:
             if not episodes:
                 return None
 
-            # Build mapping: absolute ep number -> tvdb {season, episode}
             mapping = {}
             for ep in episodes:
                 ep_num = ep.get("episode")
@@ -139,41 +151,35 @@ async def get_episode_tvdb_mapping(mal_id: int) -> dict | None:
 
 
 async def get_ids_from_mal_by_imdb(imdb_id: str) -> int | None:
-    """Resolve IMDB ID to MAL ID via Simkl search.
+    """Resolve IMDB ID to MAL ID via Simkl.
     
-    Returns MAL ID (int) or None if not found.
+    Uses /redirect to get simkl_id, then /anime/{id} for MAL ID.
+    Returns MAL ID (int) or None.
     """
     if not Config.SIMKL_CLIENT_ID or not imdb_id:
         return None
 
     try:
         async with aiohttp.ClientSession(timeout=TIMEOUT) as session:
-            url = f"{SIMKL_URL}/search/id?imdb={imdb_id}&client_id={Config.SIMKL_CLIENT_ID}"
-            async with session.get(url, headers={"User-Agent": "docchi-stremio/1.0"}) as resp:
-                if resp.status != 200:
-                    return None
-                results = await resp.json()
-
-            if not results:
+            simkl_id, item_type = await _resolve_simkl_id(session, imdb=imdb_id)
+            if not simkl_id:
                 return None
 
-            # Get MAL ID from first result
-            mal_id = results[0].get("ids", {}).get("mal") or results[0].get("mal", {}).get("id")
+            endpoint = "anime" if item_type == "anime" else "tv"
+            details_url = f"{SIMKL_URL}/{endpoint}/{simkl_id}"
+            async with session.get(
+                details_url,
+                params=_params(extended="full"),
+                headers=HEADERS,
+            ) as resp:
+                if resp.status != 200:
+                    return None
+                data = await resp.json()
+
+            mal_id = data.get("ids", {}).get("mal")
             if mal_id:
                 logging.info(f"[Simkl] Resolved imdb:{imdb_id} -> mal:{mal_id}")
                 return int(mal_id)
-            
-            # If not in search result, try full details
-            simkl_id = results[0].get("ids", {}).get("simkl")
-            if simkl_id:
-                details_url = f"{SIMKL_URL}/anime/{simkl_id}?extended=full&client_id={Config.SIMKL_CLIENT_ID}"
-                async with session.get(details_url, headers={"User-Agent": "docchi-stremio/1.0"}) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        mal_id = data.get("ids", {}).get("mal")
-                        if mal_id:
-                            logging.info(f"[Simkl] Resolved imdb:{imdb_id} -> mal:{mal_id} (via details)")
-                            return int(mal_id)
 
     except Exception as e:
         logging.warning(f"[Simkl] Failed to resolve imdb:{imdb_id}: {e}")
@@ -182,39 +188,35 @@ async def get_ids_from_mal_by_imdb(imdb_id: str) -> int | None:
 
 
 async def get_ids_from_mal_by_tvdb(tvdb_id: int) -> int | None:
-    """Resolve TVDB ID to MAL ID via Simkl search.
+    """Resolve TVDB ID to MAL ID via Simkl.
     
-    Returns MAL ID (int) or None if not found.
+    Uses /redirect to get simkl_id, then /anime/{id} for MAL ID.
+    Returns MAL ID (int) or None.
     """
     if not Config.SIMKL_CLIENT_ID or not tvdb_id:
         return None
 
     try:
         async with aiohttp.ClientSession(timeout=TIMEOUT) as session:
-            url = f"{SIMKL_URL}/search/id?tvdb={tvdb_id}&client_id={Config.SIMKL_CLIENT_ID}"
-            async with session.get(url, headers={"User-Agent": "docchi-stremio/1.0"}) as resp:
-                if resp.status != 200:
-                    return None
-                results = await resp.json()
-
-            if not results:
+            simkl_id, item_type = await _resolve_simkl_id(session, tvdb=tvdb_id)
+            if not simkl_id:
                 return None
 
-            mal_id = results[0].get("ids", {}).get("mal") or results[0].get("mal", {}).get("id")
+            endpoint = "anime" if item_type == "anime" else "tv"
+            details_url = f"{SIMKL_URL}/{endpoint}/{simkl_id}"
+            async with session.get(
+                details_url,
+                params=_params(extended="full"),
+                headers=HEADERS,
+            ) as resp:
+                if resp.status != 200:
+                    return None
+                data = await resp.json()
+
+            mal_id = data.get("ids", {}).get("mal")
             if mal_id:
                 logging.info(f"[Simkl] Resolved tvdb:{tvdb_id} -> mal:{mal_id}")
                 return int(mal_id)
-
-            simkl_id = results[0].get("ids", {}).get("simkl")
-            if simkl_id:
-                details_url = f"{SIMKL_URL}/anime/{simkl_id}?extended=full&client_id={Config.SIMKL_CLIENT_ID}"
-                async with session.get(details_url, headers={"User-Agent": "docchi-stremio/1.0"}) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        mal_id = data.get("ids", {}).get("mal")
-                        if mal_id:
-                            logging.info(f"[Simkl] Resolved tvdb:{tvdb_id} -> mal:{mal_id} (via details)")
-                            return int(mal_id)
 
     except Exception as e:
         logging.warning(f"[Simkl] Failed to resolve tvdb:{tvdb_id}: {e}")
