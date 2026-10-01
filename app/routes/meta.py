@@ -159,7 +159,7 @@ async def addon_meta(request: Request, meta_type: str, meta_id: str):
         else:
             cache_time = 900  # 15 min — airing but no future date known
     else:
-        cache_time = 43200  # 12h — finished, fully translated
+        cache_time = 3600  # 1h — finished, fully translated
 
     # Store in response cache
     # Fallback: use poster as background if no background available

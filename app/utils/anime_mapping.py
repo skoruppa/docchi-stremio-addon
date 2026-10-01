@@ -28,14 +28,20 @@ _overrides: dict = {}  # mal_id (str) -> override fields
 
 
 def _load_overrides():
-    """Load manual mapping overrides from JSON file."""
+    """Load manual mapping overrides from JSON file and clear stale caches."""
     global _overrides
     try:
         with open(OVERRIDES_FILE, 'r') as f:
             data = json.load(f)
-        _overrides = {k: v for k, v in data.items() if not k.startswith('_')}
-        if _overrides:
-            logging.info(f"Loaded {len(_overrides)} mapping overrides")
+        new_overrides = {k: v for k, v in data.items() if not k.startswith('_')}
+        if new_overrides:
+            logging.info(f"Loaded {len(new_overrides)} mapping overrides")
+            # Clear Redis mapping cache for overridden MAL IDs
+            if _redis_client:
+                for mal_id in new_overrides:
+                    _redis_client.delete(f"mal:{mal_id}")
+                    _redis_client.delete(f"resolved:mal:{mal_id}")
+        _overrides = new_overrides
     except FileNotFoundError:
         _overrides = {}
     except Exception as e:
