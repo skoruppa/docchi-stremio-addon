@@ -1,9 +1,11 @@
 {
   "_comment": "Manual overrides for incorrect anime-lists mappings. Keys are MAL IDs. Set a field to null to remove a bad mapping.",
   "63367": {
-    "imdb_id": null,
-    "tvdb_id": null,
-    "tmdb_id": null,
+    "_name": "Dragon Ball Super: Beerus",
+    "imdb_id": "tt39395275",
+    "tvdb_id": 473154,
+    "tmdb_id": 312359,
+    "tvdb_season": 1,
     "kitsu_id": 50497
   }
 }
