@@ -698,9 +698,12 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                         _num_eps = _mdata.get("num_episodes") or 0
                         if _media_type == "movie":
                             _is_movie = True
-                        elif _media_type in ("tv_special", "special", "ova", "ona"):
+                        elif _media_type in ("tv_special", "special"):
                             _is_special = True
-                            # Single-episode specials/OVA/ONA treated as movies (0 = unknown, don't assume movie)
+                            if _num_eps == 1:
+                                _is_movie = True
+                        elif _media_type in ("ova", "ona"):
+                            # OVA/ONA with exactly 1 episode = movie, otherwise treat as series
                             if _num_eps == 1:
                                 _is_movie = True
         except Exception:
