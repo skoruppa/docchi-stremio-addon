@@ -28,7 +28,7 @@ _overrides: dict = {}  # mal_id (str) -> override fields
 
 
 def _load_overrides():
-    """Load manual mapping overrides from JSON file and clear stale caches."""
+    """Load manual mapping overrides from JSON file, apply to Redis, and keep in memory."""
     global _overrides
     try:
         with open(OVERRIDES_FILE, 'r') as f:
@@ -36,10 +36,26 @@ def _load_overrides():
         new_overrides = {k: v for k, v in data.items() if not k.startswith('_')}
         if new_overrides:
             logging.info(f"Loaded {len(new_overrides)} mapping overrides")
-            # Clear Redis mapping cache for overridden MAL IDs
             if _redis_client:
-                for mal_id in new_overrides:
-                    _redis_client.delete(f"mal:{mal_id}")
+                ttl = 86400 * 7
+                for mal_id, override in new_overrides.items():
+                    # Read existing data from Redis, merge override, write back
+                    existing = _redis_client.get(f"mal:{mal_id}")
+                    item = json.loads(existing) if existing else {}
+                    item['mal_id'] = int(mal_id)
+                    for key in ('kitsu_id', 'tvdb_id'):
+                        if key in override:
+                            item[key] = override[key]
+                    if 'imdb_id' in override:
+                        item['imdb_id'] = override['imdb_id']
+                    if 'tmdb_id' in override:
+                        item['themoviedb_id'] = override['tmdb_id']
+                    if 'tvdb_season' in override:
+                        if override['tvdb_season'] is not None:
+                            item['season'] = {'tvdb': override['tvdb_season']}
+                        else:
+                            item.pop('season', None)
+                    _redis_client.setex(f"mal:{mal_id}", ttl, json.dumps(item))
                     _redis_client.delete(f"resolved:mal:{mal_id}")
         _overrides = new_overrides
     except FileNotFoundError:
