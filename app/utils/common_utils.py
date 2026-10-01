@@ -22,7 +22,9 @@ async def get_fanart_images(imdb_id: str = None, tvdb_id: int = None, tmdb_id: i
                 tasks = {}
                 if tvdb_id:
                     tasks['tvdb'] = session.get(f"https://webservice.fanart.tv/v3/tv/{tvdb_id}?api_key={Config.FANART_API_KEY}")
-                if tmdb_id:
+                if tmdb_id and not tvdb_id:
+                    # Only use TMDB→movies fanart when there's no TVDB ID (i.e. actual movies)
+                    # TMDB movie ID ≠ TMDB tv ID, so sending a tv show's tmdb_id to /movies/ returns wrong results
                     tasks['tmdb'] = session.get(f"https://webservice.fanart.tv/v3/movies/{tmdb_id}?api_key={Config.FANART_API_KEY}")
                 
                 responses = {}
