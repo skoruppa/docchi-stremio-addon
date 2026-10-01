@@ -1,5 +1,13 @@
 {
   "_comment": "Manual overrides for incorrect anime-lists mappings. Keys are MAL IDs. Set a field to null to remove a bad mapping.",
+  "63140": {
+    "_name": "Yasei no Last Boss ga Arawareta! 2nd Season",
+    "imdb_id": "tt33258199",
+    "tvdb_id": 453694,
+    "tmdb_id": 280042,
+    "tvdb_season": 2,
+    "kitsu_id": 50404
+  },
   "63367": {
     "_name": "Dragon Ball Super: Beerus",
     "imdb_id": "tt39395275",
