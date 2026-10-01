@@ -163,23 +163,32 @@ async def addon_catalog(
 
         # Remap content IDs to requested format
         if id_mode != 'mal':
-            from app.utils.anime_mapping import get_ids_from_mal_id
+            from app.utils.anime_mapping import get_ids_from_mal_id, get_mal_id_from_kitsu_id
             for meta in meta_previews:
-                if meta and meta.get('id', '').startswith('mal:'):
-                    mal_id = meta['id'].split(':')[1]
-                    ids = get_ids_from_mal_id(mal_id)
-                    if id_mode == 'kitsu' and ids.get('kitsu_id'):
+                meta_id = meta.get('id', '') if meta else ''
+                mal_id = None
+                if meta_id.startswith('mal:'):
+                    mal_id = meta_id.split(':')[1]
+                elif meta_id.startswith('kitsu:'):
+                    kitsu_id = meta_id.split(':')[1]
+                    mal_id = get_mal_id_from_kitsu_id(kitsu_id)
+
+                if not mal_id:
+                    continue
+
+                ids = get_ids_from_mal_id(mal_id)
+                if id_mode == 'kitsu' and ids.get('kitsu_id'):
+                    meta['id'] = f"kitsu:{ids['kitsu_id']}"
+                elif id_mode == 'imdb':
+                    if ids.get('imdb_id'):
+                        meta['id'] = ids['imdb_id']
+                    elif ids.get('kitsu_id'):
                         meta['id'] = f"kitsu:{ids['kitsu_id']}"
-                    elif id_mode == 'imdb':
-                        if ids.get('imdb_id'):
-                            meta['id'] = ids['imdb_id']
-                        elif ids.get('kitsu_id'):
-                            meta['id'] = f"kitsu:{ids['kitsu_id']}"
-                    elif id_mode == 'tvdb':
-                        if ids.get('tvdb_id'):
-                            meta['id'] = f"tvdb:{ids['tvdb_id']}"
-                        elif ids.get('kitsu_id'):
-                            meta['id'] = f"kitsu:{ids['kitsu_id']}"
+                elif id_mode == 'tvdb':
+                    if ids.get('tvdb_id'):
+                        meta['id'] = f"tvdb:{ids['tvdb_id']}"
+                    elif ids.get('kitsu_id'):
+                        meta['id'] = f"kitsu:{ids['kitsu_id']}"
 
         # Fallback: use poster as background when no backdrop available
         for meta in meta_previews:
