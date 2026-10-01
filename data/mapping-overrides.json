@@ -10,8 +10,7 @@
   },
   "63045": {
     "_name": "Demons' Crest",
-    "_fix": "imdb_id tt41054228 is Petlja (Serbian doc), not this anime",
-    "imdb_id": null,
+    "imdb_id": "tt41054228",
     "tvdb_id": 471128,
     "tmdb_id": 328010,
     "tvdb_season": 1,
@@ -19,10 +18,10 @@
   },
   "63509": {
     "_name": "Dark Summoner to Dekiteiru",
-    "_fix": "TVDB has wrong IMDB tt43650323 (Face Invaders porn), not this anime",
-    "imdb_id": null,
+    "imdb_id": "tt43650323",
     "tvdb_id": 474294,
-    "kitsu_id": null
+    "tmdb_id": 335790,
+    "kitsu_id": 50990
   },
   "60601": {
     "_name": "Tensei Kizoku, Kantei Skill de Nariagaru 3rd Season",
