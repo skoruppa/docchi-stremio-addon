@@ -22,11 +22,30 @@ if not _redis_client:
     logging.info("Using SQLite/Turso for anime mapping")
 
 MAPPING_FILE = os.path.join(os.path.dirname(__file__), '../../data/anime-lists/anime-list-full.json')
+OVERRIDES_FILE = os.path.join(os.path.dirname(__file__), '../../data/mapping-overrides.json')
 _loaded = False
+_overrides: dict = {}  # mal_id (str) -> override fields
+
+
+def _load_overrides():
+    """Load manual mapping overrides from JSON file."""
+    global _overrides
+    try:
+        with open(OVERRIDES_FILE, 'r') as f:
+            data = json.load(f)
+        _overrides = {k: v for k, v in data.items() if not k.startswith('_')}
+        if _overrides:
+            logging.info(f"Loaded {len(_overrides)} mapping overrides")
+    except FileNotFoundError:
+        _overrides = {}
+    except Exception as e:
+        logging.warning(f"Failed to load mapping overrides: {e}")
+        _overrides = {}
 
 def load_mapping():
     """Load anime mapping from file to Redis or TinyDB (run once at startup)"""
     global _loaded
+    _load_overrides()  # Always reload overrides
     if _loaded:
         return
     
@@ -275,7 +294,10 @@ def get_imdb_id_from_mal_id(mal_id: str) -> Optional[str]:
 
 def get_ids_from_mal_id(mal_id: str) -> dict:
     """Get kitsu_id, imdb_id, tvdb_id, themoviedb_id for a given MAL ID.
-    Checks both the main mapping and resolved: cache (from Simkl/AniList fallback)."""
+    Checks overrides first, then main mapping, then resolved cache."""
+    # Check manual overrides first
+    override = _overrides.get(str(mal_id))
+
     item = _get_item('mal', mal_id) or {}
     imdb_id = item.get('imdb_id')
     result = {
@@ -285,15 +307,28 @@ def get_ids_from_mal_id(mal_id: str) -> dict:
         'tmdb_id': item.get('themoviedb_id'),
         'tvdb_season': item.get('season', {}).get('tvdb') if item.get('season') else None,
     }
+
+    # Apply overrides (null values clear the field)
+    if override:
+        for key in ('imdb_id', 'tvdb_id', 'tmdb_id', 'tvdb_season'):
+            if key in override:
+                result[key] = override[key]
+        if 'kitsu_id' in override:
+            result['kitsu_id'] = str(override['kitsu_id']) if override['kitsu_id'] else None
+
     # If main mapping lacks tvdb_id, check resolved cache (Simkl/AniList fallback)
-    if not result['tvdb_id'] and _redis_client:
+    # But don't override fields that were explicitly cleared by manual overrides
+    if not result['tvdb_id'] and _redis_client and not (override and 'tvdb_id' in override):
         resolved_data = _redis_client.get(f"resolved:mal:{mal_id}")
         if resolved_data:
             resolved = json.loads(resolved_data)
             result['tvdb_id'] = result['tvdb_id'] or resolved.get('tvdb_id')
-            result['imdb_id'] = result['imdb_id'] or resolved.get('imdb_id')
-            result['tmdb_id'] = result['tmdb_id'] or resolved.get('themoviedb_id')
-            result['tvdb_season'] = result['tvdb_season'] or (resolved.get('season', {}).get('tvdb') if resolved.get('season') else None)
+            if not (override and 'imdb_id' in override):
+                result['imdb_id'] = result['imdb_id'] or resolved.get('imdb_id')
+            if not (override and 'tmdb_id' in override):
+                result['tmdb_id'] = result['tmdb_id'] or resolved.get('themoviedb_id')
+            if not (override and 'tvdb_season' in override):
+                result['tvdb_season'] = result['tvdb_season'] or (resolved.get('season', {}).get('tvdb') if resolved.get('season') else None)
     return result
 
 def _get_imdb_items(imdb_id: str) -> list:

@@ -1,0 +1,9 @@
+{
+  "_comment": "Manual overrides for incorrect anime-lists mappings. Keys are MAL IDs. Set a field to null to remove a bad mapping.",
+  "63367": {
+    "imdb_id": null,
+    "tvdb_id": null,
+    "tmdb_id": null,
+    "kitsu_id": 50497
+  }
+}
