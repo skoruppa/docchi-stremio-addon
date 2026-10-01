@@ -10,8 +10,12 @@ from app.utils import jsunpack
 from async_tls_client import AsyncSession
 
 
-async def get_fanart_images(imdb_id: str = None, tvdb_id: int = None, tmdb_id: int = None) -> dict:
-    """Fetch logo/background/poster from fanart.tv (requires API key) with metahub logo/background fallback."""
+async def get_fanart_images(imdb_id: str = None, tvdb_id: int = None, tmdb_id: int = None, is_movie: bool = False) -> dict:
+    """Fetch logo/background/poster from fanart.tv (requires API key) with metahub logo/background fallback.
+    
+    Args:
+        is_movie: If True, send tmdb_id to /movies/ endpoint. If False (series), only use /tv/ with tvdb_id.
+    """
     import asyncio
     TIMEOUT = aiohttp.ClientTimeout(total=5)
     result = {}
@@ -22,9 +26,7 @@ async def get_fanart_images(imdb_id: str = None, tvdb_id: int = None, tmdb_id: i
                 tasks = {}
                 if tvdb_id:
                     tasks['tvdb'] = session.get(f"https://webservice.fanart.tv/v3/tv/{tvdb_id}?api_key={Config.FANART_API_KEY}")
-                if tmdb_id and not tvdb_id:
-                    # Only use TMDB→movies fanart when there's no TVDB ID (i.e. actual movies)
-                    # TMDB movie ID ≠ TMDB tv ID, so sending a tv show's tmdb_id to /movies/ returns wrong results
+                if tmdb_id and is_movie:
                     tasks['tmdb'] = session.get(f"https://webservice.fanart.tv/v3/movies/{tmdb_id}?api_key={Config.FANART_API_KEY}")
                 
                 responses = {}

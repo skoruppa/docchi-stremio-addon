@@ -165,7 +165,7 @@ async def get_movie_meta(tmdb_id: int, mal_id: str = None, imdb_id: str = None) 
 
     pol_task = _api_get(f"/movie/{tmdb_id}", {"language": "pl-PL"})
     eng_task = _api_get(f"/movie/{tmdb_id}", {"language": "en-US"})
-    fanart_task = get_fanart_images(imdb_id=imdb_id, tmdb_id=tmdb_id)
+    fanart_task = get_fanart_images(imdb_id=imdb_id, tmdb_id=tmdb_id, is_movie=True)
     videos_task = _api_get(f"/movie/{tmdb_id}/videos", {"language": "en-US"})
     credits_task = _api_get(f"/movie/{tmdb_id}/credits")
 

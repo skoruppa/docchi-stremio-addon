@@ -130,7 +130,7 @@ async def get_movie_meta(tvdb_id: int, mal_id: str = None, imdb_id: str = None, 
 
     async def _safe_fanart():
         try:
-            return await get_fanart_images(imdb_id=imdb_id, tvdb_id=tvdb_id, tmdb_id=tmdb_id)
+            return await get_fanart_images(imdb_id=imdb_id, tvdb_id=tvdb_id, tmdb_id=tmdb_id, is_movie=True)
         except Exception:
             return {}
 
