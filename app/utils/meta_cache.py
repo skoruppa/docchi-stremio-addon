@@ -700,8 +700,8 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                             _is_movie = True
                         elif _media_type in ("tv_special", "special", "ova", "ona"):
                             _is_special = True
-                            # Single-episode specials/OVA/ONA treated as movies
-                            if _num_eps <= 1:
+                            # Single-episode specials/OVA/ONA treated as movies (0 = unknown, don't assume movie)
+                            if _num_eps == 1:
                                 _is_movie = True
         except Exception:
             pass
@@ -1150,7 +1150,7 @@ async def fetch_videos(mal_id: str) -> dict | str:
                         _mdata = await _resp.json()
                         _media_type = _mdata.get("media_type")
                         _num_eps = _mdata.get("num_episodes") or 0
-                        if _media_type == "movie" or (_media_type in ("tv_special", "special", "ova", "ona") and _num_eps <= 1):
+                        if _media_type == "movie" or (_media_type in ("tv_special", "special", "ova", "ona") and _num_eps == 1):
                             # Sentinel: empty list cached with _is_movie marker
                             _videos_mem_cache[mal_id] = ([], int(_time.time()), VIDEOS_TTL_MOVIE, [])
                             asyncio.ensure_future(set_cached_videos(mal_id, [], VIDEOS_TTL_MOVIE))
