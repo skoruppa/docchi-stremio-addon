@@ -32,6 +32,12 @@
     "tvdb_season": 2,
     "kitsu_id": 50024
   },
+  "62039": {
+    "_name": "Pan Dorobou",
+    "tvdb_id": 483116,
+    "tmdb_id": 309202,
+    "kitsu_id": 51004
+  },
   "62534": {
     "_name": "Shin Tennis no Ouji-sama: U-17 WORLD CUP Kesshou",
     "imdb_id": "tt15660128",
@@ -73,6 +79,7 @@
   "64131": {
     "_name": "Kanojo no Tomodachi",
     "imdb_id": "tt43650454",
+    "tvdb_id": 477658,
     "tmdb_id": 336654,
     "kitsu_id": 50752
   },
@@ -103,6 +110,7 @@
   "65009": {
     "_name": "Aoki Denshou: Welsh & Shedar",
     "imdb_id": "tt46653736",
+    "tvdb_id": 465468,
     "tmdb_id": 335788,
     "kitsu_id": 51064
   }
