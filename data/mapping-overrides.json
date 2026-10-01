@@ -1,5 +1,21 @@
 {
-  "_comment": "Manual overrides for incorrect anime-lists mappings. Keys are MAL IDs. Set a field to null to remove a bad mapping.",
+  "_comment": "Manual overrides for incorrect/missing anime-lists mappings. Keys are MAL IDs.",
+  "56733": {
+    "_name": "Magical Explorer",
+    "imdb_id": "tt41296506",
+    "tvdb_id": 440056,
+    "tmdb_id": 335194,
+    "tvdb_season": 1,
+    "kitsu_id": 47985
+  },
+  "60601": {
+    "_name": "Tensei Kizoku, Kantei Skill de Nariagaru 3rd Season",
+    "imdb_id": "tt31975847",
+    "tvdb_id": 434704,
+    "tmdb_id": 237150,
+    "tvdb_season": 3,
+    "kitsu_id": 49437
+  },
   "61603": {
     "_name": "Ao Ashi 2nd Season",
     "imdb_id": "tt15792808",
@@ -7,6 +23,21 @@
     "tmdb_id": 126437,
     "tvdb_season": 2,
     "kitsu_id": 49883
+  },
+  "62534": {
+    "_name": "Shin Tennis no Ouji-sama: U-17 WORLD CUP Kesshou",
+    "imdb_id": "tt15660128",
+    "tvdb_id": 411222,
+    "tmdb_id": 205493,
+    "kitsu_id": null
+  },
+  "62922": {
+    "_name": "Magic Repo Man",
+    "imdb_id": "tt43650419",
+    "tvdb_id": 470347,
+    "tmdb_id": 333622,
+    "tvdb_season": 1,
+    "kitsu_id": null
   },
   "63140": {
     "_name": "Yasei no Last Boss ga Arawareta! 2nd Season",
@@ -16,6 +47,13 @@
     "tvdb_season": 2,
     "kitsu_id": 50404
   },
+  "63157": {
+    "_name": "Keroro Gunsou (2026)",
+    "imdb_id": "tt0434693",
+    "tvdb_id": 75414,
+    "tmdb_id": 63164,
+    "kitsu_id": null
+  },
   "63367": {
     "_name": "Dragon Ball Super: Beerus",
     "imdb_id": "tt39395275",
@@ -23,5 +61,41 @@
     "tmdb_id": 312359,
     "tvdb_season": 1,
     "kitsu_id": 50497
+  },
+  "64131": {
+    "_name": "Kanojo no Tomodachi",
+    "imdb_id": "tt43650454",
+    "tmdb_id": 336654,
+    "kitsu_id": 50752
+  },
+  "64180": {
+    "_name": "Kizu darake Seijo yori Houfuku wo Komete Season 2",
+    "imdb_id": "tt36986811",
+    "tvdb_id": 454916,
+    "tmdb_id": 293124,
+    "tvdb_season": 2,
+    "kitsu_id": 50715
+  },
+  "64254": {
+    "_name": "Hyouken no Majutsushi ga Sekai wo Suberu II",
+    "imdb_id": "tt25531288",
+    "tvdb_id": 419502,
+    "tmdb_id": 200777,
+    "tvdb_season": 2,
+    "kitsu_id": 50723
+  },
+  "64340": {
+    "_name": "Temppal: Item no Chikara (Overgeared)",
+    "imdb_id": "tt43691353",
+    "tvdb_id": 478752,
+    "tmdb_id": 324502,
+    "tvdb_season": 1,
+    "kitsu_id": 50743
+  },
+  "65009": {
+    "_name": "Aoki Denshou: Welsh & Shedar",
+    "imdb_id": "tt46653736",
+    "tmdb_id": 335788,
+    "kitsu_id": 51064
   }
 }
