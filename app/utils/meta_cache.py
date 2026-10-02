@@ -75,9 +75,9 @@ def _meta_ttl(meta: dict) -> int:
         return CACHE_TTL_UPCOMING
     # Re-fetch sooner if logo is missing (fanart.tv/TMDB may have added it since)
     if not meta.get('logo'):
-        return 86400  # 1 day
+        return 21600  # 6 hours
     if meta.get('status') in ('Continuing', None):
-        return 86400  # 1 day for airing series
+        return 43200  # 12 hours for airing series
     return CACHE_TTL
 
 
