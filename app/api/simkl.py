@@ -23,7 +23,7 @@ HEADERS = {"User-Agent": "docchi-stremio/1.0"}
 # --- In-memory cache + dedup for /redirect calls ---
 # Prevents duplicate concurrent requests for the same ID (Stremio fires meta+stream in parallel)
 _redirect_cache: dict[str, tuple[tuple[int | None, str | None], float]] = {}
-_REDIRECT_CACHE_TTL = 300  # 5 min
+_REDIRECT_CACHE_TTL = 30  # 30s — just long enough to dedup parallel meta+stream calls
 _redirect_locks: dict[str, asyncio.Lock] = {}
 
 
@@ -281,7 +281,7 @@ async def _do_get_ids_from_mal_by_tvdb(tvdb_id: int) -> int | None:
 
 # --- Top-level result cache + dedup for public functions ---
 _result_cache: dict[str, tuple] = {}  # key -> (result, timestamp)
-_RESULT_CACHE_TTL = 300  # 5 min
+_RESULT_CACHE_TTL = 30  # 30s — dedup window for parallel callers
 _result_locks: dict[str, asyncio.Lock] = {}
 
 
