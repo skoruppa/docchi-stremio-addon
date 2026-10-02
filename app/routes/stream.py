@@ -202,39 +202,65 @@ async def process_players(players, content_id=None, content_type='series', is_vi
     return streams
 
 
-def _quality_bonus(quality: str) -> float:
-    """Lower value = higher priority. Subtract bonus for better quality."""
+def sort_priority(stream):
+    """Sort priority — lower value = shown higher.
+
+    Primary sort: quality (1080p before 720p before 480p, etc.)
+    Secondary sort (within same quality): proxy tier
+      Tier 0: Top direct players (lycoris, rumble, gdrive)
+      Tier 1: Default non-proxy players (dailymotion, okru, dtube, etc.)
+      Tier 2: VK (no proxy but can be inverted)
+      Tier 3: Proxy non-VIP (cda, sibnet)
+      Tier 4: VIP/proxy players (filemoon, uqload, streamtape, vidmoly, voe, dood)
+    AI translations always last regardless of quality.
+    """
+    player = stream['player_hosting']
+
+    # AI translations — always lowest
+    if stream.get('translator_title', '').lower() == 'ai':
+        return 900
+
+    # Quality as primary sort key (lower = better)
+    quality_rank = _quality_rank(stream.get('quality'))
+
+    # Proxy tier as secondary sort key
+    _TOP_DIRECT = {'lycoris', 'gdrive'}
+    _VK = {'vk'}
+    _PROXY_NON_VIP = {'cda', 'sibnet'}
+    _VIP_PLAYERS = {'filemoon', 'uqload', 'streamtape', 'vidmoly', 'voe', 'dood'}
+
+    if player in _TOP_DIRECT:
+        tier = 0
+    elif player in _VK:
+        tier = 3
+    elif player in _PROXY_NON_VIP:
+        tier = 4
+    elif player in _VIP_PLAYERS:
+        tier = 5
+    else:
+        tier = 2  # default non-proxy (rumble, dailymotion, okru, dtube, etc.)
+
+    # quality_rank: 0-5 range (x10 to make it primary)
+    # tier: 0-4 range (secondary, breaks ties within same quality)
+    return quality_rank * 10 + tier
+
+
+def _quality_rank(quality: str) -> int:
+    """Lower value = better quality."""
     q = (quality or '').lower().replace('p', '')
     try:
         res = int(q)
     except ValueError:
-        return 0
+        return 5  # unknown quality goes last
     if res >= 1080:
-        return -1.5
+        return 0
     if res >= 720:
-        return -1.0
+        return 1
     if res >= 480:
-        return -0.5
-    return 0
-
-
-def sort_priority(stream):
-    base = 4
-    if 'lycoris' in stream['player_hosting']:
-        base = 0
-    elif stream['player_hosting'] == 'rumble':
-        base = 1
-    elif stream['player_hosting'] == 'gdrive':
-        base = 2
-    elif stream['player_hosting'] == 'cda':
-        base = 3
-    elif stream['player_hosting'] == 'uqload':
-        base = 5
-    elif stream['player_hosting'] == 'streamtape':
-        base = 6
-    elif stream['translator_title'].lower() == 'ai':
-        base = 9
-    return base + _quality_bonus(stream.get('quality'))
+        return 2
+    if res >= 360:
+        return 3
+    return 4
 
 
 @stream_router.get('/stream/{content_type}/{content_id}.json')
