@@ -28,6 +28,41 @@ async def _api_get(path: str, params: dict = None) -> dict | None:
         return None
 
 
+async def get_tmdb_images(tmdb_id: int, media_type: str = "tv") -> dict:
+    """Fetch logo and background from TMDB images API.
+    
+    Args:
+        tmdb_id: TMDB ID
+        media_type: 'tv' or 'movie'
+    
+    Returns:
+        dict with 'logo' and 'background' URLs (or None)
+    """
+    result = {"logo": None, "background": None}
+    data = await _api_get(f"/{media_type}/{tmdb_id}/images", {"include_image_language": "en,null"})
+    if not data:
+        return result
+
+    # Logo: prefer English, then no-language, then first available
+    logos = data.get("logos", [])
+    if logos:
+        en_logo = next((l for l in logos if l.get("iso_639_1") == "en"), None)
+        null_logo = next((l for l in logos if not l.get("iso_639_1")), None)
+        best = en_logo or null_logo or logos[0]
+        if best.get("file_path"):
+            result["logo"] = f"{IMAGE_BASE}/original{best['file_path']}"
+
+    # Background: highest rated backdrop
+    backdrops = data.get("backdrops", [])
+    if backdrops:
+        # Sort by vote_average descending, pick best
+        best_bd = max(backdrops, key=lambda b: b.get("vote_average", 0))
+        if best_bd.get("file_path"):
+            result["background"] = f"{IMAGE_BASE}/original{best_bd['file_path']}"
+
+    return result
+
+
 async def get_anime_meta(tmdb_id: int, mal_id: str = None, imdb_id: str = None) -> dict | None:
     """Fetch anime series metadata from TMDB and return Stremio-compatible meta dict.
     

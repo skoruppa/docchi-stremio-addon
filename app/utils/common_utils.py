@@ -85,6 +85,18 @@ async def get_fanart_images(imdb_id: str = None, tvdb_id: int = None, tmdb_id: i
                     await r.release()
         except Exception:
             pass
+    # TMDB images API fallback for logo/background (works for both movies and series)
+    if tmdb_id and (not result.get("logo") or not result.get("background")):
+        try:
+            from app.api.tmdb import get_tmdb_images
+            media_type = "movie" if is_movie else "tv"
+            tmdb_images = await get_tmdb_images(int(tmdb_id) if not isinstance(tmdb_id, int) else tmdb_id, media_type)
+            if not result.get("logo") and tmdb_images.get("logo"):
+                result["logo"] = tmdb_images["logo"]
+            if not result.get("background") and tmdb_images.get("background"):
+                result["background"] = tmdb_images["background"]
+        except Exception:
+            pass
     return result
 
 
