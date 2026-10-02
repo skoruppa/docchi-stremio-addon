@@ -4,7 +4,9 @@ Uses /redirect (301) for cheap ID resolution, then CF-cached detail endpoints.
 See https://api.simkl.org/api-reference/redirect
 """
 import re
+import asyncio
 import logging
+import time as _time
 import aiohttp
 from config import Config
 
@@ -18,12 +20,58 @@ def _params(**extra) -> dict:
 HEADERS = {"User-Agent": "docchi-stremio/1.0"}
 
 
+# --- In-memory cache + dedup for /redirect calls ---
+# Prevents duplicate concurrent requests for the same ID (Stremio fires meta+stream in parallel)
+_redirect_cache: dict[str, tuple[tuple[int | None, str | None], float]] = {}
+_REDIRECT_CACHE_TTL = 300  # 5 min
+_redirect_locks: dict[str, asyncio.Lock] = {}
+
+
+def _redirect_cache_key(**id_params) -> str:
+    return "|".join(f"{k}={v}" for k, v in sorted(id_params.items()))
+
+
 async def _resolve_simkl_id(session: aiohttp.ClientSession, **id_params) -> tuple[int | None, str | None]:
     """Resolve any external ID to (simkl_id, type) via /redirect.
     
+    Uses in-memory cache + lock to deduplicate concurrent requests for the same ID.
     Returns (simkl_id, type_str) or (None, None).
     type_str is 'movies', 'tv', or 'anime'.
     """
+    cache_key = _redirect_cache_key(**id_params)
+
+    # Check cache first (no lock needed for read)
+    cached = _redirect_cache.get(cache_key)
+    if cached:
+        result, ts = cached
+        if _time.time() - ts < _REDIRECT_CACHE_TTL:
+            return result
+
+    # Acquire per-key lock to deduplicate concurrent calls
+    if cache_key not in _redirect_locks:
+        _redirect_locks[cache_key] = asyncio.Lock()
+    
+    async with _redirect_locks[cache_key]:
+        # Double-check after acquiring lock (another coroutine may have populated cache)
+        cached = _redirect_cache.get(cache_key)
+        if cached:
+            result, ts = cached
+            if _time.time() - ts < _REDIRECT_CACHE_TTL:
+                return result
+
+        # Actually call Simkl
+        result = await _do_redirect(session, **id_params)
+        _redirect_cache[cache_key] = (result, _time.time())
+
+        # Cleanup old lock if no longer needed
+        if len(_redirect_locks) > 200:
+            _redirect_locks.pop(cache_key, None)
+
+        return result
+
+
+async def _do_redirect(session: aiohttp.ClientSession, **id_params) -> tuple[int | None, str | None]:
+    """Actual /redirect HTTP call (no caching)."""
     params = _params(to="simkl", **id_params)
     try:
         async with session.get(
@@ -36,7 +84,6 @@ async def _resolve_simkl_id(session: aiohttp.ClientSession, **id_params) -> tupl
             if resp.status not in (301, 302):
                 return None, None
             location = resp.headers.get("Location", "")
-            # Parse: https://simkl.com/anime/12345/slug-name
             m = re.search(r"simkl\.com/(anime|tv|movies)/(\d+)", location)
             if m:
                 return int(m.group(2)), m.group(1)
@@ -153,12 +200,16 @@ async def get_episode_tvdb_mapping(mal_id: int) -> dict | None:
 async def get_ids_from_mal_by_imdb(imdb_id: str) -> int | None:
     """Resolve IMDB ID to MAL ID via Simkl.
     
-    Uses /redirect to get simkl_id, then /anime/{id} for MAL ID.
+    Cached + deduplicated to avoid burst requests from parallel stream+meta calls.
     Returns MAL ID (int) or None.
     """
     if not Config.SIMKL_CLIENT_ID or not imdb_id:
         return None
 
+    return await _cached_resolve("imdb_to_mal", imdb_id, _do_get_ids_from_mal_by_imdb, imdb_id)
+
+
+async def _do_get_ids_from_mal_by_imdb(imdb_id: str) -> int | None:
     try:
         async with aiohttp.ClientSession(timeout=TIMEOUT) as session:
             simkl_id, item_type = await _resolve_simkl_id(session, imdb=imdb_id)
@@ -190,12 +241,16 @@ async def get_ids_from_mal_by_imdb(imdb_id: str) -> int | None:
 async def get_ids_from_mal_by_tvdb(tvdb_id: int) -> int | None:
     """Resolve TVDB ID to MAL ID via Simkl.
     
-    Uses /redirect to get simkl_id, then /anime/{id} for MAL ID.
+    Cached + deduplicated to avoid burst requests from parallel stream+meta calls.
     Returns MAL ID (int) or None.
     """
     if not Config.SIMKL_CLIENT_ID or not tvdb_id:
         return None
 
+    return await _cached_resolve("tvdb_to_mal", str(tvdb_id), _do_get_ids_from_mal_by_tvdb, tvdb_id)
+
+
+async def _do_get_ids_from_mal_by_tvdb(tvdb_id: int) -> int | None:
     try:
         async with aiohttp.ClientSession(timeout=TIMEOUT) as session:
             simkl_id, item_type = await _resolve_simkl_id(session, tvdb=tvdb_id)
@@ -222,3 +277,39 @@ async def get_ids_from_mal_by_tvdb(tvdb_id: int) -> int | None:
         logging.warning(f"[Simkl] Failed to resolve tvdb:{tvdb_id}: {e}")
 
     return None
+
+
+# --- Top-level result cache + dedup for public functions ---
+_result_cache: dict[str, tuple] = {}  # key -> (result, timestamp)
+_RESULT_CACHE_TTL = 300  # 5 min
+_result_locks: dict[str, asyncio.Lock] = {}
+
+
+async def _cached_resolve(namespace: str, key: str, func, *args):
+    """Cache + deduplicate async function calls by namespace:key."""
+    cache_key = f"{namespace}:{key}"
+
+    cached = _result_cache.get(cache_key)
+    if cached:
+        result, ts = cached
+        if _time.time() - ts < _RESULT_CACHE_TTL:
+            return result
+
+    if cache_key not in _result_locks:
+        _result_locks[cache_key] = asyncio.Lock()
+
+    async with _result_locks[cache_key]:
+        # Double-check after lock
+        cached = _result_cache.get(cache_key)
+        if cached:
+            result, ts = cached
+            if _time.time() - ts < _RESULT_CACHE_TTL:
+                return result
+
+        result = await func(*args)
+        _result_cache[cache_key] = (result, _time.time())
+
+        if len(_result_locks) > 200:
+            _result_locks.pop(cache_key, None)
+
+        return result
