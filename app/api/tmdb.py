@@ -57,8 +57,14 @@ async def get_anime_meta(tmdb_id: int, mal_id: str = None, imdb_id: str = None) 
 
     eng = eng_data or {}
 
-    # Name: prefer Polish, fallback English
-    name = data.get("name") or eng.get("name") or data.get("original_name", "")
+    # Name: prefer Polish, fallback English (skip PL if it's the same as original = untranslated)
+    pol_name = data.get("name")
+    eng_name = eng.get("name")
+    original_name = data.get("original_name") or eng.get("original_name", "")
+    if pol_name and pol_name != original_name:
+        name = pol_name
+    else:
+        name = eng_name or pol_name or original_name
 
     # Description: detect if Polish is actually translated or just English copy
     description = data.get("overview") or None
@@ -180,8 +186,14 @@ async def get_movie_meta(tmdb_id: int, mal_id: str = None, imdb_id: str = None) 
 
     eng = eng_data or {}
 
-    # Name: prefer Polish, fallback English
-    name = data.get("title") or eng.get("title") or data.get("original_title", "")
+    # Name: prefer Polish, fallback English (skip PL if it's the same as original = untranslated)
+    pol_title = data.get("title")
+    eng_title = eng.get("title")
+    original_title = data.get("original_title") or eng.get("original_title", "")
+    if pol_title and pol_title != original_title:
+        name = pol_title
+    else:
+        name = eng_title or pol_title or original_title
 
     # Description: detect if Polish is actually translated
     description = data.get("overview") or None
