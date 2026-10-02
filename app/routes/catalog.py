@@ -182,13 +182,11 @@ async def addon_catalog(
                 elif id_mode == 'imdb':
                     if ids.get('imdb_id'):
                         meta['id'] = ids['imdb_id']
-                    elif ids.get('kitsu_id'):
-                        meta['id'] = f"kitsu:{ids['kitsu_id']}"
+                    # fallback: keep mal:X (already set)
                 elif id_mode == 'tvdb':
                     if ids.get('tvdb_id'):
                         meta['id'] = f"tvdb:{ids['tvdb_id']}"
-                    elif ids.get('kitsu_id'):
-                        meta['id'] = f"kitsu:{ids['kitsu_id']}"
+                    # fallback: keep mal:X (already set)
 
         # Fallback: use poster as background when no backdrop available
         for meta in meta_previews:

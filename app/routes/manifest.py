@@ -64,9 +64,9 @@ def get_manifest_for_mode(id_mode: str) -> dict:
     if id_mode == 'kitsu':
         manifest = {**manifest, 'id': 'com.skoruppa.docchi-stremio-addon-kitsu', 'idPrefixes': ['kitsu', 'mal', 'tt', 'tvdb']}
     elif id_mode == 'imdb':
-        manifest = {**manifest, 'id': 'com.skoruppa.docchi-stremio-addon-imdb', 'idPrefixes': ['tt', 'kitsu', 'mal', 'tvdb']}
+        manifest = {**manifest, 'id': 'com.skoruppa.docchi-stremio-addon-imdb', 'idPrefixes': ['tt', 'mal', 'kitsu', 'tvdb']}
     elif id_mode == 'tvdb':
-        manifest = {**manifest, 'id': 'com.skoruppa.docchi-stremio-addon-tvdb', 'idPrefixes': ['tvdb', 'kitsu', 'mal', 'tt']}
+        manifest = {**manifest, 'id': 'com.skoruppa.docchi-stremio-addon-tvdb', 'idPrefixes': ['tvdb', 'mal', 'kitsu', 'tt']}
     return manifest
 
 
