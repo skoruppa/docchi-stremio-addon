@@ -203,22 +203,23 @@ async def process_players(players, content_id=None, content_type='series', is_vi
 
 
 def sort_priority(stream):
-    """Sort priority — lower value = shown higher.
+    """Sort key for stream ordering — returns a tuple for multi-level sort.
 
-    Primary sort: quality (1080p before 720p before 480p, etc.)
-    Secondary sort (within same quality): proxy tier
-      Tier 0: Top direct players (lycoris, rumble, gdrive)
-      Tier 1: Default non-proxy players (dailymotion, okru, dtube, etc.)
-      Tier 2: VK (no proxy but can be inverted)
-      Tier 3: Proxy non-VIP (cda, sibnet)
-      Tier 4: VIP/proxy players (filemoon, uqload, streamtape, vidmoly, voe, dood)
-    AI translations always last regardless of quality.
+    Sort order:
+      1. Quality (1080p > 720p > 480p, etc.)
+      2. Proxy tier (direct > VK > proxy non-VIP > VIP/proxy)
+      3. Player name (groups same player together within same quality+tier)
+
+    This ensures that e.g. two dtube streams at 1080p from different translator
+    groups appear next to each other, not split by other players.
+
+    AI translations always sort last.
     """
     player = stream['player_hosting']
 
     # AI translations — always lowest
     if stream.get('translator_title', '').lower() == 'ai':
-        return 900
+        return (99, 99, player)
 
     # Quality as primary sort key (lower = better)
     quality_rank = _quality_rank(stream.get('quality'))
@@ -240,9 +241,8 @@ def sort_priority(stream):
     else:
         tier = 2  # default non-proxy (rumble, dailymotion, okru, dtube, etc.)
 
-    # quality_rank: 0-5 range (x10 to make it primary)
-    # tier: 0-4 range (secondary, breaks ties within same quality)
-    return quality_rank * 10 + tier
+    # Player name as tertiary key — groups same player together
+    return (quality_rank, tier, player)
 
 
 def _quality_rank(quality: str) -> int:
