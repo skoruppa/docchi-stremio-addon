@@ -7,7 +7,7 @@ from config import Config
 from app.utils.anime_mapping import get_ids_from_mal_id, get_all_seasons_for_tvdb_id
 from app.db import execute
 
-CACHE_TTL = 2592000  # 1 month
+CACHE_TTL = 604800  # 7 days
 CACHE_TTL_UPCOMING = 43200  # 12 hours for "Upcoming" series (status may change)
 VIDEOS_TTL_AIRING = 3600  # 1 hour for airing series
 VIDEOS_TTL_FINISHED = 86400  # 1 day for finished series (detects new seasons quickly)
@@ -73,9 +73,11 @@ def _meta_ttl(meta: dict) -> int:
     """Get appropriate TTL for a meta entry based on status and completeness."""
     if meta.get('status') == 'Upcoming':
         return CACHE_TTL_UPCOMING
-    # Re-fetch sooner if logo is missing (fanart.tv may have added it since)
+    # Re-fetch sooner if logo is missing (fanart.tv/TMDB may have added it since)
     if not meta.get('logo'):
-        return 86400 * 3  # 3 days
+        return 86400  # 1 day
+    if meta.get('status') in ('Continuing', None):
+        return 86400  # 1 day for airing series
     return CACHE_TTL
 
 
