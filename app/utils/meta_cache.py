@@ -601,6 +601,41 @@ async def _resolve_mal_for_season_via_anilist(known_mal_id: str, steps: int) -> 
     return await get_tv_sequel_mal_id(int(known_mal_id), steps)
 
 
+def _apply_translation(meta: dict, expired_meta: dict | None, is_untranslated: bool):
+    """Apply cached Polish translation to meta, or mark for translation.
+    
+    Stores `_original_description` alongside translation so we can detect
+    when the source description changes and trigger re-translation.
+    
+    Args:
+        meta: New meta dict with English description
+        expired_meta: Previous cached meta (may have Polish translation)
+        is_untranslated: Whether the new description is English (needs translation)
+    """
+    if not is_untranslated:
+        return  # Already Polish (e.g. from TVDB Polish translation)
+
+    new_desc = meta.get('description')
+    if not new_desc:
+        return
+
+    if expired_meta and expired_meta.get('description') and not expired_meta.get('_untranslated_description'):
+        # We have a previous Polish translation
+        old_original = expired_meta.get('_original_description')
+        if old_original and old_original != new_desc:
+            # Source description changed — need re-translation
+            meta['_untranslated_description'] = True
+            meta['_original_description'] = new_desc
+        else:
+            # Source unchanged (or no original stored) — reuse translation
+            meta['description'] = expired_meta['description']
+            meta['_original_description'] = old_original or new_desc
+    else:
+        # No previous translation — mark for cron
+        meta['_untranslated_description'] = True
+        meta['_original_description'] = new_desc
+
+
 async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
     """Fetch metadata from TVDB (primary), Kitsu, or MAL (fallbacks) and cache it.
     
@@ -722,10 +757,7 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
             if meta and meta.get('name'):
                 is_untranslated = meta.pop('_untranslated', False)
                 await _fill_genres_from_docchi(meta, mal_id)
-                if is_untranslated and expired_meta and expired_meta.get('description') and not expired_meta.get('_untranslated_description'):
-                    meta['description'] = expired_meta['description']
-                elif is_untranslated:
-                    meta['_untranslated_description'] = True
+                _apply_translation(meta, expired_meta, is_untranslated)
                 await _enrich_poster_from_mal(meta, mal_id)
                 await set_cached_meta(mal_id, meta)
                 return _with_genre_links(meta), mal_id
@@ -754,10 +786,7 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                 if meta and meta.get('name'):
                     is_untranslated = meta.pop('_untranslated', False)
                     await _fill_genres_from_docchi(meta, mal_id)
-                    if is_untranslated and expired_meta and expired_meta.get('description') and not expired_meta.get('_untranslated_description'):
-                        meta['description'] = expired_meta['description']
-                    elif is_untranslated:
-                        meta['_untranslated_description'] = True
+                    _apply_translation(meta, expired_meta, is_untranslated)
                     await _enrich_poster_from_mal(meta, mal_id)
                     await set_cached_meta(mal_id, meta)
                     logging.info(f"[TMDB movie] Success for mal:{mal_id} via tmdb_id={_tmdb_id}")
@@ -789,12 +818,7 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                 if meta and meta.get('name'):
                     is_untranslated = meta.pop('_untranslated', False)
                     await _fill_genres_from_docchi(meta, mal_id)
-                    if is_untranslated:
-                        # Check if we have a previous translation from expired cache
-                        if expired_meta and expired_meta.get('description') and not expired_meta.get('_untranslated_description'):
-                            meta['description'] = expired_meta['description']
-                        else:
-                            meta['_untranslated_description'] = True
+                    _apply_translation(meta, expired_meta, is_untranslated)
                     await _enrich_poster_from_mal(meta, mal_id)
                     await set_cached_meta(mal_id, meta)
                     return _with_genre_links(meta), mal_id
@@ -826,10 +850,7 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
                 if meta and meta.get('name'):
                     is_untranslated = meta.pop('_untranslated', False)
                     await _fill_genres_from_docchi(meta, mal_id)
-                    if is_untranslated and expired_meta and expired_meta.get('description') and not expired_meta.get('_untranslated_description'):
-                        meta['description'] = expired_meta['description']
-                    elif is_untranslated:
-                        meta['_untranslated_description'] = True
+                    _apply_translation(meta, expired_meta, is_untranslated)
                     await _enrich_poster_from_mal(meta, mal_id)
                     await set_cached_meta(mal_id, meta)
                     logging.info(f"[TMDB meta] Success for mal:{mal_id} via tmdb_id={_tmdb_id}")
@@ -847,11 +868,7 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
             if meta and meta.get('name'):
                 await _fill_genres_from_docchi(meta, mal_id)
                 # Kitsu only has English descriptions — mark for translation
-                if meta.get('description'):
-                    if expired_meta and expired_meta.get('description') and not expired_meta.get('_untranslated_description'):
-                        meta['description'] = expired_meta['description']
-                    else:
-                        meta['_untranslated_description'] = True
+                _apply_translation(meta, expired_meta, bool(meta.get('description')))
                 await _enrich_poster_from_mal(meta, mal_id)
                 await set_cached_meta(mal_id, meta)
                 return _with_genre_links(meta), mal_id
@@ -866,11 +883,7 @@ async def fetch_and_cache_meta(content_id: str, is_vip: bool = False):
             if meta:
                 await _fill_genres_from_docchi(meta, mal_id)
                 # MAL only has English descriptions — mark for translation
-                if meta.get('description'):
-                    if expired_meta and expired_meta.get('description') and not expired_meta.get('_untranslated_description'):
-                        meta['description'] = expired_meta['description']
-                    else:
-                        meta['_untranslated_description'] = True
+                _apply_translation(meta, expired_meta, bool(meta.get('description')))
                 await set_cached_meta(mal_id, meta)
                 return _with_genre_links(meta), mal_id
         except Exception:
