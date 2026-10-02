@@ -490,7 +490,7 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
 
     # Fanart for logo, background (series-level) — already fetched in parallel above
     logo = fanart.get("logo")
-    background = background or fanart.get("background")
+    background = fanart.get("background") or background
     # Only use fanart poster as absolute last resort (it's series-level, not season-specific)
     if not poster:
         poster = fanart.get("poster") or series_ext.get("image")
