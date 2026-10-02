@@ -39,16 +39,17 @@ async def get_tmdb_images(tmdb_id: int, media_type: str = "tv") -> dict:
         dict with 'logo' and 'background' URLs (or None)
     """
     result = {"logo": None, "background": None}
-    data = await _api_get(f"/{media_type}/{tmdb_id}/images", {"include_image_language": "en,null"})
+    data = await _api_get(f"/{media_type}/{tmdb_id}/images", {"include_image_language": "en,ja,null"})
     if not data:
         return result
 
-    # Logo: prefer English, then no-language, then first available
+    # Logo: prefer English, then no-language, then Japanese, then first available
     logos = data.get("logos", [])
     if logos:
         en_logo = next((l for l in logos if l.get("iso_639_1") == "en"), None)
         null_logo = next((l for l in logos if not l.get("iso_639_1")), None)
-        best = en_logo or null_logo or logos[0]
+        ja_logo = next((l for l in logos if l.get("iso_639_1") == "ja"), None)
+        best = en_logo or null_logo or ja_logo or logos[0]
         if best.get("file_path"):
             result["logo"] = f"{IMAGE_BASE}/original{best['file_path']}"
 
