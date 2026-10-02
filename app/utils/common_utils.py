@@ -11,18 +11,35 @@ from async_tls_client import AsyncSession
 
 
 async def get_fanart_images(imdb_id: str = None, tvdb_id: int = None, tmdb_id: int = None, is_movie: bool = False) -> dict:
-    """Fetch logo/background/poster from fanart.tv (requires API key) with metahub logo/background fallback.
+    """Fetch logo/background/poster from multiple sources.
+    
+    Priority: TMDB images (has Polish logos) > fanart.tv > metahub.
     
     Args:
-        is_movie: If True, send tmdb_id to /movies/ endpoint. If False (series), only use /tv/ with tvdb_id.
+        is_movie: If True, use TMDB movie type and fanart.tv /movies/ endpoint.
     """
     import asyncio
     TIMEOUT = aiohttp.ClientTimeout(total=5)
     result = {}
+
+    # 1. TMDB images API (best source for logos — has Polish, English, Japanese)
+    if tmdb_id:
+        try:
+            from app.api.tmdb import get_tmdb_images
+            media_type = "movie" if is_movie else "tv"
+            _tmdb_id = int(tmdb_id) if not isinstance(tmdb_id, int) else tmdb_id
+            tmdb_images = await get_tmdb_images(_tmdb_id, media_type)
+            if tmdb_images.get("logo"):
+                result["logo"] = tmdb_images["logo"]
+            if tmdb_images.get("background"):
+                result["background"] = tmdb_images["background"]
+        except Exception:
+            pass
+
+    # 2. fanart.tv (good for backgrounds and posters)
     if Config.FANART_API_KEY and (tvdb_id or tmdb_id or imdb_id):
         try:
             async with aiohttp.ClientSession(timeout=TIMEOUT) as session:
-                # Fetch tvdb and tmdb fanart in parallel
                 tasks = {}
                 if tvdb_id:
                     tasks['tvdb'] = session.get(f"https://webservice.fanart.tv/v3/tv/{tvdb_id}?api_key={Config.FANART_API_KEY}")
@@ -41,27 +58,32 @@ async def get_fanart_images(imdb_id: str = None, tvdb_id: int = None, tmdb_id: i
                     resp = responses['tvdb']
                     if resp.status == 200:
                         data = await resp.json()
-                        result["logo"] = _fanart_first(data.get("hdtvlogo") or data.get("clearlogo"))
-                        result["background"] = _fanart_first(data.get("showbackground"))
-                        result["poster"] = _fanart_first(data.get("tvposter"))
+                        if not result.get("logo"):
+                            result["logo"] = _fanart_first(data.get("hdtvlogo") or data.get("clearlogo"))
+                        if not result.get("background"):
+                            result["background"] = _fanart_first(data.get("showbackground"))
+                        if not result.get("poster"):
+                            result["poster"] = _fanart_first(data.get("tvposter"))
                     await resp.release()
                 
-                if not result.get("logo") and 'tmdb' in responses:
+                if 'tmdb' in responses:
                     resp = responses['tmdb']
                     if resp.status == 200:
                         data = await resp.json()
-                        result["logo"] = result.get("logo") or _fanart_first(data.get("hdmovielogo") or data.get("movielogo"))
-                        result["background"] = result.get("background") or _fanart_first(data.get("moviebackground"))
-                        result["poster"] = result.get("poster") or _fanart_first(data.get("movieposter"))
+                        if not result.get("logo"):
+                            result["logo"] = _fanart_first(data.get("hdmovielogo") or data.get("movielogo"))
+                        if not result.get("background"):
+                            result["background"] = _fanart_first(data.get("moviebackground"))
+                        if not result.get("poster"):
+                            result["poster"] = _fanart_first(data.get("movieposter"))
                     await resp.release()
-                elif 'tmdb' in responses:
-                    await responses['tmdb'].release()
         except Exception:
             pass
+
+    # 3. metahub (IMDB-based fallback)
     if imdb_id and (not result.get("logo") or not result.get("background")):
         try:
             async with aiohttp.ClientSession(timeout=TIMEOUT) as session:
-                # Fetch metahub logo and background in parallel
                 meta_tasks = []
                 need_logo = not result.get("logo")
                 need_bg = not result.get("background")
@@ -85,18 +107,7 @@ async def get_fanart_images(imdb_id: str = None, tvdb_id: int = None, tmdb_id: i
                     await r.release()
         except Exception:
             pass
-    # TMDB images API fallback for logo/background (works for both movies and series)
-    if tmdb_id and (not result.get("logo") or not result.get("background")):
-        try:
-            from app.api.tmdb import get_tmdb_images
-            media_type = "movie" if is_movie else "tv"
-            tmdb_images = await get_tmdb_images(int(tmdb_id) if not isinstance(tmdb_id, int) else tmdb_id, media_type)
-            if not result.get("logo") and tmdb_images.get("logo"):
-                result["logo"] = tmdb_images["logo"]
-            if not result.get("background") and tmdb_images.get("background"):
-                result["background"] = tmdb_images["background"]
-        except Exception:
-            pass
+
     return result
 
 
