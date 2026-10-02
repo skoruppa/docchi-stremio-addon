@@ -16,7 +16,7 @@ _MAX_MEM_CACHE = 50  # Max entries in memory (reduced for 512MB environments)
 _mem_cache: dict[str, tuple[dict, float]] = {}  # mal_id -> (meta, timestamp)
 _videos_mem_cache: dict[str, tuple[list, float, int, list]] = {}  # mal_id -> (videos, timestamp, ttl_override, season_posters)
 # Per-season episode cache TTLs (data lives in DB, not RAM)
-_SEASON_CACHE_TTL_FINISHED = 86400  # 1 day for finished seasons
+_SEASON_CACHE_TTL_FINISHED = 1209600  # 2 weeks for finished seasons
 _SEASON_CACHE_TTL_ONGOING = 1800  # 30 min for ongoing (last) season
 
 
