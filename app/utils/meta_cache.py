@@ -1406,7 +1406,7 @@ async def fetch_videos(mal_id: str) -> dict | str:
 
                         last_season = covered_seasons[-1]
                         season_tasks = [
-                            _fetch_season_cached(tvdb_id, s, "pol", is_last_season=False)
+                            _fetch_season_cached(tvdb_id, s, "pol", is_last_season=(s == last_season))
                             for s in covered_seasons
                         ]
                         season_results = await asyncio.gather(*season_tasks)
@@ -1438,7 +1438,7 @@ async def fetch_videos(mal_id: str) -> dict | str:
 
                         last_season = covered_seasons[-1]
                         season_tasks = [
-                            _fetch_season_cached(tvdb_id, s, "pol", is_last_season=False)
+                            _fetch_season_cached(tvdb_id, s, "pol", is_last_season=(s == last_season))
                             for s in covered_seasons
                         ]
                         season_results = await asyncio.gather(*season_tasks)
