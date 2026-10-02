@@ -28,35 +28,67 @@ _overrides: dict = {}  # mal_id (str) -> override fields
 
 
 def _load_overrides():
-    """Load manual mapping overrides from JSON file, apply to Redis, and keep in memory."""
+    """Load manual mapping overrides from JSON file, apply to Redis, and keep in memory.
+    
+    Tracks per-entry hashes in Redis — only clears meta/videos cache for new or modified entries.
+    """
     global _overrides
     try:
         with open(OVERRIDES_FILE, 'r') as f:
             data = json.load(f)
         new_overrides = {k: v for k, v in data.items() if not k.startswith('_')}
-        if new_overrides:
-            logging.info(f"Loaded {len(new_overrides)} mapping overrides")
-            if _redis_client:
-                ttl = 86400 * 7
-                for mal_id, override in new_overrides.items():
-                    # Read existing data from Redis, merge override, write back
-                    existing = _redis_client.get(f"mal:{mal_id}")
-                    item = json.loads(existing) if existing else {}
-                    item['mal_id'] = int(mal_id)
-                    for key in ('kitsu_id', 'tvdb_id'):
-                        if key in override:
-                            item[key] = override[key]
-                    if 'imdb_id' in override:
-                        item['imdb_id'] = override['imdb_id']
-                    if 'tmdb_id' in override:
-                        item['themoviedb_id'] = override['tmdb_id']
-                    if 'tvdb_season' in override:
-                        if override['tvdb_season'] is not None:
-                            item['season'] = {'tvdb': override['tvdb_season']}
-                        else:
-                            item.pop('season', None)
-                    _redis_client.setex(f"mal:{mal_id}", ttl, json.dumps(item))
-                    _redis_client.delete(f"resolved:mal:{mal_id}")
+        if not new_overrides:
+            _overrides = {}
+            return
+
+        logging.info(f"Loaded {len(new_overrides)} mapping overrides")
+
+        if _redis_client:
+            import hashlib
+            changed_mal_ids = []
+            ttl = 86400 * 7
+            for mal_id, override in new_overrides.items():
+                # Detect changed entries
+                entry_hash = hashlib.md5(json.dumps(override, sort_keys=True).encode()).hexdigest()
+                prev_hash = _redis_client.get(f"override:hash:{mal_id}")
+                if prev_hash != entry_hash:
+                    changed_mal_ids.append(mal_id)
+                    _redis_client.setex(f"override:hash:{mal_id}", ttl, entry_hash)
+
+                # Always apply override to Redis mapping
+                existing = _redis_client.get(f"mal:{mal_id}")
+                item = json.loads(existing) if existing else {}
+                item['mal_id'] = int(mal_id)
+                for key in ('kitsu_id', 'tvdb_id'):
+                    if key in override:
+                        item[key] = override[key]
+                if 'imdb_id' in override:
+                    item['imdb_id'] = override['imdb_id']
+                if 'tmdb_id' in override:
+                    item['themoviedb_id'] = override['tmdb_id']
+                if 'tvdb_season' in override:
+                    if override['tvdb_season'] is not None:
+                        item['season'] = {'tvdb': override['tvdb_season']}
+                    else:
+                        item.pop('season', None)
+                _redis_client.setex(f"mal:{mal_id}", ttl, json.dumps(item))
+                _redis_client.delete(f"resolved:mal:{mal_id}")
+
+            # Clear meta/videos cache only for changed entries
+            if changed_mal_ids:
+                logging.info(f"Override changes detected for {len(changed_mal_ids)} entries, clearing cache: {changed_mal_ids}")
+                import sqlite3
+                from config import Config
+                try:
+                    conn = sqlite3.connect(Config.DATABASE)
+                    placeholders = ','.join('?' * len(changed_mal_ids))
+                    conn.execute(f"DELETE FROM meta_cache WHERE mal_id IN ({placeholders})", changed_mal_ids)
+                    conn.execute(f"DELETE FROM videos_cache WHERE mal_id IN ({placeholders})", changed_mal_ids)
+                    conn.commit()
+                    conn.close()
+                except Exception as e:
+                    logging.warning(f"Failed to clear cache for changed overrides: {e}")
+
         _overrides = new_overrides
     except FileNotFoundError:
         _overrides = {}
