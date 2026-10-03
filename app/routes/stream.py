@@ -182,10 +182,14 @@ async def process_players(players, content_id=None, content_type='series', is_vi
             if player == 'uqload' and PROXIFY_STREAMS:
                 stream_data['behaviorHints']['notWebReady'] = True
             if stream.get('headers'):
-                stream_data['behaviorHints'].update({
-                    'proxyHeaders': stream['headers'],
-                    'notWebReady': True
-                })
+                # Extract subtitles if player provided them (e.g. NanaSubs ASS subs)
+                if 'subtitles' in stream['headers']:
+                    stream_data['subtitles'] = stream['headers'].pop('subtitles')
+                if 'request' in stream['headers']:
+                    stream_data['behaviorHints'].update({
+                        'proxyHeaders': stream['headers'],
+                        'notWebReady': True
+                    })
 
             streams['streams'].append(stream_data)
 
