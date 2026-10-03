@@ -229,7 +229,7 @@ def sort_priority(stream):
     quality_rank = _quality_rank(stream.get('quality'))
 
     # Proxy tier as secondary sort key
-    _TOP_DIRECT = {'lycoris', 'gdrive'}
+    _TOP_DIRECT = {'lycoris', 'gdrive', 'nanasubs'}
     _VK = {'vk'}
     _PROXY_NON_VIP = {'cda', 'sibnet'}
     _VIP_PLAYERS = {'filemoon', 'uqload', 'streamtape', 'vidmoly', 'voe', 'dood'}
