@@ -320,17 +320,23 @@ def _unpack_videos_cache(data) -> tuple[list, list]:
 def _videos_ttl(videos: list) -> int:
     """Determine TTL for videos cache.
     
-    - If has future episodes: min(3h, time until next episode premiere)
-    - If all episodes aired: 1 month
+    - Suspiciously few episodes (1-2): 1 hour (likely Kitsu fallback, retry soon)
+    - If has future episodes: min(1h, time until next episode premiere)
+    - If all episodes aired: 1 day
     """
     from datetime import datetime, timezone
+
+    # If only 1-2 episodes, this is likely a Kitsu fallback — retry quickly
+    if len(videos) <= 2:
+        return VIDEOS_TTL_AIRING  # 1h
+
     now = datetime.now(timezone.utc)
     next_premiere = None
     
     for v in videos:
         released = v.get('released')
         if not released:
-            # No date = probably still airing, use 3h
+            # No date = probably still airing, use 1h
             return VIDEOS_TTL_AIRING
         try:
             ep_date = datetime.fromisoformat(released.replace('Z', '+00:00'))
