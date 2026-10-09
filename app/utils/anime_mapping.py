@@ -112,8 +112,8 @@ def _load_overrides():
 def load_mapping():
     """Load anime mapping from file to Redis or TinyDB (run once at startup)"""
     global _loaded
-    _load_overrides()  # Always reload overrides
     if _loaded:
+        _load_overrides()  # Reload overrides even if mapping already loaded
         return
     
     try:
@@ -151,6 +151,9 @@ def load_mapping():
     except Exception as e:
         logging.error(f"Failed to load anime mapping: {e}")
         _loaded = True  # Don't retry on every request if Redis is full
+
+    # Apply overrides AFTER base mapping is loaded (so they override tvdb: reverse lookups)
+    _load_overrides()
 
 def _load_to_redis(data):
     """Load only necessary fields to Redis with TTL"""
