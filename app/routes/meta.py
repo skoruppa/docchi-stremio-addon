@@ -111,6 +111,10 @@ async def addon_meta(request: Request, meta_type: str, meta_id: str):
             meta['seasonPosters'] = season_posters
             app_extras = meta.get('app_extras', {})
             app_extras['seasonPosters'] = season_posters
+            # Build keyed map for clients that expect {season_number: poster_url}
+            season_nums = sorted(set(v.get('season') for v in meta.get('videos', []) if v.get('season') is not None and v.get('season') >= 0))
+            if len(season_nums) == len(season_posters):
+                app_extras['seasonPosterByNumber'] = {str(s): p for s, p in zip(season_nums, season_posters)}
             meta['app_extras'] = app_extras
 
     # Remap video IDs from mal:X:Y to kitsu:X:Y where possible
