@@ -74,6 +74,19 @@ def _load_overrides():
                 _redis_client.setex(f"mal:{mal_id}", ttl, json.dumps(item))
                 _redis_client.delete(f"resolved:mal:{mal_id}")
 
+                # Update reverse lookups (tvdb: and imdb:) so get_all_seasons_for_tvdb_id works
+                if item.get('tvdb_id'):
+                    tvdb_key = f"tvdb:{item['tvdb_id']}"
+                    existing_tvdb = _redis_client.get(tvdb_key)
+                    tvdb_list = json.loads(existing_tvdb) if existing_tvdb else []
+                    if not isinstance(tvdb_list, list):
+                        tvdb_list = [tvdb_list]
+                    # Remove old entry for this mal_id, add updated
+                    tvdb_list = [e for e in tvdb_list if e.get('mal_id') != int(mal_id)]
+                    tvdb_list.append(item)
+                    tvdb_list.sort(key=lambda x: int(x.get('season', {}).get('tvdb', 0) if isinstance(x.get('season'), dict) else 0))
+                    _redis_client.setex(tvdb_key, ttl, json.dumps(tvdb_list))
+
             # Clear meta/videos cache only for changed entries
             if changed_mal_ids:
                 logging.info(f"Override changes detected for {len(changed_mal_ids)} entries, clearing cache: {changed_mal_ids}")
