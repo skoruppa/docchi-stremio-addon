@@ -170,6 +170,17 @@ async def addon_meta(request: Request, meta_type: str, meta_id: str):
     if not meta.get('background') and meta.get('poster'):
         meta['background'] = meta['poster']
 
+    # English mode: swap Polish description for original English
+    is_english = '/meta_en/' in request.url.path
+    if is_english:
+        original = meta.get('_original_description')
+        if original:
+            meta['description'] = original
+        # Also swap untranslated episode titles/overviews back to English (they already are English)
+        # Remove internal translation flags from response
+        meta.pop('_original_description', None)
+        meta.pop('_untranslated_description', None)
+
     response_data = {'meta': meta}
     if len(_response_cache) >= _MAX_RESPONSE_CACHE:
         # Evict oldest entry

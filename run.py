@@ -137,6 +137,10 @@ app.include_router(catalog_router, prefix=f"/{Config.VIP_PATH}")
 app.include_router(meta_router, prefix=f"/{Config.VIP_PATH}")
 app.include_router(stream_router, prefix=f"/{Config.VIP_PATH}")
 
+# Register meta-only English addon
+app.include_router(manifest_router, prefix="/meta_en")
+app.include_router(meta_router, prefix="/meta_en")
+
 
 # Template routes
 @app.get('/')
@@ -181,6 +185,21 @@ async def index_vip(request: Request):
         "manifest_magnet": manifest_magnet,
         "version": __version__,
         "id_mode": "imdb",
+    })
+
+
+@app.get('/meta_en')
+@app.get('/meta_en/configure')
+async def index_meta_en(request: Request):
+    """Render the meta-only English addon page"""
+    manifest_url = f'{Config.PROTOCOL}://{Config.REDIRECT_URL}/meta_en/manifest.json'
+    manifest_magnet = f'stremio://{Config.REDIRECT_URL}/meta_en/manifest.json'
+    return templates.TemplateResponse(request, "index.html", {
+        "logged_in": True,
+        "manifest_url": manifest_url,
+        "manifest_magnet": manifest_magnet,
+        "version": __version__,
+        "id_mode": "meta_en",
     })
 
 

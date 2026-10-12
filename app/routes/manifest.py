@@ -58,6 +58,20 @@ MANIFEST = {
 VALID_ID_MODES = {'mal', 'kitsu', 'imdb', 'tvdb'}
 
 
+MANIFEST_META_EN = {
+    'id': 'com.skoruppa.docchi-meta-en',
+    'version': __version__,
+    'name': 'Docchi Meta (English)',
+    'logo': 'https://stremio.docci.pl/static/logo.png',
+    'description': 'Rich anime metadata — backgrounds, logos, season posters, trailers, cast. Powered by TVDB, TMDB, Kitsu & fanart.tv.',
+    'types': ['anime', 'series', 'movie'],
+    'catalogs': [],
+    'behaviorHints': {'configurable': True, 'configurationRequired': False},
+    'resources': ['meta'],
+    'idPrefixes': ['mal', 'kitsu', 'tt', 'tvdb'],
+}
+
+
 def get_manifest_for_mode(id_mode: str) -> dict:
     """Get manifest adjusted for the selected ID mode."""
     manifest = dict(MANIFEST)
@@ -75,8 +89,13 @@ async def addon_manifest(request: Request):
     """Provides the manifest for the addon"""
     from config import Config
 
-    # Detect ID mode from URL prefix
     path = request.url.path
+
+    # Meta-only English addon
+    if '/meta_en/' in path:
+        return respond_with(MANIFEST_META_EN, 7200)
+
+    # Detect ID mode from URL prefix
     id_mode = 'mal'  # default
     for mode in VALID_ID_MODES:
         if f'/{mode}/' in path:

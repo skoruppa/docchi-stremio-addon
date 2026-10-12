@@ -189,6 +189,8 @@ async def get_anime_meta(tmdb_id: int, mal_id: str = None, imdb_id: str = None) 
     }
     if _untranslated:
         result["_untranslated"] = True
+    if eng.get("overview"):
+        result["_original_description"] = eng["overview"]
     return result
 
 
@@ -323,6 +325,8 @@ async def get_movie_meta(tmdb_id: int, mal_id: str = None, imdb_id: str = None) 
         result["app_extras"] = {"cast": cast_extras}
     if _untranslated:
         result["_untranslated"] = True
+    if eng.get("overview"):
+        result["_original_description"] = eng["overview"]
     return result
 
 
