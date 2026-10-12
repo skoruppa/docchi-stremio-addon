@@ -60,7 +60,8 @@ async def addon_meta(request: Request, meta_type: str, meta_id: str):
         meta_id = meta_id.replace("_", ":")
 
     # Check in-memory response cache first (avoids all processing)
-    cache_key = (meta_id, is_vip)
+    is_english = '/meta_en/' in request.url.path
+    cache_key = (meta_id, is_vip, is_english)
     if cache_key in _response_cache:
         data, cache_time, ts = _response_cache[cache_key]
         if time.time() - ts < _RESPONSE_CACHE_TTL:
@@ -171,7 +172,6 @@ async def addon_meta(request: Request, meta_type: str, meta_id: str):
         meta['background'] = meta['poster']
 
     # English mode: swap Polish description for original English
-    is_english = '/meta_en/' in request.url.path
     if is_english:
         original = meta.get('_original_description')
         if original:
