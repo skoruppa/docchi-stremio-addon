@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    Docchi Meta — Anime Metadata for Stremio
+{% endblock %}
+
+{% block content %}
+    <div id="toast" class="toast-notification">
+        <i class="bi bi-check-circle me-2"></i>
+        <span id="toast-message"></span>
+    </div>
+    
+    <header class="text-center mb-5">
+        <div class="d-flex align-items-center justify-content-center mb-3">
+            <img src="https://docchi.pl/static/img/logo.svg" alt="Docchi" class="logo-inline me-3">
+            <h1 class="display-5 fw-bold mb-0">
+                Docchi Meta <small class="text-white-50 fs-6">English</small>
+            </h1>
+        </div>
+        <p class="text-white-50 mt-3 d-none d-md-block">
+            Rich anime metadata for <a href="https://www.stremio.com/" target="_blank" class="text-accent">Stremio</a> — 
+            backgrounds, logos, season posters, trailers and cast info
+        </p>
+        <p class="text-white-50 small d-none d-md-block">
+            Powered by TVDB, TMDB, Kitsu, MAL & fanart.tv — meta only, no streams
+        </p>
+    </header>
+
+    <div class="carousel-container">
+        <div class="carousel-track" id="trending-carousel"></div>
+    </div>
+    
+    <main>
+        <div class="row justify-content-center">
+            <div class="col-12 col-md-10 col-lg-8">
+                <div class="card border-0">
+                    <div class="card-body p-4 p-md-5">
+                        <p class="text-center text-white-50 mb-4">
+                            Enhance your anime library with high-quality metadata — works alongside any other addon
+                        </p>
+                        
+                        <div class="mb-4">
+                            <label for="manifest_url" class="form-label text-white-50 small">Manifest URL</label>
+                            <div class="input-group">
+                                <input id="manifest_url" class="form-control" type="text" value="{{ manifest_url }}" readonly>
+                                <button class="btn btn-outline-warning" onclick="copy_to_clipboard()" title="Copy">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                            <button class="btn btn-primary btn-lg px-4" onclick="copy_to_clipboard()">
+                                <i class="bi bi-clipboard me-2"></i>Copy URL
+                            </button>
+                            <button class="btn btn-primary btn-lg px-4" onclick="location.href='{{ manifest_magnet }}'">
+                                <i class="bi bi-download me-2"></i>Install in Stremio
+                            </button>
+                        </div>
+
+                        <div class="mt-4 text-center">
+                            <p class="text-white-50 small mb-0">
+                                <i class="bi bi-info-circle me-1"></i>
+                                This addon provides metadata only (no catalogs or streams).
+                                It supports MAL, Kitsu, IMDB and TVDB IDs.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4 text-center text-white-50">
+                    <small>
+                        Copy the URL and paste it in Stremio addon settings, or click "Install in Stremio"
+                    </small>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        let currentIndex = 0;
+        let autoScrollInterval;
+        let animeCount = 0;
+        
+        async function loadTrendingAnime() {
+            try {
+                const response = await fetch('/catalog/series/trending.json');
+                const data = await response.json();
+                const carousel = document.getElementById('trending-carousel');
+                animeCount = data.metas.length;
+                
+                data.metas.forEach((anime) => {
+                    const card = document.createElement('div');
+                    card.className = 'anime-card';
+                    card.innerHTML = `
+                        <div class="anime-cover">
+                            <img src="${anime.poster}" alt="${anime.name}">
+                            <div class="anime-overlay">
+                                <h3 class="anime-title">${anime.name}</h3>
+                            </div>
+                        </div>
+                    `;
+                    carousel.appendChild(card);
+                });
+                
+                startAutoScroll();
+            } catch (error) {
+                console.error('Failed to load anime:', error);
+            }
+        }
+        
+        function startAutoScroll() {
+            autoScrollInterval = setInterval(() => {
+                const carousel = document.getElementById('trending-carousel');
+                const containerWidth = carousel.parentElement.offsetWidth;
+                const isMobile = window.innerWidth <= 768;
+                const cardWidth = isMobile ? 150 : 208;
+                const gap = isMobile ? 40 : 60;
+                const totalCardWidth = cardWidth + gap;
+                const totalWidth = animeCount * totalCardWidth;
+                const maxScroll = totalWidth - containerWidth;
+                const nextOffset = (currentIndex + 1) * totalCardWidth;
+                
+                if (nextOffset >= maxScroll) {
+                    carousel.style.transition = 'transform 0.3s ease';
+                    carousel.style.transform = 'translateX(0)';
+                    currentIndex = 0;
+                } else {
+                    currentIndex++;
+                    const offset = currentIndex * totalCardWidth;
+                    carousel.style.transition = 'transform 0.5s ease';
+                    carousel.style.transform = `translateX(-${offset}px)`;
+                }
+            }, 2500);
+        }
+        
+        const carousel = document.getElementById('trending-carousel');
+        carousel.addEventListener('mouseenter', () => clearInterval(autoScrollInterval));
+        carousel.addEventListener('mouseleave', startAutoScroll);
+        
+        loadTrendingAnime();
+    </script>
+
+    <script src="/static/js/index.js"></script>
+{% endblock %}

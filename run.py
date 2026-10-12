@@ -194,7 +194,7 @@ async def index_meta_en(request: Request):
     """Render the meta-only English addon page"""
     manifest_url = f'{Config.PROTOCOL}://{Config.REDIRECT_URL}/meta_en/manifest.json'
     manifest_magnet = f'stremio://{Config.REDIRECT_URL}/meta_en/manifest.json'
-    return templates.TemplateResponse(request, "index.html", {
+    return templates.TemplateResponse(request, "index_en.html", {
         "logged_in": True,
         "manifest_url": manifest_url,
         "manifest_magnet": manifest_magnet,
