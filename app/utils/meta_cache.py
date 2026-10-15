@@ -585,6 +585,18 @@ def _cache_resolved_mapping(mal_id: str, resolved: dict):
             existing = _redis_client.get(f"imdb:{imdb_id}")
             if not existing:
                 _redis_client.setex(f"imdb:{imdb_id}", 86400 * 7, _json.dumps([mini]))
+        # Update reverse TVDB -> MAL lookup for multi-season support
+        if resolved.get('tvdb_id'):
+            tvdb_key = f"tvdb:{resolved['tvdb_id']}"
+            existing_tvdb = _redis_client.get(tvdb_key)
+            tvdb_list = _json.loads(existing_tvdb) if existing_tvdb else []
+            if not isinstance(tvdb_list, list):
+                tvdb_list = [tvdb_list]
+            # Remove old entry for this mal_id, add updated
+            tvdb_list = [e for e in tvdb_list if e.get('mal_id') != int(mal_id)]
+            tvdb_list.append(mini)
+            tvdb_list.sort(key=lambda x: int(x.get('season', {}).get('tvdb', 0) if isinstance(x.get('season'), dict) else 0))
+            _redis_client.setex(tvdb_key, 86400 * 7, _json.dumps(tvdb_list))
     except Exception:
         pass
 
