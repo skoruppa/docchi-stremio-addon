@@ -80,7 +80,7 @@ async def main():
         for row in meta_rows:
             meta = orjson.loads(row['meta'])
             if meta.get('_untranslated_description'):
-                desc = meta.get('description', '')
+                desc = meta.get('_original_description') or meta.get('description', '')
                 if desc:
                     texts.append(desc)
                     metas.append((row['mal_id'], meta))
@@ -209,8 +209,8 @@ async def main():
             needs_overview = v.get("_untranslated_overview") and v.get("overview")
             if needs_title or needs_overview:
                 to_translate.append((i, {
-                    "title": v["title"] if needs_title else None,
-                    "overview": v["overview"] if needs_overview else None,
+                    "title": (v.get("_original_title") or v["title"]) if needs_title else None,
+                    "overview": (v.get("_original_overview") or v["overview"]) if needs_overview else None,
                 }))
 
         if not to_translate:
@@ -349,7 +349,7 @@ async def translate_single(mal_id: str, force: bool = False):
                     logging.warning(f"  [Meta] Could not fetch English description, using cached")
                     translated = await translate_to_polish(meta.get('description', ''))
             else:
-                translated = await translate_to_polish(meta.get('description', ''))
+                translated = await translate_to_polish(meta.get('_original_description') or meta.get('description', ''))
             if translated:
                 meta['description'] = translated
                 meta.pop('_untranslated_description', None)
@@ -410,8 +410,8 @@ async def translate_single(mal_id: str, force: bool = False):
             needs_overview = v.get("_untranslated_overview") and v.get("overview")
             if needs_title or needs_overview:
                 to_translate.append((i, {
-                    "title": v["title"] if needs_title else None,
-                    "overview": v["overview"] if needs_overview else None,
+                    "title": (v.get("_original_title") or v["title"]) if needs_title else None,
+                    "overview": (v.get("_original_overview") or v["overview"]) if needs_overview else None,
                 }))
 
     if not to_translate:
