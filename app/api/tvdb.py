@@ -270,7 +270,8 @@ async def get_series_episodes(tvdb_id: int, season_number: int = None, lang: str
 
 
 def _mark_untranslated(episodes: list, eng_episodes: list):
-    """Compare Polish episodes with English and mark untranslated fields. Fill missing from English."""
+    """Compare Polish episodes with English and mark untranslated fields. Fill missing from English.
+    Always stores English originals as _original_title/_original_overview for meta_en."""
     eng_map = {ep.get("number"): ep for ep in eng_episodes if ep.get("number")}
 
     for ep in episodes:
@@ -278,6 +279,12 @@ def _mark_untranslated(episodes: list, eng_episodes: list):
         if num <= 0:
             continue
         eng_ep = eng_map.get(num, {})
+
+        # Always store English originals for meta_en endpoint
+        if eng_ep.get("name"):
+            ep["_original_title"] = eng_ep["name"]
+        if eng_ep.get("overview"):
+            ep["_original_overview"] = eng_ep["overview"]
         
         # If overview matches English exactly or is missing, it's not translated
         if ep.get("overview") and eng_ep.get("overview") and ep["overview"] == eng_ep["overview"]:
@@ -708,6 +715,10 @@ def _build_videos_from_episodes(episodes: list, mal_id: str = None, season_numbe
             video["_untranslated_title"] = True
         if ep.get("_untranslated_overview"):
             video["_untranslated_overview"] = True
+        if ep.get("_original_title"):
+            video["_original_title"] = ep["_original_title"]
+        if ep.get("_original_overview"):
+            video["_original_overview"] = ep["_original_overview"]
         videos.append(video)
 
     return videos

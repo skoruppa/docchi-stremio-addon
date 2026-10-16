@@ -176,7 +176,12 @@ async def addon_meta(request: Request, meta_type: str, meta_id: str):
         original = meta.get('_original_description')
         if original:
             meta['description'] = original
-        # Also swap untranslated episode titles/overviews back to English (they already are English)
+        # Swap episode titles/overviews to English originals
+        for v in meta.get('videos', []):
+            if v.get('_original_title'):
+                v['title'] = v['_original_title']
+            if v.get('_original_overview'):
+                v['overview'] = v['_original_overview']
         # Remove internal translation flags from response
         meta.pop('_original_description', None)
         meta.pop('_untranslated_description', None)

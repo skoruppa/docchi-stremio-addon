@@ -436,6 +436,12 @@ async def get_anime_videos(tmdb_id: int, mal_id: str = None) -> list:
             if _untranslated_title or _untranslated_overview:
                 video["_untranslated"] = True
 
+            # Store English originals for meta_en endpoint
+            if eng_ep.get("name"):
+                video["_original_title"] = eng_ep["name"]
+            if eng_ep.get("overview"):
+                video["_original_overview"] = eng_ep["overview"]
+
             videos.append(video)
 
     return videos
