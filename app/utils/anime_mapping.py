@@ -399,7 +399,31 @@ def get_ids_from_mal_id(mal_id: str) -> dict:
                 result['tmdb_id'] = result['tmdb_id'] or resolved.get('themoviedb_id')
             if not (override and 'tvdb_season' in override):
                 result['tvdb_season'] = result['tvdb_season'] or (resolved.get('season', {}).get('tvdb') if resolved.get('season') else None)
+            # Ensure tvdb reverse lookup is up to date (may have been overwritten by _load_to_redis)
+            if result['tvdb_id']:
+                _ensure_tvdb_reverse_lookup(int(mal_id), result['tvdb_id'], resolved)
     return result
+
+
+def _ensure_tvdb_reverse_lookup(mal_id: int, tvdb_id: int, resolved: dict):
+    """Ensure this mal_id is in the tvdb:{id} reverse lookup list."""
+    if not _redis_client:
+        return
+    try:
+        tvdb_key = f"tvdb:{tvdb_id}"
+        existing = _redis_client.get(tvdb_key)
+        tvdb_list = json.loads(existing) if existing else []
+        if not isinstance(tvdb_list, list):
+            tvdb_list = [tvdb_list]
+        # Check if already present
+        if any(e.get('mal_id') == mal_id for e in tvdb_list):
+            return
+        # Add and sort
+        tvdb_list.append(resolved)
+        tvdb_list.sort(key=lambda x: int(x.get('season', {}).get('tvdb', 0) if isinstance(x.get('season'), dict) else 0))
+        _redis_client.setex(tvdb_key, 86400 * 7, json.dumps(tvdb_list))
+    except Exception:
+        pass
 
 def _get_imdb_items(imdb_id: str) -> list:
     """Get list of items for IMDB ID (can have multiple seasons)"""

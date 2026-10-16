@@ -1,5 +1,13 @@
 {
   "_comment": "Manual overrides for incorrect/missing anime-lists mappings. Keys are MAL IDs.",
+  "54344": {
+    "_name": "Mahou Shoujo Ikusei Keikaku: restart (S2)",
+    "imdb_id": "tt6135388",
+    "tvdb_id": 316815,
+    "tmdb_id": 68079,
+    "tvdb_season": 2,
+    "kitsu_id": 50338
+  },
   "56733": {
     "_name": "Magical Explorer",
     "imdb_id": "tt41296506",
