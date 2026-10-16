@@ -1622,6 +1622,47 @@ async def fetch_videos(mal_id: str) -> dict | str:
                     special_videos = _build_special_videos(specials)
                     videos.extend(special_videos)
                 
+                # Docchi fallback: if TVDB has 0 episodes for a season, generate from Docchi
+                covered_mal_ids = set(v.get('id', '').split(':')[1] for v in videos if v.get('id', '').startswith('mal:'))
+                for season_entry in all_seasons:
+                    s_mal = str(season_entry.get('mal_id'))
+                    s_tvdb_season = int(season_entry.get('season', {}).get('tvdb', 0)) if season_entry.get('season') else 0
+                    if s_mal and s_mal not in covered_mal_ids and s_tvdb_season > 0:
+                        # This season's MAL ID has no episodes from TVDB — try Docchi
+                        try:
+                            from app.routes import docchi_client
+                            from app.utils.anime_mapping import get_slug_from_mal_id
+                            slug = await get_slug_from_mal_id(s_mal)
+                            if slug:
+                                docchi_eps = await docchi_client.get_available_episodes(slug)
+                                if docchi_eps and isinstance(docchi_eps, list):
+                                    from datetime import datetime
+                                    for ep in docchi_eps:
+                                        ep_num = ep.get('anime_episode_number')
+                                        if ep_num:
+                                            created = ep.get('created_at', '')
+                                            released = None
+                                            if created:
+                                                try:
+                                                    released = datetime.fromisoformat(created.replace('Z', '+00:00')).strftime('%Y-%m-%dT%H:%M:%SZ')
+                                                except Exception:
+                                                    pass
+                                            videos.append({
+                                                'id': f"mal:{s_mal}:{ep_num}",
+                                                'title': f"Episode {ep_num}",
+                                                'released': released,
+                                                'available': True,
+                                                'season': s_tvdb_season,
+                                                'episode': ep_num,
+                                                'thumbnail': ep.get('bg'),
+                                                'overview': None,
+                                                '_untranslated_title': True,
+                                            })
+                                    if docchi_eps:
+                                        logging.info(f"[Docchi fallback] Added {len(docchi_eps)} episodes for mal:{s_mal} (S{s_tvdb_season})")
+                        except Exception as e:
+                            logging.warning(f"[Docchi fallback] Failed for mal:{s_mal}: {e}")
+
                 # Guard against regression: don't overwrite good cache with worse data
                 # If expired cache had titles/thumbnails/overviews and new data doesn't, keep the old
                 if expired_videos and videos:
