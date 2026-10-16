@@ -53,6 +53,10 @@ async def get_tmdb_images(tmdb_id: int, media_type: str = "tv") -> dict:
         best = pl_logo or en_logo or null_logo or ja_logo or logos[0]
         if best.get("file_path"):
             result["logo"] = f"{IMAGE_BASE}/original{best['file_path']}"
+        # Store English logo separately for meta_en
+        en_or_null = en_logo or null_logo
+        if en_or_null and en_or_null != best and en_or_null.get("file_path"):
+            result["_original_logo"] = f"{IMAGE_BASE}/original{en_or_null['file_path']}"
 
     # Background: highest rated backdrop
     backdrops = data.get("backdrops", [])

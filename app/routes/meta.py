@@ -176,15 +176,26 @@ async def addon_meta(request: Request, meta_type: str, meta_id: str):
         original = meta.get('_original_description')
         if original:
             meta['description'] = original
+        # Swap logo to English if available
+        if meta.get('_original_logo'):
+            meta['logo'] = meta['_original_logo']
         # Swap episode titles/overviews to English originals
         for v in meta.get('videos', []):
             if v.get('_original_title'):
                 v['title'] = v['_original_title']
             if v.get('_original_overview'):
                 v['overview'] = v['_original_overview']
-        # Remove internal translation flags from response
-        meta.pop('_original_description', None)
-        meta.pop('_untranslated_description', None)
+
+    # Strip internal fields from response (keep in cache, remove from output)
+    meta.pop('_original_description', None)
+    meta.pop('_original_logo', None)
+    meta.pop('_untranslated_description', None)
+    for v in meta.get('videos', []):
+        v.pop('_original_title', None)
+        v.pop('_original_overview', None)
+        v.pop('_untranslated', None)
+        v.pop('_untranslated_title', None)
+        v.pop('_untranslated_overview', None)
 
     response_data = {'meta': meta}
     if len(_response_cache) >= _MAX_RESPONSE_CACHE:

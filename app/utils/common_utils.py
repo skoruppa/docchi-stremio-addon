@@ -31,6 +31,8 @@ async def get_fanart_images(imdb_id: str = None, tvdb_id: int = None, tmdb_id: i
             tmdb_images = await get_tmdb_images(_tmdb_id, media_type)
             if tmdb_images.get("logo"):
                 result["logo"] = tmdb_images["logo"]
+            if tmdb_images.get("_original_logo"):
+                result["_original_logo"] = tmdb_images["_original_logo"]
             if tmdb_images.get("background"):
                 result["background"] = tmdb_images["background"]
         except Exception:

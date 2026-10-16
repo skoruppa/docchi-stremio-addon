@@ -497,6 +497,7 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
 
     # Fanart for logo, background (series-level) — already fetched in parallel above
     logo = fanart.get("logo")
+    _original_logo = fanart.get("_original_logo")
     background = fanart.get("background") or background
     # Only use fanart poster as absolute last resort (it's series-level, not season-specific)
     if not poster:
@@ -601,6 +602,8 @@ async def get_anime_meta(tvdb_id: int, mal_id: str = None, season_number: int = 
         result["_untranslated"] = True
     if _original_description:
         result["_original_description"] = _original_description
+    if _original_logo:
+        result["_original_logo"] = _original_logo
     return result
 
 
