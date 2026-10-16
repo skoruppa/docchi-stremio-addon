@@ -116,6 +116,7 @@ async def log_requests(request: Request, call_next):
 
 # Static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/meta_en/static", StaticFiles(directory="static"), name="static_meta_en")
 
 # Register routers (normal — mal mode)
 app.include_router(manifest_router)
@@ -204,6 +205,7 @@ async def index_meta_en(request: Request):
 
 
 @app.get('/favicon.ico')
+@app.get('/meta_en/favicon.ico')
 async def favicon():
     """Render the favicon for the app"""
     return FileResponse("static/favicon.ico")

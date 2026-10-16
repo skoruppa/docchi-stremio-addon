@@ -62,7 +62,7 @@ MANIFEST_META_EN = {
     'id': 'com.skoruppa.docchi-meta-en',
     'version': __version__,
     'name': 'Docchi Meta (English)',
-    'logo': 'https://stremio.docci.pl/static/logo.png',
+    'logo': 'https://stremio.docci.pl/meta_en/static/logo.png',
     'description': 'Rich anime metadata — backgrounds, logos, season posters, trailers, cast. Powered by TVDB, TMDB, Kitsu & fanart.tv.',
     'types': ['anime', 'series', 'movie'],
     'catalogs': [],
