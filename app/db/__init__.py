@@ -40,10 +40,11 @@ connection.executescript("""
         timestamp INTEGER
     );
     CREATE TABLE IF NOT EXISTS translation_queue (
-        mal_id TEXT PRIMARY KEY,
+        mal_id TEXT NOT NULL,
         queue_type TEXT NOT NULL DEFAULT 'both',
         tvdb_id INTEGER,
-        created_at INTEGER
+        created_at INTEGER,
+        PRIMARY KEY (mal_id, queue_type)
     );
 """)
 connection.commit()

@@ -60,12 +60,47 @@ async def lifespan(app: FastAPI):
     """)
     await execute("""
         CREATE TABLE IF NOT EXISTS translation_queue (
-            mal_id TEXT PRIMARY KEY,
+            mal_id TEXT NOT NULL,
             queue_type TEXT NOT NULL DEFAULT 'both',
             tvdb_id INTEGER,
-            created_at INTEGER
+            created_at INTEGER,
+            PRIMARY KEY (mal_id, queue_type)
         )
     """)
+    # Migrate translation_queue from single PK (mal_id) to composite PK (mal_id, queue_type)
+    # Old schema prevented having both 'meta' and 'videos' entries for the same anime
+    try:
+        existing = await execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='translation_queue'")
+        if existing and 'PRIMARY KEY (mal_id, queue_type)' not in (existing[0].get('sql') or existing[0][0] or ''):
+            logging.info("[Startup] Migrating translation_queue to composite primary key...")
+            await execute("ALTER TABLE translation_queue RENAME TO translation_queue_old")
+            await execute("""
+                CREATE TABLE translation_queue (
+                    mal_id TEXT NOT NULL,
+                    queue_type TEXT NOT NULL DEFAULT 'both',
+                    tvdb_id INTEGER,
+                    created_at INTEGER,
+                    PRIMARY KEY (mal_id, queue_type)
+                )
+            """)
+            await execute(
+                "INSERT OR IGNORE INTO translation_queue (mal_id, queue_type, tvdb_id, created_at) "
+                "SELECT mal_id, queue_type, tvdb_id, created_at FROM translation_queue_old"
+            )
+            await execute("DROP TABLE translation_queue_old")
+            # Re-populate queue — old PK caused entries to be silently dropped
+            await execute(
+                r"INSERT OR IGNORE INTO translation_queue (mal_id, queue_type, created_at) "
+                r"SELECT mal_id, 'meta', timestamp FROM meta_cache WHERE meta LIKE '%_untranslated_description%'"
+            )
+            await execute(
+                r"INSERT OR IGNORE INTO translation_queue (mal_id, queue_type, created_at) "
+                r"SELECT mal_id, 'videos', timestamp FROM videos_cache WHERE videos LIKE '%_untranslated_%'"
+            )
+            count_after = await execute("SELECT COUNT(*) as cnt FROM translation_queue WHERE mal_id != '__migrated__'")
+            logging.info(f"[Startup] Migration done, queue now has {count_after[0]['cnt']} entries")
+    except Exception as e:
+        logging.warning(f"[Startup] translation_queue migration check: {e}")
     # Populate translation_queue from existing data (one-time migration)
     marker = await execute("SELECT 1 FROM translation_queue WHERE mal_id='__migrated__'")
     if not marker:
