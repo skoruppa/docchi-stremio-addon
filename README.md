@@ -22,7 +22,7 @@ The addon currently supports **33 players** including:
 - **Lulustream**, **Vidtube**, **UPnShare/RPMShare**, **MP4Upload**
 - **EarnVid**, **StreamUP**, **Vidguard**, **Vidnest**, **Pixeldrain**
 - **Savefiles/StreamHG**, **Turbovid**, **Buzzheavier**, **Vidara**
-- **Vids.st**, **Abyss (HydraX)**, **ABStream**, **Veev**, **Vidoza**, **SendVid**
+- **Vids.st**, **Abyss (HydraX)**, **ABStream**, **Veev**, **Vidoza**, **SendVid**, **YourUpload**
 - **Uqload**\*, **Byse/Filemoon**\*, **Streamtape**\*, **VOE**\*
 
 **\* These players require full stream proxying through [MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy)** or local deployment
