@@ -92,6 +92,32 @@ async def _do_redirect(session: aiohttp.ClientSession, **id_params) -> tuple[int
     return None, None
 
 
+async def _fetch_anime_details(session: aiohttp.ClientSession, simkl_id: int) -> dict | None:
+    """GET /anime/{id}?extended=full (CF-cached)."""
+    async with session.get(
+        f"{SIMKL_URL}/anime/{simkl_id}",
+        params=_params(extended="full"),
+        headers=HEADERS,
+    ) as resp:
+        if resp.status != 200:
+            return None
+        return await resp.json()
+
+
+def _is_other_entry(data: dict, mal_id: int) -> bool:
+    """Whether Simkl redirected a MAL ID to a different title.
+
+    Simkl folds some side entries into their parent show, e.g. mal:39864 (Petit Clover
+    Advance, 15 specials) redirects to Black Clover (mal:34572). Using that entry's
+    TVDB data for the side entry splits the parent's episodes between both.
+    """
+    resolved_mal = str((data.get("ids") or {}).get("mal") or "")
+    if resolved_mal and resolved_mal != str(mal_id):
+        logging.info(f"[Simkl] mal:{mal_id} redirects to a different entry (mal:{resolved_mal}), ignoring")
+        return True
+    return False
+
+
 async def get_ids_from_mal(mal_id: int) -> dict | None:
     """Resolve all external IDs for an anime by MAL ID via Simkl.
 
@@ -107,15 +133,9 @@ async def get_ids_from_mal(mal_id: int) -> dict | None:
             if not simkl_id:
                 return None
 
-            details_url = f"{SIMKL_URL}/anime/{simkl_id}"
-            async with session.get(
-                details_url,
-                params=_params(extended="full"),
-                headers=HEADERS,
-            ) as resp:
-                if resp.status != 200:
-                    return None
-                data = await resp.json()
+            data = await _fetch_anime_details(session, simkl_id)
+            if not data or _is_other_entry(data, mal_id):
+                return None
 
             ids = data.get("ids", {})
             tvdb_id = int(ids["tvdb"]) if ids.get("tvdb") else None
@@ -156,6 +176,11 @@ async def get_episode_tvdb_mapping(mal_id: int) -> dict | None:
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
             simkl_id, _ = await _resolve_simkl_id(session, mal=mal_id)
             if not simkl_id:
+                return None
+
+            # The episode list of a different title would be mapped onto this one.
+            details = await _fetch_anime_details(session, simkl_id)
+            if details and _is_other_entry(details, mal_id):
                 return None
 
             episodes_url = f"{SIMKL_URL}/anime/episodes/{simkl_id}"
