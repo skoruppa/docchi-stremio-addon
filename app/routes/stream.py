@@ -232,7 +232,7 @@ def sort_priority(stream):
     _TOP_DIRECT = {'lycoris', 'gdrive', 'nanasubs'}
     _VK = {'vk'}
     _PROXY_NON_VIP = {'cda', 'sibnet'}
-    _VIP_PLAYERS = {'filemoon', 'uqload', 'streamtape', 'vidmoly', 'voe', 'dood'}
+    _VIP_PLAYERS = {'filemoon', 'uqload', 'streamtape', 'vidmoly', 'voe', 'dood', 'streamwish'}
 
     if player in _TOP_DIRECT:
         tier = 0
