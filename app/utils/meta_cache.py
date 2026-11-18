@@ -1624,10 +1624,11 @@ async def fetch_videos(mal_id: str) -> dict | str:
                 
                 # Docchi fallback: if TVDB has 0 episodes for a season, generate from Docchi
                 covered_mal_ids = set(v.get('id', '').split(':')[1] for v in videos if v.get('id', '').startswith('mal:'))
+                covered_seasons = set(v.get('season') for v in videos)
                 for season_entry in all_seasons:
                     s_mal = str(season_entry.get('mal_id'))
                     s_tvdb_season = int(season_entry.get('season', {}).get('tvdb', 0)) if season_entry.get('season') else 0
-                    if s_mal and s_mal not in covered_mal_ids and s_tvdb_season > 0:
+                    if s_mal and s_mal not in covered_mal_ids and s_tvdb_season > 0 and s_tvdb_season not in covered_seasons:
                         # This season's MAL ID has no episodes from TVDB — try Docchi
                         try:
                             from app.routes import docchi_client
@@ -1659,6 +1660,7 @@ async def fetch_videos(mal_id: str) -> dict | str:
                                                 '_untranslated_title': True,
                                             })
                                     if docchi_eps:
+                                        covered_seasons.add(s_tvdb_season)
                                         logging.info(f"[Docchi fallback] Added {len(docchi_eps)} episodes for mal:{s_mal} (S{s_tvdb_season})")
                         except Exception as e:
                             logging.warning(f"[Docchi fallback] Failed for mal:{s_mal}: {e}")
